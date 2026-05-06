@@ -1,103 +1,127 @@
 <template>
-  <div class="home">
-    <!-- HEADER -->
+  <div class="app">
+    <!-- Header -->
     <header class="header">
-      <h2>Shuttle Bus System</h2>
-      <button @click="goLogin">Login</button>
+      <div class="left">
+        <span class="icon">🚌</span>
+        <h1>Shuttle Bus System</h1>
+      </div>
+
+      <div class="right">
+        <div class="profile" @click="toggleMenu">
+          👤
+        </div>
+
+        <div v-if="showMenu" class="dropdown">
+          <div>Language</div>
+          <div>Log Out</div>
+        </div>
+      </div>
     </header>
 
-    <!-- MAP -->
-    <div id="map" class="map"></div>
-
-    <!-- INFO -->
-    <div class="info">
-      <div class="card">
-        <h3>🚌 Available Buses</h3>
-        <p>{{ buses.length }} buses running</p>
-      </div>
-
-      <div class="card">
-        <h3>⏱️ Next Arrival</h3>
-        <p>~ 5 minutes</p>
-      </div>
-
-      <div class="card">
-        <h3>📍 Popular Stop</h3>
-        <p>Gate 1</p>
-      </div>
-    </div>
+    <!-- Map -->
+    <div id="map"></div>
   </div>
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
-import L from 'leaflet'
-import 'leaflet/dist/leaflet.css'
+import { onMounted, ref } from "vue"
+import L from "leaflet"
+import "leaflet/dist/leaflet.css"
 
-const router = useRouter()
+const showMenu = ref(false)
 
-const buses = ref([
-  { id: 1, name: 'Bus A', lat: 13.7367, lng: 100.5231 },
-  { id: 2, name: 'Bus B', lat: 13.7380, lng: 100.5200 }
-])
-
-const goLogin = () => {
-  router.push('/')
+const toggleMenu = () => {
+  showMenu.value = !showMenu.value
 }
 
 onMounted(() => {
-  const map = L.map('map').setView([20.045143993832916, 99.8942217297103], 15)
+  const map = L.map("map").setView([20.04498749707566, 99.89428182346516], 15)
 
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; OpenStreetMap'
+  // Map layer
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    attribution: "&copy; OpenStreetMap"
   }).addTo(map)
 
-  // แสดงรถทุกคัน
-  buses.value.forEach(bus => {
-    L.marker([bus.lat, bus.lng])
-      .addTo(map)
-      .bindPopup(bus.name)
-  })
+  // Marker (ตัวอย่าง)
+  const marker1 = L.marker([20.04582132999694, 99.89134391063925]).addTo(map)
 
-  setTimeout(() => {
-    map.invalidateSize()
-  }, 100)
+  marker1.bindPopup(`
+    <b>Station: 9 - Swimming Pool</b><br>
+    People waiting now: 6<br>
+    No buses in the vicinity
+  `)
+
+  // จุดอื่นๆ (แดง)
+  const marker2 = L.marker([20.04566810292221, 99.89155253753619]).addTo(map)
+
+  marker2.bindPopup(`
+    <b>Station: 9 - Swimming Pool</b><br>
+    People waiting now: 6<br>
+    No buses in the vicinity
+  `)
+
+  const marker3 = L.marker([20.0473286489084, 99.8932291391427]).addTo(map)
+
+  marker3.bindPopup(`
+    <b>Station: 9 - Swimming Pool</b><br>
+    People waiting now: 6<br>
+    No buses in the vicinity
+  `)
 })
 </script>
 
 <style scoped>
-.home {
-  font-family: Arial;
-  padding: 20px;
+.app {
+  font-family: Arial, sans-serif;
 }
 
-/* HEADER */
+/* Header */
 .header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  background: #ff4d5a;
+  color: white;
+  padding: 15px 20px;
 }
 
-/* MAP */
-.map {
-  height: 350px;
-  margin-top: 15px;
-  border-radius: 10px;
-}
-
-/* INFO */
-.info {
+.left {
   display: flex;
-  gap: 15px;
-  margin-top: 20px;
+  align-items: center;
 }
 
-.card {
-  flex: 1;
-  background: #f5f5f5;
-  padding: 15px;
-  border-radius: 10px;
-  text-align: center;
+.left .icon {
+  font-size: 24px;
+  margin-right: 10px;
+}
+
+.right {
+  position: relative;
+}
+
+.profile {
+  cursor: pointer;
+  font-size: 22px;
+}
+
+/* Dropdown */
+.dropdown {
+  position: absolute;
+  right: 0;
+  top: 40px;
+  background: #ddd;
+  padding: 10px;
+  border-radius: 5px;
+}
+
+.dropdown div {
+  padding: 5px 10px;
+  cursor: pointer;
+}
+
+/* Map */
+#map {
+  height: calc(100vh - 70px);
 }
 </style>
