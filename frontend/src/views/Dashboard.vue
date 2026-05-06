@@ -1,164 +1,186 @@
 <template>
-  <div class="dashboard">
-    <!-- HEADER -->
-    <header class="header">
-      <h2>Shuttle Bus Dashboard</h2>
-      <button @click="logout">Logout</button>
-    </header>
+  <div class="layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="logo">🚌</div>
+      <div class="menu">
+        <div class="item active">🏷️</div>
+        <div class="item">📍</div>
+        <div class="item">🕒</div>
+        <div class="item">⚙️</div>
+      </div>
+    </aside>
 
-    <!-- MAIN -->
+    <!-- Main -->
     <div class="main">
-      <!-- MAP -->
-      <div id="map" class="map">
+      <!-- Header -->
+      <header class="header">
+        <h2>Dashboard</h2>
+        <div class="profile">👤</div>
+      </header>
+
+      <!-- Cards -->
+      <div class="cards">
+        <div class="card">Total Passengers<br><b>99</b></div>
+        <div class="card">Active Buses<br><b>3</b></div>
+        <div class="card">Still Buses<br><b>4</b></div>
+        <div class="card">Maintain Buses<br><b>10</b></div>
       </div>
 
-      <!-- RIGHT PANEL -->
-      <div class="side">
-        <!-- BUS STATUS -->
-        <div class="card">
-          <h3>Bus Status</h3>
-          <div v-for="bus in buses" :key="bus.id" class="bus">
-            <p><b>{{ bus.name }}</b></p>
-            <p>👥 {{ bus.passengers }}/{{ bus.capacity }}</p>
-            <p>🚦 {{ bus.status }}</p>
+      <!-- Content -->
+      <div class="content">
+        <!-- Left -->
+        <div class="left">
+          <div id="map"></div>
+          <canvas id="chart"></canvas>
+        </div>
+
+        <!-- Notifications -->
+        <div class="right">
+          <h3>Notifications</h3>
+
+          <div class="noti" v-for="i in 3" :key="i">
+            <b>Station: 14 - M-square</b><br>
+            Building Red Zone !!!<br>
+            People waiting now: 20 people
           </div>
         </div>
-
-        <!-- ALERT -->
-        <div class="card alert">
-          <h3>Alerts</h3>
-          <p v-if="alerts.length === 0">No alerts</p>
-          <p v-for="(a, i) in alerts" :key="i">⚠️ {{ a }}</p>
-        </div>
-      </div>
-    </div>
-
-    <!-- STATS -->
-    <div class="stats">
-      <div class="card">
-        <h3>Total Passengers</h3>
-        <p>{{ totalPassengers }}</p>
       </div>
 
-      <div class="card">
-        <h3>Peak Time</h3>
-        <p>08:00 - 09:00</p>
-      </div>
-
-      <div class="card">
-        <h3>Active Buses</h3>
-        <p>{{ buses.length }}</p>
+      <!-- History -->
+      <div class="history">
+        History
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
-import { onMounted } from 'vue'
-import L from 'leaflet'
-import 'leaflet/dist/leaflet.css'
-
-const buses = ref([
-  { id: 1, name: 'Bus A', passengers: 25, capacity: 40, status: 'Running' },
-  { id: 2, name: 'Bus B', passengers: 40, capacity: 40, status: 'Full' },
-  { id: 3, name: 'Bus C', passengers: 10, capacity: 40, status: 'Idle' }
-])
-
-const alerts = ref([
-  'Bus B is full',
-  'Bus C delayed'
-])
-
-const totalPassengers = computed(() =>
-  buses.value.reduce((sum, b) => sum + b.passengers, 0)
-)
-
-const logout = () => {
-  alert('Logout')
-}
+import { onMounted } from "vue"
+import L from "leaflet"
+import "leaflet/dist/leaflet.css"
+import Chart from "chart.js/auto"
 
 onMounted(() => {
-  const map = L.map('map').setView([20.045143993832916, 99.8942217297103], 15)
+  // 🗺️ Map
+  const map = L.map("map").setView([20.0458, 99.8913], 15)
 
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; OpenStreetMap'
-  }).addTo(map)
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map)
 
-  // marker รถ
-  L.marker([20.045451319471645, 99.89126037506306])
-    .addTo(map)
-    .bindPopup('Bus A')
+  L.marker([20.0458, 99.8913]).addTo(map)
+    .bindPopup("Station 9")
+
+  // 📊 Chart
+  new Chart(document.getElementById("chart"), {
+    type: "line",
+    data: {
+      labels: ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"],
+      datasets: [{
+        label: "Passengers",
+        data: [10, 40, 20, 35, 25, 45, 15],
+        fill: true,
+        tension: 0.4
+      }]
+    }
+  })
 })
-
 </script>
 
 <style scoped>
-.dashboard {
+.layout {
+  display: flex;
+  height: 100vh;
   font-family: Arial;
-  padding: 20px;
 }
 
-/* HEADER */
+/* Sidebar */
+.sidebar {
+  width: 70px;
+  background: #ff2d55;
+  color: white;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.logo {
+  font-size: 28px;
+  margin: 20px 0;
+}
+
+.menu .item {
+  margin: 15px 0;
+  cursor: pointer;
+}
+
+/* Main */
+.main {
+  flex: 1;
+  background: #eee;
+  padding: 10px;
+}
+
+/* Header */
 .header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
 }
 
-/* MAIN LAYOUT */
-.main {
-  display: flex;
-  gap: 20px;
-  margin-top: 20px;
+/* Cards */
+.cards {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin: 10px 0;
 }
 
-/* MAP */
-.map {
-  flex: 2;
-  height: 100;
-  background: #eee;
-  border-radius: 10px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-}
-
-/* SIDE PANEL */
-.side {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 15px;
-}
-
-/* CARD */
 .card {
-  background: #f5f5f5;
+  background: #ddd;
   padding: 15px;
   border-radius: 10px;
-}
-
-/* BUS ITEM */
-.bus {
-  margin-bottom: 10px;
-  border-bottom: 1px solid #ddd;
-}
-
-/* ALERT */
-.alert {
-  background: #ffe5e5;
-}
-
-/* STATS */
-.stats {
-  display: flex;
-  gap: 20px;
-  margin-top: 20px;
-}
-
-.stats .card {
-  flex: 1;
   text-align: center;
+}
+
+/* Content */
+.content {
+  display: flex;
+  gap: 10px;
+}
+
+.left {
+  flex: 2;
+}
+
+#map {
+  height: 250px;
+  margin-bottom: 10px;
+}
+
+canvas {
+  background: white;
+  border-radius: 10px;
+}
+
+/* Right */
+.right {
+  flex: 1;
+  background: #ddd;
+  padding: 10px;
+  border-radius: 10px;
+}
+
+.noti {
+  background: #ccc;
+  padding: 10px;
+  margin: 10px 0;
+  border-radius: 10px;
+}
+
+/* History */
+.history {
+  margin-top: 10px;
+  background: #ddd;
+  height: 120px;
+  border-radius: 10px;
 }
 </style>
