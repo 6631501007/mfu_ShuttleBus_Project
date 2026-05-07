@@ -2,12 +2,12 @@
   <div class="layout">
     <!-- Sidebar -->
     <aside class="sidebar">
-      <div class="logo">🚌</div>
+      <router-link to="/dashboard" class="logo">🚌</router-link>
       <div class="menu">
-        <div class="item active">🏷️</div>
-        <div class="item">📍</div>
-        <div class="item">🕒</div>
-        <div class="item">⚙️</div>
+        <router-link to="/dashboard" class="item" title="Dashboard">📊</router-link>
+        <router-link to="/home" class="item" title="Map">🗺️</router-link>
+        <router-link to="/history" class="item" title="History">🕒</router-link>
+        <router-link to="/" class="item" title="Sign Out">🚪</router-link>
       </div>
     </aside>
 
@@ -57,9 +57,12 @@
 
 <script setup>
 import { onMounted } from "vue"
+import { useRouter } from "vue-router"
 import L from "leaflet"
 import "leaflet/dist/leaflet.css"
 import Chart from "chart.js/auto"
+
+const useRouter_var = useRouter()
 
 onMounted(() => {
   // 🗺️ Map
@@ -95,22 +98,61 @@ onMounted(() => {
 
 /* Sidebar */
 .sidebar {
-  width: 70px;
+  width: 100px;
   background: #ff2d55;
   color: white;
   display: flex;
   flex-direction: column;
   align-items: center;
+  padding: 15px 0;
 }
 
 .logo {
-  font-size: 28px;
+  font-size: 40px;
   margin: 20px 0;
+  text-decoration: none;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.3s ease;
+}
+
+.logo:hover {
+  transform: scale(1.1);
+}
+
+.menu {
+  display: flex;
+  flex-direction: column;
+  gap: 25px;
+  width: 100%;
 }
 
 .menu .item {
-  margin: 15px 0;
+  font-size: 32px;
   cursor: pointer;
+  text-decoration: none;
+  color: rgba(255, 255, 255, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 15px 0;
+  transition: all 0.3s ease;
+  border-left: 4px solid transparent;
+}
+
+.menu .item:hover {
+  color: white;
+  transform: scale(1.1);
+}
+
+.menu .item:global(.router-link-active) {
+  color: white;
+  border-left-color: white;
+  background: rgba(255, 255, 255, 0.25);
 }
 
 /* Main */
