@@ -4,9 +4,9 @@
     <aside class="sidebar">
       <div class="logo">🚌</div>
       <div class="menu">
-        <div class="item">🏷️</div>
-        <div class="item">📍</div>
-        <div class="item active">🕒</div>
+        <router-link to="/dashboard" class="item">🏷️</router-link>
+        <router-link to="/home" class="item">📍</router-link>
+        <router-link to="/history" class="item active">🕒</router-link>
         <div class="item">⚙️</div>
       </div>
     </aside>
@@ -16,7 +16,10 @@
       <!-- Header -->
       <header class="header">
         <h1>History</h1>
-        <div class="profile">👤</div>
+        <div class="profile">
+          <span>Welcome, {{ user?.username }}</span>
+          <button @click="logout" class="logout-btn">Logout</button>
+        </div>
       </header>
 
       <!-- Top Section -->
@@ -91,37 +94,53 @@
 </template>
 
 <script setup>
-import { ref, computed } from "vue"
+import { ref, computed } from "vue";
+import { useRouter } from "vue-router";
 
-const month = ref(9)
-const year = ref(2025)
-const selectedDay = ref(13)
-const busFilter = ref("all")
+const router = useRouter();
+const user = ref(null);
 
-const days = Array.from({ length: 30 }, (_, i) => i + 1)
+// Load user data
+const userData = localStorage.getItem("user");
+if (userData) {
+  user.value = JSON.parse(userData);
+}
+
+const logout = () => {
+  localStorage.removeItem("token");
+  localStorage.removeItem("user");
+  router.push("/");
+};
+
+const month = ref(9);
+const year = ref(2025);
+const selectedDay = ref(13);
+const busFilter = ref("all");
+
+const days = Array.from({ length: 30 }, (_, i) => i + 1);
 
 const selectedDate = computed(() => {
-  return `${selectedDay.value}/${month.value}/${year.value}`
-})
+  return `${selectedDay.value}/${month.value}/${year.value}`;
+});
 
 const data = ref([
   { bus: "BUS A", route: "LINE 1", depart: "8.00", arrive: "9.00", station: 1, driver: "Mr.Yod" },
   { bus: "BUS B", route: "LINE 2", depart: "9.00", arrive: "10.00", station: 2, driver: "Mr.Gun" },
   { bus: "BUS C", route: "LINE 1", depart: "10.00", arrive: "11.00", station: 3, driver: "Mr.Chad" }
-])
+]);
 
 const filteredData = computed(() => {
-  if (busFilter.value === "all") return data.value
-  return data.value.filter(d => d.bus.includes(busFilter.value))
-})
+  if (busFilter.value === "all") return data.value;
+  return data.value.filter(d => d.bus.includes(busFilter.value));
+});
 
 const prevMonth = () => {
-  if (month.value > 1) month.value--
-}
+  if (month.value > 1) month.value--;
+};
 
 const nextMonth = () => {
-  if (month.value < 12) month.value++
-}
+  if (month.value < 12) month.value++;
+};
 </script>
 
 <style scoped>
@@ -147,8 +166,12 @@ const nextMonth = () => {
 }
 
 .menu .item {
-  margin: 15px 0;
+  margin: 20px 0;
   cursor: pointer;
+  text-decoration: none;
+  color: inherit;
+  display: block;
+  font-size: 24px;
 }
 
 /* Main */
@@ -162,6 +185,22 @@ const nextMonth = () => {
 .header {
   display: flex;
   justify-content: space-between;
+  align-items: center;
+}
+
+.profile {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.logout-btn {
+  background: #ff2d55;
+  color: white;
+  border: none;
+  padding: 5px 10px;
+  border-radius: 5px;
+  cursor: pointer;
 }
 
 /* Top */

@@ -15,6 +15,22 @@ const routes = [
 const router = createRouter({
   history: createWebHistory(),
   routes,
-})
+});
+
+// Authentication guard
+router.beforeEach((to, from, next) => {
+  const token = localStorage.getItem('token');
+  const isAuthenticated = !!token;
+
+  if (to.path === '/' && isAuthenticated) {
+    // If authenticated and trying to access login, redirect to dashboard
+    next('/dashboard');
+  } else if (to.path !== '/' && !isAuthenticated) {
+    // If not authenticated and trying to access protected route, redirect to login
+    next('/');
+  } else {
+    next();
+  }
+});
 
 export default router

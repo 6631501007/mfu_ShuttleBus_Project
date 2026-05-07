@@ -14,12 +14,13 @@
 
     <!-- SIGN IN -->
     <div class="form-container sign-in-container">
-      <form>
+      <form @submit.prevent="handleSignIn">
         <h1>Sign in</h1>
-        <input type="text" placeholder="Username" />
-        <input type="password" placeholder="Password" />
+        <input type="text" placeholder="Username" v-model="username" />
+        <input type="password" placeholder="Password" v-model="password" />
+        <div v-if="error" class="error">{{ error }}</div>
         <a href="#">Forgot your password?</a>
-        <button>SIGN IN</button>
+        <button type="submit">SIGN IN</button>
       </form>
     </div>
 
@@ -51,8 +52,50 @@
 
 <script setup>
 import { ref } from "vue";
+import { useRouter } from "vue-router";
 
+const router = useRouter();
 const isSignUp = ref(false);
+
+const username = ref("");
+const password = ref("");
+const error = ref("");
+
+const handleSignIn = async () => {
+  if (!username.value || !password.value) {
+    error.value = "Please fill in all fields";
+    return;
+  }
+
+  try {
+    const response = await fetch("http://localhost:3000/api/login", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        username: username.value,
+        password: password.value,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (response.ok) {
+      // Store token in localStorage
+      localStorage.setItem("token", data.token);
+      localStorage.setItem("user", JSON.stringify(data.user));
+
+      // Navigate to dashboard
+      router.push("/dashboard");
+    } else {
+      error.value = data.message || "Login failed";
+    }
+  } catch (err) {
+    error.value = "Network error. Please try again.";
+    console.error(err);
+  }
+};
 </script>
 
 <style scoped>
@@ -140,6 +183,12 @@ button {
 button.ghost {
   background: transparent;
   border: 1px solid white;
+}
+
+.error {
+  color: red;
+  font-size: 14px;
+  margin: 10px 0;
 }
 
 /* OVERLAY */

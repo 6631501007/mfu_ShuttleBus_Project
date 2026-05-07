@@ -4,9 +4,9 @@
     <aside class="sidebar">
       <div class="logo">🚌</div>
       <div class="menu">
-        <div class="item active">🏷️</div>
-        <div class="item">📍</div>
-        <div class="item">🕒</div>
+        <router-link to="/dashboard" class="item active">🏷️</router-link>
+        <router-link to="/home" class="item">📍</router-link>
+        <router-link to="/history" class="item">🕒</router-link>
         <div class="item">⚙️</div>
       </div>
     </aside>
@@ -16,7 +16,10 @@
       <!-- Header -->
       <header class="header">
         <h2>Dashboard</h2>
-        <div class="profile">👤</div>
+        <div class="profile">
+          <span>Welcome, {{ user?.username }}</span>
+          <button @click="logout" class="logout-btn">Logout</button>
+        </div>
       </header>
 
       <!-- Cards -->
@@ -56,34 +59,51 @@
 </template>
 
 <script setup>
-import { onMounted } from "vue"
-import L from "leaflet"
-import "leaflet/dist/leaflet.css"
-import Chart from "chart.js/auto"
+import { ref, onMounted } from "vue";
+import { useRouter } from "vue-router";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
+import Chart from "chart.js/auto";
+
+const router = useRouter();
+const user = ref(null);
+
+const logout = () => {
+  localStorage.removeItem("token");
+  localStorage.removeItem("user");
+  router.push("/");
+};
 
 onMounted(() => {
+  // Get user data from localStorage
+  const userData = localStorage.getItem("user");
+  if (userData) {
+    user.value = JSON.parse(userData);
+  }
+
   // 🗺️ Map
-  const map = L.map("map").setView([20.0458, 99.8913], 15)
+  const map = L.map("map").setView([20.0458, 99.8913], 15);
 
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map)
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map);
 
-  L.marker([20.0458, 99.8913]).addTo(map)
-    .bindPopup("Station 9")
+  L.marker([20.0458, 99.8913]).addTo(map).bindPopup("Station 9");
 
   // 📊 Chart
   new Chart(document.getElementById("chart"), {
     type: "line",
     data: {
-      labels: ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"],
-      datasets: [{
-        label: "Passengers",
-        data: [10, 40, 20, 35, 25, 45, 15],
-        fill: true,
-        tension: 0.4
-      }]
-    }
-  })
-})
+      labels: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+      datasets: [
+        {
+          label: "Passengers",
+          data: [10, 40, 20, 35, 25, 45, 15],
+          fill: true,
+          tension: 0.4,
+        },
+      ],
+    },
+  });
+});
 </script>
 
 <style scoped>
@@ -109,8 +129,12 @@ onMounted(() => {
 }
 
 .menu .item {
-  margin: 15px 0;
+  margin: 20px 0;
   cursor: pointer;
+  text-decoration: none;
+  color: inherit;
+  display: block;
+  font-size: 24px;
 }
 
 /* Main */
@@ -124,6 +148,22 @@ onMounted(() => {
 .header {
   display: flex;
   justify-content: space-between;
+  align-items: center;
+}
+
+.profile {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.logout-btn {
+  background: #ff2d55;
+  color: white;
+  border: none;
+  padding: 5px 10px;
+  border-radius: 5px;
+  cursor: pointer;
 }
 
 /* Cards */
