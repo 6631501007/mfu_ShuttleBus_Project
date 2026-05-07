@@ -3,23 +3,23 @@
     
     <!-- SIGN UP -->
     <div class="form-container sign-up-container">
-      <form>
+      <form @submit.prevent="handleSignUp">
         <h1>Create Account</h1>
-        <input type="text" placeholder="Username" />
-        <input type="password" placeholder="Password" />
-        <input type="password" placeholder="Confirm Password" />
-        <button>SIGN UP</button>
+        <input type="text" placeholder="Username" required />
+        <input type="password" placeholder="Password" required />
+        <input type="password" placeholder="Confirm Password" required />
+        <button type="submit">SIGN UP</button>
       </form>
     </div>
 
     <!-- SIGN IN -->
     <div class="form-container sign-in-container">
-      <form>
+      <form @submit.prevent="handleLogin">
         <h1>Sign in</h1>
-        <input type="text" placeholder="Username" />
-        <input type="password" placeholder="Password" />
+        <input type="text" placeholder="Username" required />
+        <input type="password" placeholder="Password" required />
         <a href="#">Forgot your password?</a>
-        <button>SIGN IN</button>
+        <button type="submit">SIGN IN</button>
       </form>
     </div>
 
@@ -51,8 +51,18 @@
 
 <script setup>
 import { ref } from "vue";
+import { useRouter } from "vue-router";
 
+const router = useRouter();
 const isSignUp = ref(false);
+
+const handleLogin = () => {
+  router.push("/dashboard");
+};
+
+const handleSignUp = () => {
+  router.push("/dashboard");
+};
 </script>
 
 <style scoped>
