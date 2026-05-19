@@ -479,6 +479,55 @@ body {
   align-items: center;
 }
 
+.top-title h2 {
+  font-size: 20px;
+  color: #333;
+}
+
+.top-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.search-box {
+  background: white;
+  border-radius: 12px;
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  width: 260px;
+  border: 1px solid #eee;
+}
+
+.search-box input {
+  border: none;
+  outline: none;
+  margin-left: 10px;
+  width: 100%;
+}
+
+.top-actions i {
+  font-size: 22px;
+  color: #777;
+}
+
+.top-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: #ddd;
+}
+
+/* PAGE TITLE */
+.page-title {
+  margin-top: 34px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px 0;
+}
+
 .page-title h1 {
   color: #d72660;
   font-size: 36px;
