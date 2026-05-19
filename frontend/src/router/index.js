@@ -10,6 +10,7 @@ const routes = [
   { path: '/', component: Login },
   { path: '/dashboard', component: Dashboard },
   { path: '/history', component: History },
+  { path: '/setting', component: Setting },
   { path: '/home', component: Home },
   { path: '/livefeed', component: Livefeed},
 ]
