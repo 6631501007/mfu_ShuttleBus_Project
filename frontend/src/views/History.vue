@@ -43,21 +43,36 @@
     <!-- MAIN -->
     <main class="main">
       <!-- TOPBAR -->
-      <header class="topbar">
-        <div class="top-title">
-          <h2>APC & Queue Monitor</h2>
-        </div>
-
-        <div class="top-actions">
-          <div class="search-box">
-            <i class='bx bx-search'></i>
-            <input type="text" placeholder="Search analytics..." />
+      <header class="top-header">
+        <div class="header-left">
+          <h2 class="header-title">Analytics</h2>
+          <div class="search-bar">
+            <i class='bx bx-search search-icon'></i>
+            <input class="search-input" type="text" placeholder="Search analytics..." />
           </div>
-
-          <i class='bx bx-bell'></i>
-          <i class='bx bx-wifi'></i>
-
-          <div class="top-avatar"></div>
+        </div>
+ 
+        <div class="header-right">
+          <div class="action-icons">
+            <i class='bx bx-bell icon-btn'></i>
+            <div class="lang-switcher">
+              <i class='bx bx-globe'></i>
+              <span class="lang-text">English</span>
+              <i class='bx bx-chevron-down'></i>
+            </div>
+          </div>
+ 
+          <div class="profile-dropdown-container">
+            <div class="profile-circle" @click="isDropdownOpen = !isDropdownOpen">
+              <i class='bx bxs-user'></i>
+            </div>
+            <div class="dropdown-menu" v-show="isDropdownOpen">
+              <div class="dropdown-item"><i class='bx bx-user-circle'></i> Profile</div>
+              <div class="dropdown-item"><i class='bx bx-transfer-alt'></i> Switch Accounts</div>
+              <div class="dropdown-divider"></div>
+              <div class="dropdown-item logout-item"><i class='bx bx-log-out'></i> Log out</div>
+            </div>
+          </div>
         </div>
       </header>
 
@@ -312,6 +327,13 @@
 </template>
 
 <script setup>
+import { ref, onMounted, onUnmounted } from 'vue';
+const isDropdownOpen = ref(false);
+const closeDropdown = (e) => {
+  if (!e.target.closest('.profile-dropdown-container')) isDropdownOpen.value = false;
+};
+onMounted(() => document.addEventListener('click', closeDropdown));
+onUnmounted(() => document.removeEventListener('click', closeDropdown));
 </script>
 
 <style scoped>
@@ -425,50 +447,159 @@ body {
 }
 
 /* TOPBAR */
-.topbar {
+.top-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  margin-bottom: 24px;
 }
 
-.top-title h2 {
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+}
+
+.header-title {
+  font-family: 'Inter', sans-serif;
   font-size: 20px;
-  color: #333;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0;
+  white-space: nowrap;
 }
 
-.top-actions {
+.search-bar {
+  background: #e5e7eb;
+  padding: 8px 16px;
+  border-radius: 20px;
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 8px;
+  width: 300px;
 }
 
-.search-box {
-  background: white;
-  border-radius: 12px;
-  padding: 10px 14px;
-  display: flex;
-  align-items: center;
-  width: 260px;
-  border: 1px solid #eee;
+.search-icon {
+  font-size: 18px;
+  color: #6b7280;
 }
 
-.search-box input {
+.search-input {
   border: none;
+  background: transparent;
   outline: none;
-  margin-left: 10px;
   width: 100%;
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  color: #4b5563;
 }
 
-.top-actions i {
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.action-icons {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+
+.icon-btn {
+  cursor: pointer;
   font-size: 22px;
-  color: #777;
+  color: #6b7280;
 }
 
-.top-avatar {
-  width: 38px;
-  height: 38px;
+.lang-switcher {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 2px solid #1f2937;
+  border-radius: 20px;
+  padding: 4px 12px;
+  cursor: pointer;
+  background: #fff;
+}
+
+.lang-text {
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  color: #1f2937;
+}
+
+.profile-dropdown-container {
+  position: relative;
+}
+
+.profile-circle {
+  width: 40px;
+  height: 40px;
+  background: #e5e7eb;
   border-radius: 50%;
-  background: #ddd;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 20px;
+  color: #4b5563;
+  border: 2px solid transparent;
+  transition: all .2s;
+}
+
+.profile-circle:hover {
+  border-color: #d72660;
+  background: #fff0f5;
+  color: #d72660;
+}
+
+.dropdown-menu {
+  position: absolute;
+  top: 50px;
+  right: 0;
+  background: #fff;
+  box-shadow: 0 4px 12px rgba(0,0,0,.1);
+  border-radius: 12px;
+  width: 200px;
+  overflow: hidden;
+  z-index: 100;
+  border: 1px solid #f3f4f6;
+}
+
+.dropdown-item {
+  padding: 12px 16px;
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  color: #374151;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transition: background .2s;
+}
+
+.dropdown-item i {
+  font-size: 18px;
+}
+
+.dropdown-item:hover {
+  background: #f3f4f6;
+  color: #d72660;
+}
+
+.dropdown-divider {
+  height: 1px;
+  background: #e5e7eb;
+}
+
+.logout-item {
+  color: #d72660;
+}
+
+.logout-item:hover {
+  background: #fff0f5;
 }
 
 /* PAGE TITLE */

@@ -8,7 +8,7 @@
         </div>
 
         <nav class="menu">
-          <div class="menu-item menu-active">
+          <div class="menu-item">
             <i class='bx bx-grid-alt menu-icon'></i>
             <span class="menu-label">Dashboard</span>
           </div>
@@ -410,6 +410,11 @@ onUnmounted(() => document.removeEventListener('click', closeDropdown));
   border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
   cursor: pointer; font-size: 20px; color: #4b5563;
+}
+.profile-circle:hover {
+  border-color: #d72660;
+  background: #fff0f5;
+  color: #d72660;
 }
 .dropdown-menu {
   position: absolute; top: 50px; right: 0;
