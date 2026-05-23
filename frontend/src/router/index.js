@@ -2,15 +2,15 @@ import { createRouter, createWebHistory } from 'vue-router'
 
 import Login from '../views/Login.vue'
 import Dashboard from '../views/Dashboard.vue'
-import History from '../views/History.vue'
 import Home from '../views/Home.vue'
 import Livefeed from '../views/Livefeed.vue'
 import Setting from '../views/Setting.vue'
+import Analytics from '../views/Analytics.vue'
 
 const routes = [
   { path: '/', component: Login },
   { path: '/dashboard', component: Dashboard },
-  { path: '/history', component: History },
+  { path: '/analytics', component: Analytics },
   { path: '/setting', component: Setting },
   { path: '/home', component: Home },
   { path: '/livefeed', component: Livefeed},
