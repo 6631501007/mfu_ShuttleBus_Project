@@ -5,6 +5,7 @@ import Dashboard from '../views/Dashboard.vue'
 import History from '../views/History.vue'
 import Home from '../views/Home.vue'
 import Setting from '../views/Setting.vue'
+import Livefeed from '../views/Livefeed.vue'
 
 const routes = [
   { path: '/', component: Login },
@@ -12,6 +13,7 @@ const routes = [
   { path: '/history', component: History },
   { path: '/setting', component: Setting },
   { path: '/home', component: Home },
+  { path: '/livefeed', component: Livefeed },
 ]
 
 const router = createRouter({
