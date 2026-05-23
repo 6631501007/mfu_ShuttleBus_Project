@@ -5,6 +5,7 @@ import Dashboard from '../views/Dashboard.vue'
 import History from '../views/History.vue'
 import Home from '../views/Home.vue'
 import Livefeed from '../views/Livefeed.vue'
+import Setting from '../views/Setting.vue'
 
 const routes = [
   { path: '/', component: Login },
