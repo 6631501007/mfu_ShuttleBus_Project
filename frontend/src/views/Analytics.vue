@@ -14,7 +14,7 @@
             <span>Dashboard</span>
           </div>
 
-          <div class="menu-item active">
+          <div class="menu-item">
             <i class='bx bx-line-chart'></i>
             <span>Analytics</span>
           </div>
