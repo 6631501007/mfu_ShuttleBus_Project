@@ -1,48 +1,38 @@
 <template>
   <div class="container" :class="{ 'right-panel-active': isSignUp }">
     
-    <!-- SIGN UP -->
     <div class="form-container sign-up-container">
       <form @submit.prevent="handleSignUp">
         <h1>Create Account</h1>
-        <input type="text" placeholder="Username" required />
-        <input type="password" placeholder="Password" required />
-        <input type="password" placeholder="Confirm Password" required />
+        <input v-model="signupUsername" type="text" placeholder="Username" required />
+        <input v-model="signupPassword" type="password" placeholder="Password" required />
+        <input v-model="signupConfirmPassword" type="password" placeholder="Confirm Password" required />
         <button type="submit">SIGN UP</button>
       </form>
     </div>
 
-    <!-- SIGN IN -->
     <div class="form-container sign-in-container">
       <form @submit.prevent="handleLogin">
         <h1>Sign in</h1>
-        <input type="text" placeholder="Username" required />
-        <input type="password" placeholder="Password" required />
+        <input v-model="loginUsername" type="text" placeholder="Username" required />
+        <input v-model="loginPassword" type="password" placeholder="Password" required />
         <a href="#">Forgot your password?</a>
         <button type="submit">SIGN IN</button>
       </form>
     </div>
 
-    <!-- OVERLAY -->
     <div class="overlay-container">
       <div class="overlay">
-        
         <div class="overlay-panel overlay-left">
           <h1>Welcome Back!</h1>
           <p>To keep connected with us please login</p>
-          <button class="ghost" @click="isSignUp = false">
-            SIGN IN
-          </button>
+          <button class="ghost" @click="isSignUp = false">SIGN IN</button>
         </div>
-
         <div class="overlay-panel overlay-right">
           <h1>Hello, Friend!</h1>
           <p>Enter your details and start journey</p>
-          <button class="ghost" @click="isSignUp = true">
-            SIGN UP
-          </button>
+          <button class="ghost" @click="isSignUp = true">SIGN UP</button>
         </div>
-
       </div>
     </div>
 
@@ -50,19 +40,79 @@
 </template>
 
 <script setup>
-import { ref } from "vue";
-import { useRouter } from "vue-router";
+import { ref } from 'vue'
+import { useRouter } from 'vue-router'
 
-const router = useRouter();
-const isSignUp = ref(false);
+const router = useRouter()
+const isSignUp = ref(false)
 
-const handleLogin = () => {
-  router.push("/dashboard");
-};
+const loginUsername = ref('')
+const loginPassword = ref('')
 
-const handleSignUp = () => {
-  router.push("/dashboard");
-};
+const signupUsername = ref('')
+const signupPassword = ref('')
+const signupConfirmPassword = ref('')
+
+const handleLogin = async () => {
+  try {
+    const res = await fetch('http://localhost:3000/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: loginUsername.value,
+        password: loginPassword.value
+      })
+    })
+
+    const data = await res.json()
+
+    if (!res.ok) {
+      alert(data.message)
+      return
+    }
+
+    localStorage.setItem('token', data.token)
+    localStorage.setItem('role', data.user.role)
+
+    if (data.user.role === 'admin') {
+      router.push('/dashboard')
+    } else {
+      router.push('/home')
+    }
+
+  } catch (err) {
+    alert('Cannot connect to server')
+    console.error(err)
+  }
+}
+
+const handleSignUp = async () => {
+  try {
+    const res = await fetch('http://localhost:3000/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: signupUsername.value,
+        password: signupPassword.value,
+        confirmPassword: signupConfirmPassword.value
+      })
+    })
+
+    const data = await res.json()
+
+    if (!res.ok) {
+      alert(data.message)
+      return
+    }
+
+    alert('Register Success! Please Sign In')
+    isSignUp.value = false
+
+  } catch (err) {
+    alert('Cannot connect to server')
+    console.error(err)
+  }
+}
 </script>
 
 <style scoped>
@@ -74,7 +124,7 @@ const handleSignUp = () => {
 .container {
   width: 100vw;
   height: 100vh;
-  border-radius: 0;   /* เอามุมโค้งออก */
+  border-radius: 0;
   margin: 0;
 }
 

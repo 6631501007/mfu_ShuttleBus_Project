@@ -8,19 +8,19 @@
         </div>
 
         <nav class="menu">
-          <div class="menu-item">
+          <div class="menu-item" @click="router.push('/dashboard')">
             <i class='bx bx-grid-alt menu-icon'></i>
             <span class="menu-label">Dashboard</span>
           </div>
-          <div class="menu-item">
+          <div class="menu-item" @click="router.push('/analytics')">
             <i class='bx bx-line-chart menu-icon'></i>
             <span class="menu-label">Analytics</span>
           </div>
-          <div class="menu-item">
+          <div class="menu-item" @click="router.push('/livefeed')">
             <i class='bx bx-video menu-icon'></i>
             <span class="menu-label">Live Feed</span>
           </div>
-          <div class="menu-item">
+          <div class="menu-item" @click="router.push('/setting')">
             <i class='bx bx-cog menu-icon'></i>
             <span class="menu-label">Settings</span>
           </div>
@@ -64,7 +64,7 @@
               <div class="dropdown-item"><i class='bx bx-user-circle'></i> Profile</div>
               <div class="dropdown-item"><i class='bx bx-transfer-alt'></i> Switch Accounts</div>
               <div class="dropdown-divider"></div>
-              <div class="dropdown-item logout-item"><i class='bx bx-log-out'></i> Log out</div>
+              <div class="dropdown-item logout-item" @click="logout"><i class='bx bx-log-out'></i> Log out</div>
             </div>
           </div>
         </div>
@@ -201,12 +201,23 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue';
+import { useRouter } from 'vue-router'
+
+const router = useRouter()
 const isDropdownOpen = ref(false);
+
 const closeDropdown = (e) => {
   if (!e.target.closest('.profile-dropdown-container')) isDropdownOpen.value = false;
 };
+
 onMounted(() => document.addEventListener('click', closeDropdown));
 onUnmounted(() => document.removeEventListener('click', closeDropdown));
+
+const logout = () => {
+  localStorage.removeItem('token')
+  localStorage.removeItem('role')
+  router.push('/')
+}
 </script>
 
 <style scoped>
@@ -231,9 +242,6 @@ onUnmounted(() => document.removeEventListener('click', closeDropdown));
   overflow: hidden;
 }
 
-/* ========================================
-   SIDEBAR — copy จาก history.vue 1:1
-   ======================================== */
 .sidebar {
   width: 240px;
   background: #fff;
