@@ -208,7 +208,7 @@ import { useRouter } from 'vue-router'
 
 const router = useRouter()
 const isDropdownOpen = ref(false);
-const language = ref('EN');
+const language = ref('English');
 const activePassengerView = ref('weekly');
 
 const weeklyChartData = [
@@ -237,7 +237,7 @@ const closeDropdown = (e) => {
 };
 
 const toggleLanguage = () => {
-  language.value = language.value === 'EN' ? 'TH' : 'EN';
+  language.value = language.value === 'English' ? 'Thai' : 'English';
 };
 
 onMounted(() => document.addEventListener('click', closeDropdown));
