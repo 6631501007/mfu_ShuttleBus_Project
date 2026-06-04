@@ -47,7 +47,7 @@
     </aside>
 
     <!-- MAIN AREA -->
-    <div class="main-wrap">
+    <main class="main-content">
 
       <!-- TOPBAR (เหมือน Analytics) -->
       <header class="top-header">
@@ -81,7 +81,7 @@
       </header>
 
       <!-- CONTENT -->
-      <main class="lf-content">
+      <div class="lf-content">
 
         <!-- Section header -->
         <div class="section-header">
@@ -172,8 +172,8 @@
           </div>
 
         </div>
-      </main>
-    </div>
+      </div>
+    </main>
   </div>
 </template>
 
@@ -400,12 +400,11 @@ const logout = () => {
 }
 
 /* ===== MAIN WRAP ===== */
-.main-wrap {
+/* ===== MAIN CONTENT ===== */
+.main-content {
   flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  overflow: hidden;
+  padding: 24px 32px;
+  overflow-y: auto;
 }
 
 /* ===== TOPBAR ===== */
@@ -413,11 +412,7 @@ const logout = () => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0 32px;
-  height: 72px;
-  background: #fff;
-  border-bottom: 1px solid #ececec;
-  flex-shrink: 0;
+  margin-bottom: 24px;
 }
 
 .header-left {
@@ -573,12 +568,6 @@ const logout = () => {
 }
 
 /* ===== CONTENT ===== */
-.lf-content {
-  flex: 1;
-  overflow: auto;
-  padding: 20px 28px;
-  background: #f7f7fa;
-}
 
 /* Section header */
 .section-header {
