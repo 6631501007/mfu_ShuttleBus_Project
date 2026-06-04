@@ -15,11 +15,19 @@
             <i class='bx bx-line-chart'></i>
             <span>Analytics</span>
           </div>
+          <div class="menu-item" @click="router.push('/map')">
+            <i class='bx bx-map-alt'></i>
+            <span>Map</span>
+          </div>
           <div class="menu-item" @click="router.push('/livefeed')">
             <i class='bx bx-video'></i>
             <span>Live Feed</span>
           </div>
-          <div class="menu-item" @click="router.push('/settings')">
+          <div class="menu-item" @click="router.push('/feedback')">
+            <i class='bx bx-message-square-dots'></i>
+            <span>Feedback</span>
+          </div>
+          <div class="menu-item" @click="router.push('/setting')">
             <i class='bx bx-cog'></i>
             <span>Settings</span>
           </div>
@@ -46,9 +54,9 @@
         <div class="header-right">
           <div class="action-icons">
             <i class='bx bx-bell icon-btn'></i>
-            <div class="lang-switcher">
+            <div class="lang-switcher" @click="toggleLanguage">
               <i class='bx bx-globe'></i>
-              <span>English</span>
+              <span>{{ language }}</span>
               <i class='bx bx-chevron-down'></i>
             </div>
           </div>
@@ -57,9 +65,6 @@
               <i class='bx bxs-user'></i>
             </div>
             <div class="dropdown-menu" v-show="isDropdownOpen">
-              <div class="dropdown-item"><i class='bx bx-user-circle'></i> Profile</div>
-              <div class="dropdown-item"><i class='bx bx-transfer-alt'></i> Switch Accounts</div>
-              <div class="dropdown-divider"></div>
               <div class="dropdown-item logout-item" @click="logout"><i class='bx bx-log-out'></i> Log out</div>
             </div>
           </div>
@@ -150,24 +155,16 @@
                 <i class='bx bx-broadcast'></i>
                 <h3>Connected Hardware</h3>
               </div>
-              <span class="badge-dark">128 ONLINE</span>
+              <button class="btn-dark" @click="openAddHardwareModal">+ Add Hardware</button>
             </div>
             <div class="hardware-list">
-              <div class="hw-item">
-                <i class='bx bx-check-circle hw-icon online'></i>
-                <div class="hw-info"><strong>Sensor-Unit-4882</strong><span>FW v2.4.1 • 192.168.1.42</span></div>
-              </div>
-              <div class="hw-item">
-                <i class='bx bx-check-circle hw-icon online'></i>
-                <div class="hw-info"><strong>CAM-STATION-009</strong><span>FW v3.1.0 • 192.168.1.109</span></div>
-              </div>
-              <div class="hw-item">
-                <i class='bx bx-error-triangle hw-icon offline'></i>
-                <div class="hw-info">
-                  <strong class="text-red">Sensor-Unit-2114</strong>
-                  <span>Disconnected • Last seen 2h ago</span>
+              <div class="hw-item" v-for="(hw, index) in hardware" :key="index">
+                <i :class="['bx', 'hw-icon', hw.status === 'online' ? 'bx-check-circle online' : 'bx-error-triangle offline']"></i>
+                <div class="hw-info"><strong :class="hw.status === 'offline' ? 'text-red' : ''">{{ hw.name }}</strong><span>{{ hw.details }}</span></div>
+                <div class="hw-actions">
+                  <i class='bx bx-pencil edit-icon' @click="openEditHardwareModal(index)" title="Edit"></i>
+                  <i class='bx bx-trash delete-icon' @click="deleteHardware(index)" title="Delete"></i>
                 </div>
-                <i class='bx bx-refresh refresh-icon'></i>
               </div>
             </div>
           </div>
@@ -203,6 +200,40 @@
         </div>
       </div>
     </div>
+
+    <div class="modal-overlay" v-if="isHardwareModalOpen" @click.self="closeHardwareModal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>{{ hardwareModalMode === 'add' ? 'Add Hardware' : 'Edit Hardware' }}</h3>
+          <i class='bx bx-x close-btn' @click="closeHardwareModal"></i>
+        </div>
+        <div class="modal-body">
+          <div class="form-group"><label>Device Name</label><input type="text" v-model="hardwareFormData.name"
+              placeholder="e.g. Sensor-Unit-001" /></div>
+          <div class="form-group"><label>Device Type</label>
+            <select v-model="hardwareFormData.type" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 8px;">
+              <option value="sensor">Sensor</option>
+              <option value="camera">Camera</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          <div class="form-group"><label>IP Address</label><input type="text" v-model="hardwareFormData.ip"
+              placeholder="e.g. 192.168.1.100" /></div>
+          <div class="form-group"><label>Firmware Version</label><input type="text" v-model="hardwareFormData.fw"
+              placeholder="e.g. v2.4.1" /></div>
+          <div class="form-group"><label>Status</label>
+            <select v-model="hardwareFormData.status" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 8px;">
+              <option value="online">Online</option>
+              <option value="offline">Offline</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button class="btn-outline" @click="closeHardwareModal">Cancel</button>
+          <button class="btn-dark-blue" @click="confirmHardwareModal">Confirm</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -213,6 +244,67 @@ import { useRouter } from 'vue-router'
 const router = useRouter()
 const isDropdownOpen = ref(false);
 const delayThreshold = ref(15);
+const language = ref('English');
+
+const toggleLanguage = () => {
+  language.value = language.value === 'English' ? 'Thai' : 'English';
+};
+
+const hardware = ref([
+  { name: 'Sensor-Unit-4882', type: 'sensor', details: 'FW v2.4.1 • 192.168.1.42', ip: '192.168.1.42', fw: 'v2.4.1', status: 'online' },
+  { name: 'CAM-STATION-009', type: 'camera', details: 'FW v3.1.0 • 192.168.1.109', ip: '192.168.1.109', fw: 'v3.1.0', status: 'online' },
+  { name: 'Sensor-Unit-2114', type: 'sensor', details: 'Disconnected • Last seen 2h ago', ip: '192.168.1.50', fw: 'v2.3.8', status: 'offline' }
+]);
+
+const isHardwareModalOpen = ref(false);
+const hardwareModalMode = ref('add');
+const hardwareEditIndex = ref(-1);
+const hardwareFormData = ref({ name: '', type: 'sensor', ip: '', fw: '', status: 'online' });
+
+const openAddHardwareModal = () => {
+  hardwareModalMode.value = 'add';
+  hardwareFormData.value = { name: '', type: 'sensor', ip: '', fw: '', status: 'online' };
+  isHardwareModalOpen.value = true;
+};
+
+const openEditHardwareModal = (index) => {
+  hardwareModalMode.value = 'edit';
+  hardwareEditIndex.value = index;
+  const hw = hardware.value[index];
+  hardwareFormData.value = { name: hw.name, type: hw.type, ip: hw.ip, fw: hw.fw, status: hw.status };
+  isHardwareModalOpen.value = true;
+};
+
+const closeHardwareModal = () => {
+  isHardwareModalOpen.value = false;
+};
+
+const confirmHardwareModal = () => {
+  if (!hardwareFormData.value.name) return;
+  if (hardwareModalMode.value === 'add') {
+    hardware.value.push({
+      name: hardwareFormData.value.name,
+      type: hardwareFormData.value.type,
+      details: `FW ${hardwareFormData.value.fw} • ${hardwareFormData.value.ip}`,
+      ip: hardwareFormData.value.ip,
+      fw: hardwareFormData.value.fw,
+      status: hardwareFormData.value.status
+    });
+  } else {
+    const hw = hardware.value[hardwareEditIndex.value];
+    hw.name = hardwareFormData.value.name;
+    hw.type = hardwareFormData.value.type;
+    hw.ip = hardwareFormData.value.ip;
+    hw.fw = hardwareFormData.value.fw;
+    hw.status = hardwareFormData.value.status;
+    hw.details = `FW ${hardwareFormData.value.fw} • ${hardwareFormData.value.ip}`;
+  }
+  closeHardwareModal();
+};
+
+const deleteHardware = (index) => {
+  hardware.value.splice(index, 1);
+};
 
 const closeDropdown = (e) => {
   if (!e.target.closest('.profile-dropdown-container')) {
@@ -224,7 +316,7 @@ onUnmounted(() => document.removeEventListener('click', closeDropdown));
 
 const zones = ref([
   { name: 'Station: 14 - M-square', desc: 'Red Zone Area', currentPassengers: 382, limit: 450, color: 'red', criticalPercent: 90 },
-  { name: 'Station 9', desc: 'Main Route Wait Area', currentPassengers: 50, limit: 120, color: 'blue', criticalPercent: null },
+  { name: 'Station: 9 - Swimming pool', desc: 'Main Route Wait Area', currentPassengers: 50, limit: 120, color: 'blue', criticalPercent: null },
   { name: 'VIP Terminal', desc: 'Premium Lounge Area', currentPassengers: 51, limit: 75, color: 'yellow', criticalPercent: null }
 ]);
 
@@ -472,6 +564,12 @@ const logout = () => {
   padding: 4px 12px;
   cursor: pointer;
   background: #fff;
+  transition: all 0.2s;
+}
+
+.lang-switcher:hover {
+  border-color: #d72660;
+  color: #d72660;
 }
 
 .lang-switcher span {
@@ -749,6 +847,17 @@ const logout = () => {
   color: #111827;
 }
 
+.delete-icon {
+  color: #9ca3af;
+  font-size: 20px;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.delete-icon:hover {
+  color: #d72660;
+}
+
 /* Notification */
 .channel-section {
   margin-bottom: 24px;
@@ -921,6 +1030,25 @@ input:checked+.slider:before {
   color: #9ca3af;
   font-size: 20px;
   cursor: pointer;
+}
+
+.hw-actions {
+  display: flex;
+  gap: 12px;
+  margin-left: auto;
+}
+
+.edit-icon,
+.add-icon {
+  color: #9ca3af;
+  font-size: 18px;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.edit-icon:hover,
+.add-icon:hover {
+  color: #d72660;
 }
 
 /* Action Bar */

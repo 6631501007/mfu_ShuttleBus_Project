@@ -106,6 +106,7 @@ onUnmounted(() => {
 }
 
 .app-container {
+  position: relative;
   display: flex;
   height: 100vh;
   font-family: 'Inter', sans-serif;
@@ -120,19 +121,33 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  position: relative;
 }
 
 .top-header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding: 24px 32px;
+  pointer-events: none;
 }
 
 .header-left {
   display: flex;
   align-items: center;
   gap: 32px;
+  pointer-events: auto;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(229, 231, 235, 0.9);
+  border-radius: 14px;
+  padding: 12px 16px;
+  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.12);
+  backdrop-filter: blur(10px);
 }
 
 .logo-title {
@@ -158,6 +173,7 @@ onUnmounted(() => {
 .header-right {
   display: flex;
   align-items: center;
+  pointer-events: auto;
 }
 
 .profile-dropdown-container {
@@ -228,17 +244,24 @@ onUnmounted(() => {
 }
 
 .map-wrapper {
-  flex: 1;
-  padding: 0 32px 32px 32px;
-  display: flex;
-  flex-direction: column;
+  position: absolute;
+  inset: 0;
 }
 
 #map {
-  flex: 1;
-  border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-  border: 1px solid #e1e5eb;
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+  box-shadow: none;
+  border: none;
   z-index: 1;
+}
+
+:global(#app) {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  border-inline: 0;
+  text-align: initial;
 }
 </style>

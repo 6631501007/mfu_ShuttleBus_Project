@@ -1,47 +1,57 @@
 <template>
-  <div class="dashboard">
+  <div class="app-container">
     <!-- SIDEBAR -->
     <aside class="sidebar">
-      <div>
+      <div class="sidebar-top">
         <div class="logo">
-          <h1>Bus<span>Stop</span></h1>
-          <p>PASSENGER INTELLIGENCE</p>
+          <h1 class="logo-title">Bus<span class="logo-span">Stop</span></h1>
+          <p class="logo-sub">PASSENGER INTELLIGENCE</p>
         </div>
 
         <nav class="menu">
           <div class="menu-item" @click="router.push('/dashboard')">
-            <i class='bx bx-grid-alt'></i>
-            <span>Dashboard</span>
+            <i class='bx bx-grid-alt menu-icon'></i>
+            <span class="menu-label">Dashboard</span>
           </div>
 
           <div class="menu-item" @click="router.push('/analytics')">
-            <i class='bx bx-line-chart'></i>
-            <span>Analytics</span>
+            <i class='bx bx-line-chart menu-icon'></i>
+            <span class="menu-label">Analytics</span>
+          </div>
+
+          <div class="menu-item" @click="router.push('/map')">
+            <i class='bx bx-map-alt menu-icon'></i>
+            <span class="menu-label">Map</span>
           </div>
 
           <div class="menu-item" @click="router.push('/livefeed')">
-            <i class='bx bx-video'></i>
-            <span>Live Feed</span>
+            <i class='bx bx-video menu-icon'></i>
+            <span class="menu-label">Live Feed</span>
+          </div>
+
+          <div class="menu-item" @click="router.push('/feedback')">
+            <i class='bx bx-message-square-dots menu-icon'></i>
+            <span class="menu-label">Feedback</span>
           </div>
 
           <div class="menu-item" @click="router.push('/setting')">
-            <i class='bx bx-cog'></i>
-            <span>Settings</span>
+            <i class='bx bx-cog menu-icon'></i>
+            <span class="menu-label">Settings</span>
           </div>
         </nav>
       </div>
 
       <div class="user-card">
-        <div class="avatar">A</div>
+        <div class="user-avatar">A</div>
         <div>
-          <h4>Admin User</h4>
-          <p>Operational Lead</p>
+          <p class="user-name">Admin User</p>
+          <p class="user-role">Operational Lead</p>
         </div>
       </div>
     </aside>
 
     <!-- MAIN -->
-    <main class="main">
+    <main class="main-content">
       <!-- TOPBAR -->
       <header class="top-header">
         <div class="header-left">
@@ -55,9 +65,9 @@
         <div class="header-right">
           <div class="action-icons">
             <i class='bx bx-bell icon-btn'></i>
-            <div class="lang-switcher">
+            <div class="lang-switcher" @click="toggleLanguage">
               <i class='bx bx-globe'></i>
-              <span class="lang-text">English</span>
+              <span class="lang-text">{{ language }}</span>
               <i class='bx bx-chevron-down'></i>
             </div>
           </div>
@@ -67,9 +77,6 @@
               <i class='bx bxs-user'></i>
             </div>
             <div class="dropdown-menu" v-show="isDropdownOpen">
-              <div class="dropdown-item"><i class='bx bx-user-circle'></i> Profile</div>
-              <div class="dropdown-item"><i class='bx bx-transfer-alt'></i> Switch Accounts</div>
-              <div class="dropdown-divider"></div>
               <div class="dropdown-item logout-item" @click="logout"><i class='bx bx-log-out'></i> Log out</div>
             </div>
           </div>
@@ -332,9 +339,14 @@ import { useRouter } from 'vue-router'
 
 const router = useRouter()
 const isDropdownOpen = ref(false);
+const language = ref('English');
 
 const closeDropdown = (e) => {
   if (!e.target.closest('.profile-dropdown-container')) isDropdownOpen.value = false;
+};
+
+const toggleLanguage = () => {
+  language.value = language.value === 'English' ? 'Thai' : 'English';
 };
 
 onMounted(() => document.addEventListener('click', closeDropdown));
@@ -351,24 +363,24 @@ const logout = () => {
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 @import url('https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css');
 
-* {
+/* === Reset === */
+*, *::before, *::after {
+  box-sizing: border-box;
   margin: 0;
   padding: 0;
-  box-sizing: border-box;
-  font-family: 'Inter', sans-serif;
 }
 
-body {
-  background: #f6f6f8;
-}
-
-.dashboard {
+/* === Layout === */
+.app-container {
   display: flex;
-  min-height: 100vh;
+  height: 100vh;
   background: #f7f7fa;
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  color: #333;
+  overflow: hidden;
 }
 
-/* SIDEBAR */
 .sidebar {
   width: 240px;
   background: #fff;
@@ -377,29 +389,34 @@ body {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+  flex-shrink: 0;
 }
 
-.logo h1 {
+/* Logo */
+.logo-title {
+  font-family: 'Inter', sans-serif;
   font-size: 26px;
-  color: #d72660;
   font-weight: 700;
+  color: #d72660;
+  line-height: 1.2;
+  margin: 0;
 }
-
-.logo span {
+.logo-span {
   color: #444;
 }
-
-.logo p {
-  margin-top: 3px;
+.logo-sub {
+  font-family: 'Inter', sans-serif;
   font-size: 11px;
+  font-weight: 400;
   color: #999;
   letter-spacing: 1px;
+  margin-top: 3px;
 }
 
+/* Menu */
 .menu {
   margin-top: 40px;
 }
-
 .menu-item {
   display: flex;
   align-items: center;
@@ -410,76 +427,95 @@ body {
   color: #666;
   cursor: pointer;
   transition: .25s;
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1;
 }
-
+.menu-icon {
+  font-size: 20px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.menu-label {
+  font-family: 'Inter', sans-serif;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1;
+}
 .menu-item:hover {
   background: #fff0f5;
   color: #d72660;
+}
+.menu-item:hover .menu-label {
   font-weight: 600;
 }
 
-.menu-item i {
-  font-size: 20px;
-}
-
-
+/* User card */
 .user-card {
   display: flex;
   align-items: center;
   gap: 12px;
-  background: #fff;
 }
-
-.avatar {
+.user-avatar {
   width: 44px;
   height: 44px;
   border-radius: 50%;
   background: #d72660;
-  color: white;
+  color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: bold;
+  font-family: 'Inter', sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  flex-shrink: 0;
 }
-
-.user-card h4 {
+.user-name {
+  font-family: 'Inter', sans-serif;
   font-size: 14px;
+  font-weight: 600;
+  color: #333;
+  margin: 0;
+  line-height: 1.3;
 }
-
-.user-card p {
+.user-role {
+  font-family: 'Inter', sans-serif;
   font-size: 12px;
+  font-weight: 400;
   color: #888;
+  margin: 2px 0 0;
+  line-height: 1.3;
 }
 
-/* MAIN */
-.main {
+/* Sidebar Top */
+.sidebar-top {
+  display: flex;
+  flex-direction: column;
+}
+
+/* === Main === */
+.main-content {
   flex: 1;
-  padding: 26px;
+  padding: 24px 32px;
+  overflow-y: auto;
 }
 
-/* TOPBAR */
+/* Header */
 .top-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 24px;
 }
-
-.header-left {
-  display: flex;
-  align-items: center;
-  gap: 32px;
-}
-
+.header-left { display: flex; align-items: center; gap: 32px; }
 .header-title {
   font-family: 'Inter', sans-serif;
   font-size: 20px;
   font-weight: 600;
   color: #1f2937;
   margin: 0;
-  white-space: nowrap;
 }
-
 .search-bar {
   background: #e5e7eb;
   padding: 8px 16px;
@@ -489,12 +525,7 @@ body {
   gap: 8px;
   width: 300px;
 }
-
-.search-icon {
-  font-size: 18px;
-  color: #6b7280;
-}
-
+.search-icon { font-size: 18px; color: #6b7280; }
 .search-input {
   border: none;
   background: transparent;
@@ -504,25 +535,9 @@ body {
   font-size: 14px;
   color: #4b5563;
 }
-
-.header-right {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-}
-
-.action-icons {
-  display: flex;
-  gap: 16px;
-  align-items: center;
-}
-
-.icon-btn {
-  cursor: pointer;
-  font-size: 22px;
-  color: #6b7280;
-}
-
+.header-right { display: flex; align-items: center; gap: 20px; }
+.action-icons { display: flex; gap: 16px; align-items: center; }
+.icon-btn { cursor: pointer; font-size: 22px; color: #6b7280; }
 .lang-switcher {
   display: flex;
   align-items: center;
@@ -532,6 +547,12 @@ body {
   padding: 4px 12px;
   cursor: pointer;
   background: #fff;
+  transition: all 0.2s;
+}
+
+.lang-switcher:hover {
+  border-color: #d72660;
+  color: #d72660;
 }
 
 .lang-text {
@@ -540,78 +561,38 @@ body {
   font-weight: 500;
   color: #1f2937;
 }
-
-.profile-dropdown-container {
-  position: relative;
-}
-
+.profile-dropdown-container { position: relative; }
 .profile-circle {
-  width: 40px;
-  height: 40px;
+  width: 40px; height: 40px;
   background: #e5e7eb;
   border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  font-size: 20px;
-  color: #4b5563;
-  border: 2px solid transparent;
-  transition: all .2s;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; font-size: 20px; color: #4b5563;
 }
-
 .profile-circle:hover {
   border-color: #d72660;
   background: #fff0f5;
   color: #d72660;
 }
-
 .dropdown-menu {
-  position: absolute;
-  top: 50px;
-  right: 0;
+  position: absolute; top: 50px; right: 0;
   background: #fff;
   box-shadow: 0 4px 12px rgba(0,0,0,.1);
-  border-radius: 12px;
-  width: 200px;
-  overflow: hidden;
-  z-index: 100;
-  border: 1px solid #f3f4f6;
+  border-radius: 12px; width: 200px; overflow: hidden;
+  z-index: 100; border: 1px solid #f3f4f6;
 }
-
 .dropdown-item {
   padding: 12px 16px;
   font-family: 'Inter', sans-serif;
   font-size: 14px;
   color: #374151;
   cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  transition: background .2s;
+  display: flex; align-items: center; gap: 10px;
 }
-
-.dropdown-item i {
-  font-size: 18px;
-}
-
-.dropdown-item:hover {
-  background: #f3f4f6;
-  color: #d72660;
-}
-
-.dropdown-divider {
-  height: 1px;
-  background: #e5e7eb;
-}
-
-.logout-item {
-  color: #d72660;
-}
-
-.logout-item:hover {
-  background: #fff0f5;
-}
+.dropdown-item i { font-size: 18px; }
+.dropdown-item:hover { background: #f3f4f6; color: #d72660; }
+.logout-item { color: #d72660; }
+.logout-item:hover { background: #fff0f5; }
 
 /* PAGE TITLE */
 .page-title {

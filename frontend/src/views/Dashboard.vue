@@ -16,9 +16,17 @@
             <i class='bx bx-line-chart menu-icon'></i>
             <span class="menu-label">Analytics</span>
           </div>
+          <div class="menu-item" @click="router.push('/map')">
+            <i class='bx bx-map-alt menu-icon'></i>
+            <span class="menu-label">Map</span>
+          </div>
           <div class="menu-item" @click="router.push('/livefeed')">
             <i class='bx bx-video menu-icon'></i>
             <span class="menu-label">Live Feed</span>
+          </div>
+          <div class="menu-item" @click="router.push('/feedback')">
+            <i class='bx bx-message-square-dots menu-icon'></i>
+            <span class="menu-label">Feedback</span>
           </div>
           <div class="menu-item" @click="router.push('/setting')">
             <i class='bx bx-cog menu-icon'></i>
@@ -49,9 +57,9 @@
         <div class="header-right">
           <div class="action-icons">
             <i class='bx bx-bell icon-btn'></i>
-            <div class="lang-switcher">
+            <div class="lang-switcher" @click="toggleLanguage">
               <i class='bx bx-globe'></i>
-              <span class="lang-text">English</span>
+              <span class="lang-text">{{ language }}</span>
               <i class='bx bx-chevron-down'></i>
             </div>
           </div>
@@ -61,9 +69,6 @@
               <i class='bx bxs-user'></i>
             </div>
             <div class="dropdown-menu" v-show="isDropdownOpen">
-              <div class="dropdown-item"><i class='bx bx-user-circle'></i> Profile</div>
-              <div class="dropdown-item"><i class='bx bx-transfer-alt'></i> Switch Accounts</div>
-              <div class="dropdown-divider"></div>
               <div class="dropdown-item logout-item" @click="logout"><i class='bx bx-log-out'></i> Log out</div>
             </div>
           </div>
@@ -109,22 +114,20 @@
         <div class="chart-card">
           <div class="chart-header">
             <div>
-              <h3 class="chart-title">Weekly Passengers</h3>
+              <h3 class="chart-title">{{ activePassengerView === 'weekly' ? 'Weekly Passengers' : 'Monthly Passengers' }}</h3>
               <p class="chart-sub">Passenger traffic overview across all stations</p>
             </div>
             <div class="chart-toggles">
-              <span class="toggle toggle-active">Weekly</span>
-              <span class="toggle">Monthly</span>
+              <button class="toggle" :class="{ 'toggle-active': activePassengerView === 'weekly' }" @click="activePassengerView = 'weekly'">Weekly</button>
+              <button class="toggle" :class="{ 'toggle-active': activePassengerView === 'monthly' }" @click="activePassengerView = 'monthly'">Monthly</button>
             </div>
           </div>
           <div class="bars-container">
-            <div class="bar-wrapper"><div class="bar" style="height:22%"></div><span class="bar-day">Mon</span><span class="bar-val">10</span></div>
-            <div class="bar-wrapper"><div class="bar" style="height:88%"></div><span class="bar-day">Tue</span><span class="bar-val">40</span></div>
-            <div class="bar-wrapper"><div class="bar" style="height:44%"></div><span class="bar-day">Wed</span><span class="bar-val">20</span></div>
-            <div class="bar-wrapper"><div class="bar" style="height:77%"></div><span class="bar-day">Thu</span><span class="bar-val">35</span></div>
-            <div class="bar-wrapper"><div class="bar" style="height:55%"></div><span class="bar-day">Fri</span><span class="bar-val">25</span></div>
-            <div class="bar-wrapper"><div class="bar bar-active" style="height:100%"></div><span class="bar-day bar-day-active">Sat</span><span class="bar-val bar-val-active">45</span></div>
-            <div class="bar-wrapper"><div class="bar" style="height:33%"></div><span class="bar-day">Sun</span><span class="bar-val">15</span></div>
+            <div class="bar-wrapper" v-for="item in passengerChartData" :key="item.label">
+              <div class="bar" :class="{ 'bar-active': item.active }" :style="{ height: item.height + '%' }"></div>
+              <span class="bar-day" :class="{ 'bar-day-active': item.active }">{{ item.label }}</span>
+              <span class="bar-val" :class="{ 'bar-val-active': item.active }">{{ item.value }}</span>
+            </div>
           </div>
         </div>
 
@@ -182,7 +185,7 @@
                 <div class="zone-info">
                   <div class="zone-icon"><i class='bx bxs-map-pin' style="color:#6b7280"></i></div>
                   <div>
-                    <strong class="zone-name">Station 9</strong>
+                    <strong class="zone-name">Station: 9 - Swimming pool</strong>
                     <p class="zone-sub">Main Route Coordinates [20.0458, 99.8913]</p>
                   </div>
                 </div>
@@ -200,14 +203,41 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue';
+import { computed, ref, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
 const isDropdownOpen = ref(false);
+const language = ref('EN');
+const activePassengerView = ref('weekly');
+
+const weeklyChartData = [
+  { label: 'Mon', height: 50, value: 72, active: false },
+  { label: 'Tue', height: 62, value: 85, active: false },
+  { label: 'Wed', height: 58, value: 80, active: false },
+  { label: 'Thu', height: 68, value: 92, active: false },
+  { label: 'Fri', height: 72, value: 98, active: true },
+  { label: 'Sat', height: 60, value: 82, active: false },
+  { label: 'Sun', height: 48, value: 70, active: false },
+];
+
+const monthlyChartData = [
+  { label: 'Week 1', height: 55, value: 320, active: false },
+  { label: 'Week 2', height: 70, value: 410, active: false },
+  { label: 'Week 3', height: 62, value: 365, active: false },
+  { label: 'Week 4', height: 78, value: 445, active: true },
+];
+
+const passengerChartData = computed(() => {
+  return activePassengerView.value === 'weekly' ? weeklyChartData : monthlyChartData;
+});
 
 const closeDropdown = (e) => {
   if (!e.target.closest('.profile-dropdown-container')) isDropdownOpen.value = false;
+};
+
+const toggleLanguage = () => {
+  language.value = language.value === 'EN' ? 'TH' : 'EN';
 };
 
 onMounted(() => document.addEventListener('click', closeDropdown));
@@ -252,8 +282,6 @@ const logout = () => {
   justify-content: space-between;
   flex-shrink: 0;
 }
-
-.sidebar-top {}
 
 /* Logo */
 .logo-title {
@@ -404,7 +432,14 @@ const logout = () => {
   padding: 4px 12px;
   cursor: pointer;
   background: #fff;
+  transition: all 0.2s;
 }
+
+.lang-switcher:hover {
+  border-color: #d72660;
+  color: #d72660;
+}
+
 .lang-text {
   font-family: 'Inter', sans-serif;
   font-size: 14px;
@@ -535,16 +570,36 @@ const logout = () => {
   color: #999;
   margin: 4px 0 0;
 }
-.chart-toggles { background: #f3f4f6; padding: 4px; border-radius: 6px; display: flex; }
-.toggle {
-  padding: 4px 12px;
-  font-family: 'Inter', sans-serif;
-  font-size: 12px;
-  cursor: pointer;
-  border-radius: 4px;
-  color: #6b7280;
+.chart-toggles { 
+  background: #f3f4f6; 
+  padding: 6px; 
+  border-radius: 8px; 
+  display: flex; 
+  gap: 6px;
 }
-.toggle-active { background: #fff; color: #d72660; font-weight: 600; }
+.toggle {
+  padding: 8px 16px;
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  border-radius: 6px;
+  color: #6b7280;
+  border: 1px solid transparent;
+  transition: all 0.3s ease;
+  background: transparent;
+}
+.toggle:hover {
+  color: #4b5563;
+  background: rgba(255, 255, 255, 0.5);
+}
+.toggle-active { 
+  background: #fff; 
+  color: #d72660; 
+  font-weight: 600;
+  border: 1px solid #d72660;
+  box-shadow: 0 2px 8px rgba(215, 38, 96, 0.15);
+}
 
 /* Bars */
 .bars-container {

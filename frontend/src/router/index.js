@@ -3,9 +3,11 @@ import { createRouter, createWebHistory } from 'vue-router'
 import Login from '../views/Login.vue'
 import Dashboard from '../views/Dashboard.vue'
 import Home from '../views/Home.vue'
+import Map from '../views/Map.vue'
 import Livefeed from '../views/Livefeed.vue'
 import Setting from '../views/Setting.vue'
 import Analytics from '../views/Analytics.vue'
+import Feedback from '../views/Feedback.vue'
 
 const routes = [
   { path: '/', component: Login },
@@ -20,8 +22,18 @@ const routes = [
     meta: { requiresAuth: true, adminOnly: true }
   },
   { 
+    path: '/feedback', 
+    component: Feedback, 
+    meta: { requiresAuth: true, adminOnly: true }
+  },
+  { 
     path: '/setting', 
     component: Setting, 
+    meta: { requiresAuth: true, adminOnly: true }
+  },
+  { 
+    path: '/map', 
+    component: Map, 
     meta: { requiresAuth: true, adminOnly: true }
   },
   { 

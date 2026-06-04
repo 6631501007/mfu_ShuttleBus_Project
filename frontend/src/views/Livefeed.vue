@@ -18,9 +18,17 @@
             <i class='bx bx-line-chart menu-icon'></i>
             <span class="menu-label">Analytics</span>
           </div>
+          <div class="menu-item" @click="router.push('/map')">
+            <i class='bx bx-map-alt menu-icon'></i>
+            <span class="menu-label">Map</span>
+          </div>
           <div class="menu-item" @click="router.push('/livefeed')">
             <i class='bx bx-video menu-icon'></i>
             <span class="menu-label">Live Feed</span>
+          </div>
+          <div class="menu-item" @click="router.push('/feedback')">
+            <i class='bx bx-message-square-dots menu-icon'></i>
+            <span class="menu-label">Feedback</span>
           </div>
           <div class="menu-item" @click="router.push('/setting')">
             <i class='bx bx-cog menu-icon'></i>
@@ -54,9 +62,9 @@
         <div class="header-right">
           <div class="action-icons">
             <i class='bx bx-bell icon-btn'></i>
-            <div class="lang-switcher">
+            <div class="lang-switcher" @click="toggleLanguage">
               <i class='bx bx-globe'></i>
-              <span class="lang-text">English</span>
+              <span class="lang-text">{{ language }}</span>
               <i class='bx bx-chevron-down'></i>
             </div>
           </div>
@@ -66,9 +74,6 @@
               <i class='bx bxs-user'></i>
             </div>
             <div class="dropdown-menu" v-show="isDropdownOpen">
-              <div class="dropdown-item"><i class='bx bx-user-circle'></i> Profile</div>
-              <div class="dropdown-item"><i class='bx bx-transfer-alt'></i> Switch Accounts</div>
-              <div class="dropdown-divider"></div>
               <div class="dropdown-item logout-item" @click="logout"><i class='bx bx-log-out'></i> Log out</div>
             </div>
           </div>
@@ -177,9 +182,14 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
-const activeView = ref('heatmap')
+const activeView = ref('grid')
 const liveTime = ref('')
 const isDropdownOpen = ref(false)
+const language = ref('English')
+
+const toggleLanguage = () => {
+  language.value = language.value === 'English' ? 'Thai' : 'English'
+}
 
 const closeDropdown = (e) => {
   if (!e.target.closest('.profile-dropdown-container')) isDropdownOpen.value = false
@@ -193,10 +203,6 @@ const viewButtons = [
   {
     id: 'focus', label: 'Focus',
     icon: `<svg width="11" height="11" fill="none" viewBox="0 0 11 11"><rect x="0.5" y="0.5" width="10" height="10" rx="1" stroke="currentColor" stroke-width="1.2"/><rect x="3" y="3" width="5" height="5" rx="0.5" fill="currentColor" opacity="0.4"/></svg>`
-  },
-  {
-    id: 'heatmap', label: 'Heatmap View',
-    icon: `<svg width="11" height="11" fill="none" viewBox="0 0 11 11"><path d="M5.5 1C3 1 1 3 1 5.5S3 10 5.5 10 10 8 10 5.5 8 1 5.5 1z" fill="currentColor" opacity="0.3"/><path d="M5.5 3C4 3 3 4 3 5.5S4 8 5.5 8 8 7 8 5.5 7 3 5.5 3z" fill="currentColor" opacity="0.5"/><circle cx="5.5" cy="5.5" r="1.5" fill="currentColor"/></svg>`
   }
 ]
 
@@ -481,9 +487,16 @@ const logout = () => {
   padding: 4px 12px;
   cursor: pointer;
   background: #fff;
+  transition: all 0.2s;
+}
+
+.lang-switcher:hover {
+  border-color: #d72660;
+  color: #d72660;
 }
 
 .lang-text {
+  font-family: 'Inter', sans-serif;
   font-size: 14px;
   font-weight: 500;
   color: #1f2937;
