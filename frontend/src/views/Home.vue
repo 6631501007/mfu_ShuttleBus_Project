@@ -39,6 +39,8 @@ import 'leaflet/dist/leaflet.css';
 
 const router = useRouter();
 const isDropdownOpen = ref(false);
+const stations = ref([]);
+let map = null;
 
 const closeDropdown = (e) => {
   if (!e.target.closest('.profile-dropdown-container')) {
@@ -53,45 +55,50 @@ const logOut = () => {
   router.push("/");
 };
 
-onMounted(() => {
-  document.addEventListener('click', closeDropdown);
+const createMap = () => {
+  const initial = stations.value.length
+    ? stations.value[0].location
+    : { lat: 20.04498749707566, lng: 99.89428182346516 };
 
-  const map = L.map("map").setView([20.04498749707566, 99.89428182346516], 15);
+  map = L.map("map").setView([initial.lat, initial.lng], 15);
 
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
     attribution: "&copy; OpenStreetMap"
   }).addTo(map);
 
-  const marker1 = L.marker([20.04582132999694, 99.89134391063925]).addTo(map);
-  marker1.bindPopup(`
-    <div style="font-family: 'Inter', sans-serif; font-size: 13px;">
-      <b style="color: #d72660;">Station: 14 - M-square Building</b><br>
-      People waiting now: 13<br>
-      <span style="color: #6b7280; font-size: 12px;">No buses in the vicinity</span>
-    </div>
-  `);
+  stations.value.forEach((station) => {
+    const marker = L.marker([station.location.lat, station.location.lng]).addTo(map);
+    marker.bindPopup(`
+      <div style="font-family: 'Inter', sans-serif; font-size: 13px;">
+        <b style="color: #d72660;">${station.name}</b><br>
+        People waiting now: ${station.waitingPassengers}<br>
+        <span style="color: #6b7280; font-size: 12px;">${station.incomingBuses}</span>
+      </div>
+    `);
+  });
+};
 
-  const marker2 = L.marker([20.04566810292221, 99.89155253753619]).addTo(map);
-  marker2.bindPopup(`
-    <div style="font-family: 'Inter', sans-serif; font-size: 13px;">
-      <b style="color: #2563eb;">Station: 9 - Swimming Pool</b><br>
-      People waiting now: 6<br>
-      <span style="color: #6b7280; font-size: 12px;">No buses in the vicinity</span>
-    </div>
-  `);
+const loadHomeData = async () => {
+  try {
+    const res = await fetch('http://localhost:3000/api/home');
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Cannot load home data');
+    stations.value = data.stations || [];
+    createMap();
+  } catch (error) {
+    console.error(error);
+    createMap();
+  }
+};
 
-  const marker3 = L.marker([20.0473286489084, 99.8932291391427]).addTo(map);
-  marker3.bindPopup(`
-    <div style="font-family: 'Inter', sans-serif; font-size: 13px;">
-      <b style="color: #10b981;">Station: 8 - D1 Building</b><br>
-      People waiting now: 8<br>
-      <span style="color: #6b7280; font-size: 12px;">No buses in the vicinity</span>
-    </div>
-  `);
+onMounted(() => {
+  document.addEventListener('click', closeDropdown);
+  loadHomeData();
 });
 
 onUnmounted(() => {
   document.removeEventListener('click', closeDropdown);
+  if (map) map.remove();
 });
 </script>
 

@@ -88,105 +88,59 @@
         <div class="feedback-summary">
           <div class="summary-item">
             <span class="summary-label">New feedback</span>
-            <span class="summary-value">12</span>
+            <span class="summary-value">{{ summary.newFeedback }}</span>
           </div>
           <div class="summary-item">
             <span class="summary-label">Resolved</span>
-            <span class="summary-value">8</span>
+            <span class="summary-value">{{ summary.resolved }}</span>
           </div>
+        </div>
+
+        <!-- SUBMIT FORM -->
+        <div class="feedback-form">
+          <div class="form-row">
+            <input v-model="newFeedback.userName" type="text" placeholder="Your name" />
+            <select v-model="newFeedback.rating">
+              <option value="1">⭐ Rating: 1</option>
+              <option value="2">⭐ Rating: 2</option>
+              <option value="3">⭐ Rating: 3</option>
+              <option value="4">⭐ Rating: 4</option>
+              <option value="5">⭐ Rating: 5</option>
+            </select>
+          </div>
+          <textarea v-model="newFeedback.message" placeholder="Write your feedback here..."></textarea>
+          <button class="btn-dark" @click="submitFeedback">Submit Feedback</button>
         </div>
 
         <!-- FEEDBACK ITEMS -->
         <div class="feedback-list">
-          <div class="feedback-item">
+          <div v-if="feedbacks.length === 0" class="empty-state">No feedback available.</div>
+          <div class="feedback-item" v-for="item in feedbacks" :key="item._id">
             <div class="feedback-header-row">
               <div class="feedback-user">
-                <div class="user-avatar-small">สม</div>
+                <div class="user-avatar-small">{{ item.userName?.slice(0, 2) }}</div>
                 <div>
-                  <p class="user-name-feedback">สมชาย นิยม</p>
-                  <p class="feedback-date">2 hours ago</p>
+                  <p class="user-name-feedback">{{ item.userName }}</p>
+                  <p class="feedback-date">{{ formatDate(item.createdAt) }}</p>
                 </div>
               </div>
-              <div class="feedback-status new">New</div>
+              <div class="feedback-status" :class="item.status === 'resolved' ? 'resolved' : 'new'">{{ item.status }}</div>
             </div>
             <div class="feedback-message">
-              <p class="feedback-text">จังหวะการมาของรถเมล์ไม่ตรงตามกำหนดเวลา บางครั้งช้ามากเลย ต้องรอนานขึ้นจากปกติถึง 30 นาที</p>
-              <p class="feedback-rating">⭐ Rating: 2/5</p>
+              <p class="feedback-text">{{ item.message }}</p>
+              <p class="feedback-rating">⭐ Rating: {{ item.rating }}/5</p>
             </div>
-            <div class="feedback-actions">
+            <div class="feedback-response" v-if="item.response">
+              <p class="response-label">Response:</p>
+              <p class="response-text">{{ item.response }}</p>
+            </div>
+            <div class="feedback-actions" v-if="item.status !== 'resolved'">
               <button class="btn-action btn-reply">
                 <i class='bx bx-message-dots'></i> Reply
               </button>
-              <button class="btn-action btn-resolve">
+              <button class="btn-action btn-resolve" @click="resolveFeedback(item._id)">
                 <i class='bx bx-check'></i> Resolve
               </button>
-            </div>
-          </div>
-
-          <div class="feedback-item">
-            <div class="feedback-header-row">
-              <div class="feedback-user">
-                <div class="user-avatar-small">นช</div>
-                <div>
-                  <p class="user-name-feedback">นชั่ว ชัยวัฒน์</p>
-                  <p class="feedback-date">5 hours ago</p>
-                </div>
-              </div>
-              <div class="feedback-status new">New</div>
-            </div>
-            <div class="feedback-message">
-              <p class="feedback-text">แอปมีปัญหาเรื่องการแสดงตำแหน่งรถเมล์แบบ Real-time ข้อมูลไม่ตรงกับความเป็นจริง</p>
-              <p class="feedback-rating">⭐ Rating: 1/5</p>
-            </div>
-            <div class="feedback-actions">
-              <button class="btn-action btn-reply">
-                <i class='bx bx-message-dots'></i> Reply
-              </button>
-              <button class="btn-action btn-resolve">
-                <i class='bx bx-check'></i> Resolve
-              </button>
-            </div>
-          </div>
-
-          <div class="feedback-item">
-            <div class="feedback-header-row">
-              <div class="feedback-user">
-                <div class="user-avatar-small">กร</div>
-                <div>
-                  <p class="user-name-feedback">กรรมการ เรียนรู้</p>
-                  <p class="feedback-date">1 day ago</p>
-                </div>
-              </div>
-              <div class="feedback-status resolved">Resolved</div>
-            </div>
-            <div class="feedback-message">
-              <p class="feedback-text">ขอบคุณที่ปรับปรุงฟีเจอร์การแจ้งเตือนล่วงหน้า มีประโยชน์มากสำหรับการวางแผนการเดินทาง</p>
-              <p class="feedback-rating">⭐ Rating: 5/5</p>
-            </div>
-            <div class="feedback-response">
-              <p class="response-label">Response:</p>
-              <p class="response-text">ขอบคุณที่ให้ความเห็นเพื่อปรับปรุงการบริการ เราจะพัฒนาต่อไป</p>
-            </div>
-          </div>
-
-          <div class="feedback-item">
-            <div class="feedback-header-row">
-              <div class="feedback-user">
-                <div class="user-avatar-small">ปร</div>
-                <div>
-                  <p class="user-name-feedback">ปรมาภ บุญสิ่ง</p>
-                  <p class="feedback-date">2 days ago</p>
-                </div>
-              </div>
-              <div class="feedback-status resolved">Resolved</div>
-            </div>
-            <div class="feedback-message">
-              <p class="feedback-text">ต้องการให้เพิ่มช่องทางการชำระเงินอื่นๆ นอกจากบัตรเครดิต เช่น QR Code Payment</p>
-              <p class="feedback-rating">⭐ Rating: 3/5</p>
-            </div>
-            <div class="feedback-response">
-              <p class="response-label">Response:</p>
-              <p class="response-text">ขอบคุณสำหรับข้อเสนอแนะ ทีมเราจะประเมินความเป็นไปได้ในการเพิ่ม QR Code Payment</p>
             </div>
           </div>
         </div>
@@ -202,6 +156,9 @@ import { useRouter } from 'vue-router'
 const router = useRouter()
 const isDropdownOpen = ref(false)
 const language = ref('English')
+const feedbacks = ref([])
+const summary = ref({ newFeedback: 0, resolved: 0 })
+const newFeedback = ref({ userName: '', message: '', rating: 3 })
 
 const closeDropdown = (e) => {
   if (!e.target.closest('.profile-dropdown-container')) {
@@ -213,6 +170,63 @@ const toggleLanguage = () => {
   language.value = language.value === 'English' ? 'Thai' : 'English'
 }
 
+const loadFeedbacks = async () => {
+  try {
+    const res = await fetch('http://localhost:3000/api/feedback')
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.message || 'Unable to load feedback')
+
+    feedbacks.value = data.feedbacks || []
+    summary.value = data.summary || { newFeedback: 0, resolved: 0 }
+  } catch (error) {
+    console.error(error)
+  }
+}
+
+const submitFeedback = async () => {
+  if (!newFeedback.value.userName || !newFeedback.value.message) {
+    alert('Please enter your name and feedback message.')
+    return
+  }
+
+  try {
+    const res = await fetch('http://localhost:3000/api/feedback', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newFeedback.value)
+    })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.message || 'Cannot submit feedback')
+
+    newFeedback.value = { userName: '', message: '', rating: 3 }
+    await loadFeedbacks()
+  } catch (error) {
+    console.error(error)
+    alert('Unable to submit feedback')
+  }
+}
+
+const resolveFeedback = async (id) => {
+  try {
+    const res = await fetch(`http://localhost:3000/api/feedback/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'resolved' })
+    })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.message || 'Cannot resolve feedback')
+    await loadFeedbacks()
+  } catch (error) {
+    console.error(error)
+    alert('Unable to resolve feedback')
+  }
+}
+
+const formatDate = (value) => {
+  if (!value) return ''
+  return new Date(value).toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' })
+}
+
 const logout = () => {
   localStorage.removeItem('token')
   localStorage.removeItem('role')
@@ -221,6 +235,7 @@ const logout = () => {
 
 onMounted(() => {
   document.addEventListener('click', closeDropdown)
+  loadFeedbacks()
 })
 
 onUnmounted(() => {

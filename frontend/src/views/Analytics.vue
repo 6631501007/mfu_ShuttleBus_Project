@@ -107,10 +107,8 @@
           <div class="select-box">
             <i class='bx bx-calendar'></i>
 
-            <select>
-              <option>Oct 01, 2023 - Oct 31, 2023</option>
-              <option>Nov 01, 2023 - Nov 30, 2023</option>
-              <option>Dec 01, 2023 - Dec 31, 2023</option>
+            <select v-model="selectedDateRange">
+              <option v-for="range in dateRanges" :key="range">{{ range }}</option>
             </select>
 
             <i class='bx bx-chevron-down arrow'></i>
@@ -122,12 +120,8 @@
           <label>TERMINAL</label>
 
           <div class="select-box">
-
-            <select>
-              <option>All Main Concourses</option>
-              <option>Terminal A</option>
-              <option>Terminal B</option>
-              <option>Terminal C</option>
+            <select v-model="selectedTerminal">
+              <option v-for="terminal in terminals" :key="terminal.id">{{ terminal.name }}</option>
             </select>
 
             <i class='bx bx-chevron-down arrow'></i>
@@ -143,7 +137,7 @@
             <i class='bx bx-group'></i>
           </div>
 
-          <h2>12,482</h2>
+          <h2>{{ overview.avgPassengerFlow.toLocaleString() }}</h2>
 
           <div class="stat-bottom">
             <span class="green">+4.2%</span>
@@ -157,7 +151,7 @@
             <i class='bx bx-line-chart'></i>
           </div>
 
-          <h2>84%</h2>
+          <h2>{{ overview.peakOccupancy }}</h2>
 
           <div class="stat-bottom">
             <span class="red">-12%</span>
@@ -171,7 +165,7 @@
             <i class='bx bx-time-five'></i>
           </div>
 
-          <h2>6.5m</h2>
+          <h2>{{ overview.avgWaitTime }}</h2>
 
           <div class="stat-bottom">
             <span class="green">-0.8m</span>
@@ -185,7 +179,7 @@
             <i class='bx bx-log-in'></i>
           </div>
 
-          <h2>386.9K</h2>
+          <h2>{{ overview.totalEntries.toLocaleString() }}</h2>
 
           <div class="stat-bottom">
             <span class="green">+27K</span>
@@ -340,6 +334,32 @@ import { useRouter } from 'vue-router'
 const router = useRouter()
 const isDropdownOpen = ref(false);
 const language = ref('English');
+const overview = ref({
+  avgPassengerFlow: 0,
+  peakOccupancy: '0%',
+  avgWaitTime: '0m',
+  totalEntries: 0
+});
+const dateRanges = ref([]);
+const terminals = ref([]);
+const selectedDateRange = ref('');
+const selectedTerminal = ref('');
+
+const loadAnalytics = async () => {
+  try {
+    const res = await fetch('http://localhost:3000/api/analytics');
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Cannot load analytics');
+
+    overview.value = data.overview || overview.value;
+    dateRanges.value = data.dateRanges || [];
+    terminals.value = data.terminals || [];
+    selectedDateRange.value = data.dateRanges?.[0] || '';
+    selectedTerminal.value = data.terminals?.[0]?.name || '';
+  } catch (error) {
+    console.error(error);
+  }
+};
 
 const closeDropdown = (e) => {
   if (!e.target.closest('.profile-dropdown-container')) isDropdownOpen.value = false;
@@ -349,7 +369,10 @@ const toggleLanguage = () => {
   language.value = language.value === 'English' ? 'Thai' : 'English';
 };
 
-onMounted(() => document.addEventListener('click', closeDropdown));
+onMounted(() => {
+  document.addEventListener('click', closeDropdown);
+  loadAnalytics();
+});
 onUnmounted(() => document.removeEventListener('click', closeDropdown));
 
 const logout = () => {

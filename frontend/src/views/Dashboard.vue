@@ -76,37 +76,22 @@
       </header>
 
       <div class="kpi-grid">
-        <div class="kpi-card">
+        <div
+          class="kpi-card"
+          v-for="kpi in kpis"
+          :key="kpi.title"
+          :class="{ 'status-card': kpi.type === 'warning' }"
+        >
           <div class="kpi-header">
-            <span class="kpi-title">TOTAL PASSENGERS</span>
-            <div class="kpi-icon"><i class='bx bxs-group'></i></div>
+            <span class="kpi-title" :class="{ 'kpi-title-white': kpi.type === 'warning' }">{{ kpi.title }}</span>
+            <div :class="['kpi-icon', { 'kpi-icon-white': kpi.type === 'warning' }]">
+              <i :class="kpi.icon"></i>
+            </div>
           </div>
-          <div class="kpi-value">99</div>
-          <div class="kpi-trend positive"><i class='bx bx-up-arrow-alt'></i> Current waiting</div>
-        </div>
-        <div class="kpi-card">
-          <div class="kpi-header">
-            <span class="kpi-title">ACTIVE BUSES</span>
-            <div class="kpi-icon"><i class='bx bxs-bus'></i></div>
+          <div class="kpi-value" :class="{ 'kpi-value-white': kpi.type === 'warning' }">{{ kpi.value }}</div>
+          <div :class="['kpi-trend', { 'kpi-trend-white': kpi.type === 'warning', positive: kpi.type === 'positive', neutral: kpi.type === 'neutral' }]">
+            <i :class="kpi.indicator"></i> {{ kpi.trend }}
           </div>
-          <div class="kpi-value">3</div>
-          <div class="kpi-trend positive"><i class='bx bx-check-circle'></i> On route</div>
-        </div>
-        <div class="kpi-card">
-          <div class="kpi-header">
-            <span class="kpi-title">STILL BUSES</span>
-            <div class="kpi-icon"><i class='bx bx-stop-circle'></i></div>
-          </div>
-          <div class="kpi-value">4</div>
-          <div class="kpi-trend neutral"><i class='bx bx-time-five'></i> Standby at station</div>
-        </div>
-        <div class="kpi-card status-card">
-          <div class="kpi-header">
-            <span class="kpi-title kpi-title-white">MAINTAIN BUSES</span>
-            <div class="kpi-icon kpi-icon-white"><i class='bx bxs-wrench'></i></div>
-          </div>
-          <div class="kpi-value kpi-value-white">10</div>
-          <div class="kpi-trend kpi-trend-white"><i class='bx bx-cog bx-spin'></i> Under maintenance</div>
         </div>
       </div>
 
@@ -134,14 +119,15 @@
         <div class="chart-card">
           <h3 class="chart-title" style="margin-bottom:16px">Notifications</h3>
           <div class="noti-list">
-            <div class="noti-item" v-for="i in 3" :key="i">
+            <div class="noti-item" v-for="item in notifications" :key="item.id">
               <div class="noti-icon"><i class='bx bxs-error'></i></div>
               <div class="noti-content">
-                <strong class="noti-strong">Station: 14 - M-square</strong>
-                <span class="noti-desc">Building Red Zone !!!</span>
-                <span class="noti-time">People waiting now: 20 people</span>
+                <strong class="noti-strong">{{ item.station }}</strong>
+                <span class="noti-desc">{{ item.message }}</span>
+                <span class="noti-time">People waiting now: {{ item.people }} people</span>
               </div>
             </div>
+            <div class="noti-empty" v-if="notifications.length === 0">No notifications available.</div>
           </div>
         </div>
       </div>
@@ -165,35 +151,25 @@
             </tr>
           </thead>
           <tbody>
-            <tr>
+            <tr v-for="station in stations" :key="station.stationId">
               <td>
                 <div class="zone-info">
-                  <div class="zone-icon zone-icon-alert"><i class='bx bxs-map-pin' style="color:#d72660"></i></div>
+                  <div class="zone-icon" :class="{ 'zone-icon-alert': station.status === 'alert' }">
+                    <i class='bx bxs-map-pin' :style="{ color: station.status === 'alert' ? '#d72660' : '#6b7280' }"></i>
+                  </div>
                   <div>
-                    <strong class="zone-name">Station: 14 - M-square</strong>
-                    <p class="zone-sub">Red Zone Area</p>
+                    <strong class="zone-name">{{ station.name }}</strong>
+                    <p class="zone-sub">{{ station.zone }} | {{ station.location.lat.toFixed(4) }}, {{ station.location.lng.toFixed(4) }}</p>
                   </div>
                 </div>
               </td>
-              <td class="td-alert">20</td>
-              <td class="td-normal">0 mins away</td>
-              <td><span class="badge badge-alert">Alert</span></td>
+              <td :class="station.status === 'alert' ? 'td-alert' : 'td-normal'">{{ station.waitingPassengers }}</td>
+              <td class="td-normal">{{ station.incomingBuses }}</td>
+              <td><span class="badge" :class="station.status === 'alert' ? 'badge-alert' : 'badge-normal'">{{ station.status }}</span></td>
               <td><span class="action-link"><i class='bx bx-link-external'></i></span></td>
             </tr>
-            <tr>
-              <td>
-                <div class="zone-info">
-                  <div class="zone-icon"><i class='bx bxs-map-pin' style="color:#6b7280"></i></div>
-                  <div>
-                    <strong class="zone-name">Station: 9 - Swimming pool</strong>
-                    <p class="zone-sub">Main Route Coordinates [20.0458, 99.8913]</p>
-                  </div>
-                </div>
-              </td>
-              <td class="td-normal">12</td>
-              <td class="td-normal">5 mins away</td>
-              <td><span class="badge badge-normal">Normal</span></td>
-              <td><span class="action-link"><i class='bx bx-link-external'></i></span></td>
+            <tr v-if="stations.length === 0">
+              <td colspan="5">No station data available.</td>
             </tr>
           </tbody>
         </table>
@@ -211,26 +187,49 @@ const isDropdownOpen = ref(false);
 const language = ref('English');
 const activePassengerView = ref('weekly');
 
-const weeklyChartData = [
-  { label: 'Mon', height: 50, value: 72, active: false },
-  { label: 'Tue', height: 62, value: 85, active: false },
-  { label: 'Wed', height: 58, value: 80, active: false },
-  { label: 'Thu', height: 68, value: 92, active: false },
-  { label: 'Fri', height: 72, value: 98, active: true },
-  { label: 'Sat', height: 60, value: 82, active: false },
-  { label: 'Sun', height: 48, value: 70, active: false },
-];
+const kpis = ref([
+  { title: 'TOTAL PASSENGERS', value: '-', trend: 'Loading...', type: 'positive', icon: 'bx bxs-group', indicator: 'bx bx-up-arrow-alt' },
+  { title: 'ACTIVE BUSES', value: '-', trend: 'Loading...', type: 'positive', icon: 'bx bxs-bus', indicator: 'bx bx-check-circle' },
+  { title: 'STILL BUSES', value: '-', trend: 'Loading...', type: 'neutral', icon: 'bx bx-stop-circle', indicator: 'bx bx-time-five' },
+  { title: 'MAINTAIN BUSES', value: '-', trend: 'Loading...', type: 'warning', icon: 'bx bxs-wrench', indicator: 'bx bx-cog' }
+]);
+const notifications = ref([]);
+const stations = ref([]);
+const buses = ref([]);
+const weeklyChartData = ref([]);
+const monthlyChartData = ref([]);
 
-const monthlyChartData = [
-  { label: 'Week 1', height: 55, value: 320, active: false },
-  { label: 'Week 2', height: 70, value: 410, active: false },
-  { label: 'Week 3', height: 62, value: 365, active: false },
-  { label: 'Week 4', height: 78, value: 445, active: true },
-];
+const normalizeChartData = (items) => {
+  const max = Math.max(...items.map(item => item.value), 1);
+  return items.map((item, index) => ({
+    ...item,
+    height: Math.round((item.value / max) * 100),
+    active: index === items.length - 1
+  }));
+};
 
 const passengerChartData = computed(() => {
-  return activePassengerView.value === 'weekly' ? weeklyChartData : monthlyChartData;
+  return activePassengerView.value === 'weekly'
+    ? normalizeChartData(weeklyChartData.value)
+    : normalizeChartData(monthlyChartData.value);
 });
+
+const loadDashboard = async () => {
+  try {
+    const res = await fetch('http://localhost:3000/api/dashboard');
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Cannot load dashboard');
+
+    kpis.value = data.kpis || kpis.value;
+    notifications.value = data.notifications || [];
+    stations.value = data.stations || [];
+    buses.value = data.buses || [];
+    weeklyChartData.value = data.passengerChart?.weekly || [];
+    monthlyChartData.value = data.passengerChart?.monthly || [];
+  } catch (error) {
+    console.error(error);
+  }
+};
 
 const closeDropdown = (e) => {
   if (!e.target.closest('.profile-dropdown-container')) isDropdownOpen.value = false;
@@ -240,7 +239,10 @@ const toggleLanguage = () => {
   language.value = language.value === 'English' ? 'Thai' : 'English';
 };
 
-onMounted(() => document.addEventListener('click', closeDropdown));
+onMounted(() => {
+  document.addEventListener('click', closeDropdown);
+  loadDashboard();
+});
 onUnmounted(() => document.removeEventListener('click', closeDropdown));
 
 const logout = () => {

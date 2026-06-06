@@ -124,17 +124,19 @@
             <div class="channel-section">
               <div class="channel-row">
                 <strong>EMAIL ALERTS</strong>
-                <label class="switch"><input type="checkbox" checked><span class="slider"></span></label>
+                <label class="switch"><input type="checkbox" v-model="notificationChannels.emailEnabled"><span class="slider"></span></label>
               </div>
-              <p class="channel-desc">admin-ops@busstop.com</p>
+              <p class="channel-desc">{{ notificationChannels.emails.length ? notificationChannels.emails.join(', ') : 'No active email recipients' }}</p>
               <span class="add-link">+ Add recipient</span>
             </div>
             <div class="channel-section">
               <div class="channel-row">
                 <strong>SMS / MOBILE</strong>
-                <label class="switch"><input type="checkbox"><span class="slider"></span></label>
+                <label class="switch"><input type="checkbox" v-model="notificationChannels.smsEnabled"><span class="slider"></span></label>
               </div>
-              <p class="channel-desc empty">No active numbers</p>
+              <p class="channel-desc" :class="{ empty: notificationChannels.mobiles.length === 0 }">
+                {{ notificationChannels.mobiles.length ? notificationChannels.mobiles.join(', ') : 'No active numbers' }}
+              </p>
               <span class="add-link"><i class='bx bx-mobile'></i> Register device</span>
             </div>
             <div class="queue-threshold-section">
@@ -174,8 +176,8 @@
 
       <div class="action-bar">
         <div class="action-right">
-          <button class="btn-outline">Discard Changes</button>
-          <button class="btn-dark-blue">Save Configuration</button>
+          <button class="btn-outline" @click="discardChanges">Discard Changes</button>
+          <button class="btn-dark-blue" @click="saveSettings">Save Configuration</button>
         </div>
       </div>
     </main>
@@ -245,21 +247,83 @@ const router = useRouter()
 const isDropdownOpen = ref(false);
 const delayThreshold = ref(15);
 const language = ref('English');
+const notificationChannels = ref({
+  emailEnabled: false,
+  smsEnabled: false,
+  emails: [],
+  mobiles: []
+});
+const zones = ref([]);
+const hardware = ref([]);
+const isHardwareModalOpen = ref(false);
+const hardwareModalMode = ref('add');
+const hardwareEditIndex = ref(-1);
+const hardwareFormData = ref({ name: '', type: 'sensor', ip: '', fw: '', status: 'online' });
+const isModalOpen = ref(false);
+const modalMode = ref('add');
+const editIndex = ref(-1);
+const formData = ref({ name: '', desc: '', limit: 100 });
 
 const toggleLanguage = () => {
   language.value = language.value === 'English' ? 'Thai' : 'English';
 };
 
-const hardware = ref([
-  { name: 'Sensor-Unit-4882', type: 'sensor', details: 'FW v2.4.1 • 192.168.1.42', ip: '192.168.1.42', fw: 'v2.4.1', status: 'online' },
-  { name: 'CAM-STATION-009', type: 'camera', details: 'FW v3.1.0 • 192.168.1.109', ip: '192.168.1.109', fw: 'v3.1.0', status: 'online' },
-  { name: 'Sensor-Unit-2114', type: 'sensor', details: 'Disconnected • Last seen 2h ago', ip: '192.168.1.50', fw: 'v2.3.8', status: 'offline' }
-]);
+const loadSettings = async () => {
+  try {
+    const res = await fetch('http://localhost:3000/api/settings');
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Cannot load settings');
 
-const isHardwareModalOpen = ref(false);
-const hardwareModalMode = ref('add');
-const hardwareEditIndex = ref(-1);
-const hardwareFormData = ref({ name: '', type: 'sensor', ip: '', fw: '', status: 'online' });
+    zones.value = data.zones || [];
+    notificationChannels.value = data.notificationChannels || {
+      emailEnabled: false,
+      smsEnabled: false,
+      emails: [],
+      mobiles: []
+    };
+    delayThreshold.value = data.delayThreshold ?? 15;
+    hardware.value = data.hardware || [];
+  } catch (error) {
+    console.error(error);
+    zones.value = [
+      { name: 'Station: 14 - M-square', desc: 'Red Zone Area', currentPassengers: 382, limit: 450, color: 'red', criticalPercent: 90 },
+      { name: 'Station: 9 - Swimming pool', desc: 'Main Route Wait Area', currentPassengers: 50, limit: 120, color: 'blue', criticalPercent: null },
+      { name: 'VIP Terminal', desc: 'Premium Lounge Area', currentPassengers: 51, limit: 75, color: 'yellow', criticalPercent: null }
+    ];
+    hardware.value = [
+      { name: 'Sensor-Unit-4882', type: 'sensor', details: 'FW v2.4.1 • 192.168.1.42', ip: '192.168.1.42', fw: 'v2.4.1', status: 'online' },
+      { name: 'CAM-STATION-009', type: 'camera', details: 'FW v3.1.0 • 192.168.1.109', ip: '192.168.1.109', fw: 'v3.1.0', status: 'online' },
+      { name: 'Sensor-Unit-2114', type: 'sensor', details: 'Disconnected • Last seen 2h ago', ip: '192.168.1.50', fw: 'v2.3.8', status: 'offline' }
+    ];
+  }
+};
+
+const saveSettings = async () => {
+  try {
+    const payload = {
+      zones: zones.value,
+      notificationChannels: notificationChannels.value,
+      delayThreshold: delayThreshold.value,
+      hardware: hardware.value
+    };
+    const res = await fetch('http://localhost:3000/api/settings', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Cannot save settings');
+    alert('Settings saved successfully');
+    await loadSettings();
+  } catch (error) {
+    console.error(error);
+    alert('Unable to save settings');
+  }
+};
+
+const discardChanges = () => {
+  loadSettings();
+};
 
 const openAddHardwareModal = () => {
   hardwareModalMode.value = 'add';
@@ -311,24 +375,11 @@ const closeDropdown = (e) => {
     isDropdownOpen.value = false;
   }
 };
-onMounted(() => document.addEventListener('click', closeDropdown));
-onUnmounted(() => document.removeEventListener('click', closeDropdown));
-
-const zones = ref([
-  { name: 'Station: 14 - M-square', desc: 'Red Zone Area', currentPassengers: 382, limit: 450, color: 'red', criticalPercent: 90 },
-  { name: 'Station: 9 - Swimming pool', desc: 'Main Route Wait Area', currentPassengers: 50, limit: 120, color: 'blue', criticalPercent: null },
-  { name: 'VIP Terminal', desc: 'Premium Lounge Area', currentPassengers: 51, limit: 75, color: 'yellow', criticalPercent: null }
-]);
 
 const getPercentage = (current, limit) => {
   if (!limit || limit <= 0) return 0;
   return Math.min(100, Math.round((current / limit) * 100));
 };
-
-const isModalOpen = ref(false);
-const modalMode = ref('add');
-const editIndex = ref(-1);
-const formData = ref({ name: '', desc: '', limit: 100 });
 
 const openAddModal = () => {
   modalMode.value = 'add';
@@ -365,11 +416,19 @@ const confirmModal = () => {
   }
   closeModal();
 };
+
 const logout = () => {
   localStorage.removeItem('token')
   localStorage.removeItem('role')
   router.push('/')
 }
+
+onMounted(() => {
+  document.addEventListener('click', closeDropdown);
+  loadSettings();
+});
+
+onUnmounted(() => document.removeEventListener('click', closeDropdown));
 </script>
 
 <style scoped>
