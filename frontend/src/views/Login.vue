@@ -42,6 +42,7 @@
 <script setup>
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { apiFetch } from '../lib/api'
 
 const router = useRouter()
 const isSignUp = ref(false)
@@ -55,9 +56,8 @@ const signupConfirmPassword = ref('')
 
 const handleLogin = async () => {
   try {
-    const res = await fetch('http://localhost:3000/login', {
+    const res = await apiFetch('/login', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         username: loginUsername.value,
         password: loginPassword.value
@@ -88,9 +88,8 @@ const handleLogin = async () => {
 
 const handleSignUp = async () => {
   try {
-    const res = await fetch('http://localhost:3000/register', {
+    const res = await apiFetch('/register', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         username: signupUsername.value,
         password: signupPassword.value,

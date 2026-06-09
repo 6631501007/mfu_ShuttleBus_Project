@@ -330,6 +330,7 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router'
+import { apiFetch } from '../lib/api'
 
 const router = useRouter()
 const isDropdownOpen = ref(false);
@@ -347,7 +348,7 @@ const selectedTerminal = ref('');
 
 const loadAnalytics = async () => {
   try {
-    const res = await fetch('http://localhost:3000/api/analytics');
+    const res = await apiFetch('/api/analytics');
     const data = await res.json();
     if (!res.ok) throw new Error(data.message || 'Cannot load analytics');
 

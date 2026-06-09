@@ -316,6 +316,7 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
+import { apiFetch } from '../lib/api'
 
 const router = useRouter();
 
@@ -377,7 +378,7 @@ const getProgressColor = (current, capacity) => {
 // ─────────────────────────────────────────────────────────
 const loadStations = async () => {
   try {
-    const res = await fetch('http://localhost:3000/api/stations');
+    const res = await apiFetch('/api/stations');
     if (!res.ok) throw new Error('Cannot load stations');
     stations.value = await res.json();
   } catch (error) {
@@ -446,7 +447,7 @@ const deleteStation = (id) => {
 // ─────────────────────────────────────────────────────────
 const loadSettings = async () => {
   try {
-    const res = await fetch('http://localhost:3000/api/settings');
+    const res = await apiFetch('/api/settings');
     const data = await res.json();
     if (!res.ok) throw new Error(data.message || 'Cannot load settings');
     notificationChannels.value = data.notificationChannels || {
@@ -467,17 +468,15 @@ const saveSettings = async () => {
       hardware: hardware.value
     };
 
-    const settingsRes = await fetch('http://localhost:3000/api/settings', {
+    const settingsRes = await apiFetch('/api/settings', {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(settingsPayload)
     });
     const settingsData = await settingsRes.json();
     if (!settingsRes.ok) throw new Error(settingsData.message || 'Cannot save settings');
 
-    const stationsRes = await fetch('http://localhost:3000/api/stations-bulk', {
+    const stationsRes = await apiFetch('/api/stations-bulk', {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ stations: stations.value })
     });
     const stationsData = await stationsRes.json();

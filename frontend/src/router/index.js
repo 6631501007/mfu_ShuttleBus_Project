@@ -53,4 +53,21 @@ const router = createRouter({
   routes,
 })
 
+router.beforeEach((to) => {
+  const token = localStorage.getItem('token')
+  const role = localStorage.getItem('role')
+
+  if (to.meta.requiresAuth && !token) {
+    return '/'
+  }
+
+  if (to.meta.adminOnly && role !== 'admin') {
+    return '/home'
+  }
+
+  if (to.path === '/' && token) {
+    return role === 'admin' ? '/dashboard' : '/home'
+  }
+})
+
 export default router
