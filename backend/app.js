@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+require('dotenv').config();
 const User = require('./models/user');
 const Station = require('./models/station');
 const Bus = require('./models/bus');
@@ -14,13 +15,22 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-const PORT = 3000;
-const SECRET_KEY = 'APc-QA';
-const MONGO_URI = 'mongodb+srv://user:1111@cluster0.lbtbl38.mongodb.net/APC-QA?retryWrites=true&w=majority';
+const PORT = process.env.PORT || 3000;
+const SECRET_KEY = process.env.JWT_SECRET;
+const MONGO_URI = process.env.MONGO_URI;
+
+const requiredEnv = ['JWT_SECRET', 'MONGO_URI'];
+const missingEnv = requiredEnv.filter(key => !process.env[key]);
+
+if (missingEnv.length > 0) {
+  console.error(`Missing required environment variables: ${missingEnv.join(', ')}`);
+  process.exit(1);
+}
 
 const authMiddleware = (req, res, next) => {
   try {
-    const token = req.headers.authorization;
+    const authHeader = req.headers.authorization || '';
+    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : authHeader;
     if (!token) return res.status(401).json({ message: 'No Token' });
     const decoded = jwt.verify(token, SECRET_KEY);
     req.user = decoded;
@@ -28,6 +38,13 @@ const authMiddleware = (req, res, next) => {
   } catch (error) {
     res.status(401).json({ message: 'Invalid Token' });
   }
+};
+
+const adminMiddleware = (req, res, next) => {
+  if (req.user?.role !== 'admin') {
+    return res.status(403).json({ message: 'Admin access required' });
+  }
+  next();
 };
 
 mongoose
@@ -38,12 +55,12 @@ mongoose
 /////////////////// Register ///////////////////
 app.post('/register', async (req, res) => {
   try {
-    const { username, password, confirmPassword, role } = req.body;
+    const { username, password, confirmPassword } = req.body;
     const existingUser = await User.findOne({ username });
     if (existingUser) return res.status(400).json({ message: 'Username already exists' });
     if (password !== confirmPassword) return res.status(400).json({ message: 'Passwords do not match' });
     const hashedPassword = await bcrypt.hash(password, 10);
-    const newUser = new User({ username, password: hashedPassword, role });
+    const newUser = new User({ username, password: hashedPassword, role: 'user' });
     await newUser.save();
     res.json({ message: 'Register Success' });
   } catch (error) {
@@ -66,8 +83,10 @@ app.post('/login', async (req, res) => {
   }
 });
 
+app.use('/api', authMiddleware);
+
 /////////////////// Dashboard ///////////////////
-app.get('/api/dashboard', async (req, res) => {
+app.get('/api/dashboard', adminMiddleware, async (req, res) => {
   try {
     const stations = await Station.find().lean();
     const buses = await Bus.find().lean();
@@ -106,7 +125,7 @@ app.get('/api/dashboard', async (req, res) => {
 });
 
 /////////////////// Analytics ///////////////////
-app.get('/api/analytics', async (req, res) => {
+app.get('/api/analytics', adminMiddleware, async (req, res) => {
   try {
     const analytics = await Analytics.findOne().sort({ createdAt: -1 }).lean();
     res.json({
@@ -122,7 +141,7 @@ app.get('/api/analytics', async (req, res) => {
   }
 });
 
-app.post('/api/analytics', async (req, res) => {
+app.post('/api/analytics', adminMiddleware, async (req, res) => {
   try {
     const analytics = await Analytics.create(req.body);
     res.status(201).json({ message: 'Analytics created', analytics });
@@ -159,7 +178,7 @@ app.get('/api/home', async (req, res) => {
 });
 
 /////////////////// Map ///////////////////
-app.get('/api/map', async (req, res) => {
+app.get('/api/map', adminMiddleware, async (req, res) => {
   try {
     const stations = await Station.find({}, { stationId: 1, name: 1, location: 1, waitingPassengers: 1, incomingBuses: 1, status: 1 }).lean();
     res.json({ stations });
@@ -169,7 +188,7 @@ app.get('/api/map', async (req, res) => {
 });
 
 /////////////////// Feedback ///////////////////
-app.get('/api/feedback', async (req, res) => {
+app.get('/api/feedback', adminMiddleware, async (req, res) => {
   try {
     const feedbacks = await Feedback.find().sort({ createdAt: -1 }).lean();
     const summary = {
@@ -182,7 +201,7 @@ app.get('/api/feedback', async (req, res) => {
   }
 });
 
-app.post('/api/feedback', async (req, res) => {
+app.post('/api/feedback', adminMiddleware, async (req, res) => {
   try {
     const { userName, message, rating } = req.body;
     const feedback = await Feedback.create({ userName, message, rating });
@@ -192,7 +211,7 @@ app.post('/api/feedback', async (req, res) => {
   }
 });
 
-app.patch('/api/feedback/:id', async (req, res) => {
+app.patch('/api/feedback/:id', adminMiddleware, async (req, res) => {
   try {
     const feedback = await Feedback.findByIdAndUpdate(req.params.id, req.body, { new: true });
     if (!feedback) return res.status(404).json({ message: 'Feedback not found' });
@@ -203,7 +222,7 @@ app.patch('/api/feedback/:id', async (req, res) => {
 });
 
 /////////////////// Settings ///////////////////
-app.get('/api/settings', async (req, res) => {
+app.get('/api/settings', adminMiddleware, async (req, res) => {
   try {
     const settings = await Setting.findOne().lean();
     res.json(settings || {});
@@ -212,7 +231,7 @@ app.get('/api/settings', async (req, res) => {
   }
 });
 
-app.put('/api/settings', async (req, res) => {
+app.put('/api/settings', adminMiddleware, async (req, res) => {
   try {
     const settings = await Setting.findOneAndUpdate({}, req.body, { new: true, upsert: true });
     if (settings) {
@@ -227,7 +246,7 @@ app.put('/api/settings', async (req, res) => {
 });
 
 /////////////////// Settings - Zones ///////////////////
-app.post('/api/settings/zones', async (req, res) => {
+app.post('/api/settings/zones', adminMiddleware, async (req, res) => {
   try {
     const settings = await Setting.findOneAndUpdate(
       {},
@@ -240,7 +259,7 @@ app.post('/api/settings/zones', async (req, res) => {
   }
 });
 
-app.put('/api/settings/zones/:index', async (req, res) => {
+app.put('/api/settings/zones/:index', adminMiddleware, async (req, res) => {
   try {
     const index = parseInt(req.params.index);
     const settings = await Setting.findOne();
@@ -255,7 +274,7 @@ app.put('/api/settings/zones/:index', async (req, res) => {
   }
 });
 
-app.delete('/api/settings/zones/:index', async (req, res) => {
+app.delete('/api/settings/zones/:index', adminMiddleware, async (req, res) => {
   try {
     const index = parseInt(req.params.index);
     const settings = await Setting.findOne();
@@ -271,7 +290,7 @@ app.delete('/api/settings/zones/:index', async (req, res) => {
 });
 
 /////////////////// Settings - Hardware ///////////////////
-app.post('/api/settings/hardware', async (req, res) => {
+app.post('/api/settings/hardware', adminMiddleware, async (req, res) => {
   try {
     const settings = await Setting.findOneAndUpdate(
       {},
@@ -284,7 +303,7 @@ app.post('/api/settings/hardware', async (req, res) => {
   }
 });
 
-app.put('/api/settings/hardware/:index', async (req, res) => {
+app.put('/api/settings/hardware/:index', adminMiddleware, async (req, res) => {
   try {
     const index = parseInt(req.params.index);
     const settings = await Setting.findOne();
@@ -299,7 +318,7 @@ app.put('/api/settings/hardware/:index', async (req, res) => {
   }
 });
 
-app.delete('/api/settings/hardware/:index', async (req, res) => {
+app.delete('/api/settings/hardware/:index', adminMiddleware, async (req, res) => {
   try {
     const index = parseInt(req.params.index);
     const settings = await Setting.findOne();
@@ -315,7 +334,7 @@ app.delete('/api/settings/hardware/:index', async (req, res) => {
 });
 
 /////////////////// Stations ///////////////////
-app.post('/api/stations', async (req, res) => {
+app.post('/api/stations', adminMiddleware, async (req, res) => {
   try {
     const station = await Station.create(req.body);
     res.status(201).json({ message: 'Station created', station });
@@ -325,7 +344,7 @@ app.post('/api/stations', async (req, res) => {
 });
 
 // GET all stations
-app.get('/api/stations', async (req, res) => {
+app.get('/api/stations', adminMiddleware, async (req, res) => {
   try {
     const stations = await Station.find().lean();
     res.json(stations);
@@ -351,11 +370,11 @@ const saveStationsBulk = async (req, res) => {
   }
 };
 
-app.put('/api/stations-bulk', saveStationsBulk);
-app.put('/api/stations/bulk', saveStationsBulk);
+app.put('/api/stations-bulk', adminMiddleware, saveStationsBulk);
+app.put('/api/stations/bulk', adminMiddleware, saveStationsBulk);
 
 // PUT update station
-app.put('/api/stations/:id', async (req, res) => {
+app.put('/api/stations/:id', adminMiddleware, async (req, res) => {
   try {
     const station = await Station.findByIdAndUpdate(req.params.id, req.body, { new: true });
     if (!station) return res.status(404).json({ message: 'Station not found' });
@@ -366,7 +385,7 @@ app.put('/api/stations/:id', async (req, res) => {
 });
 
 // DELETE station
-app.delete('/api/stations/:id', async (req, res) => {
+app.delete('/api/stations/:id', adminMiddleware, async (req, res) => {
   try {
     const station = await Station.findByIdAndDelete(req.params.id);
     if (!station) return res.status(404).json({ message: 'Station not found' });
@@ -377,7 +396,7 @@ app.delete('/api/stations/:id', async (req, res) => {
 });
 
 /////////////////// Buses ///////////////////
-app.post('/api/buses', async (req, res) => {
+app.post('/api/buses', adminMiddleware, async (req, res) => {
   try {
     const bus = await Bus.create(req.body);
     res.status(201).json({ message: 'Bus created', bus });

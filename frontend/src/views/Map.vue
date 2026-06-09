@@ -87,6 +87,7 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
+import { apiFetch } from '../lib/api'
 
 const router = useRouter()
 const isDropdownOpen = ref(false)
@@ -144,7 +145,7 @@ const createMap = () => {
 
 const loadStations = async () => {
   try {
-    const res = await fetch('http://localhost:3000/api/map')
+    const res = await apiFetch('/api/map')
     const data = await res.json()
     if (!res.ok) throw new Error(data.message || 'Cannot load map data')
     stations.value = data.stations || []

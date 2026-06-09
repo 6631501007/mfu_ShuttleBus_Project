@@ -166,6 +166,7 @@
 <script setup>
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { apiFetch } from '../lib/api'
 
 const router = useRouter()
 const isDropdownOpen = ref(false)
@@ -204,7 +205,7 @@ const toggleLanguage = () => {
 
 const loadFeedbacks = async () => {
   try {
-    const res = await fetch('http://localhost:3000/api/feedback')
+    const res = await apiFetch('/api/feedback')
     const data = await res.json()
     if (!res.ok) throw new Error(data.message || 'Unable to load feedback')
 
@@ -217,9 +218,8 @@ const loadFeedbacks = async () => {
 
 const resolveFeedback = async (id) => {
   try {
-    const res = await fetch(`http://localhost:3000/api/feedback/${id}`, {
+    const res = await apiFetch(`/api/feedback/${id}`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: 'resolved' })
     })
     const data = await res.json()

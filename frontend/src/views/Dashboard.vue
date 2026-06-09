@@ -181,6 +181,7 @@
 <script setup>
 import { computed, ref, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router'
+import { apiFetch } from '../lib/api'
 
 const router = useRouter()
 const isDropdownOpen = ref(false);
@@ -216,7 +217,7 @@ const passengerChartData = computed(() => {
 
 const loadDashboard = async () => {
   try {
-    const res = await fetch('http://localhost:3000/api/dashboard');
+    const res = await apiFetch('/api/dashboard');
     const data = await res.json();
     if (!res.ok) throw new Error(data.message || 'Cannot load dashboard');
 
