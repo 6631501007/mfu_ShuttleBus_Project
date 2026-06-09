@@ -12,8 +12,7 @@ const busSchema = new mongoose.Schema({
     lat: Number,
     lng: Number
   },
-  eta: String,
-  updatedAt: { type: Date, default: Date.now }
-});
+  eta: String
+}, { timestamps: true });
 
 module.exports = mongoose.model('Bus', busSchema);

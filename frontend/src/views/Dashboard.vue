@@ -159,7 +159,7 @@
                   </div>
                   <div>
                     <strong class="zone-name">{{ station.name }}</strong>
-                    <p class="zone-sub">{{ station.zone }} | {{ station.location.lat.toFixed(4) }}, {{ station.location.lng.toFixed(4) }}</p>
+                    <p class="zone-sub">{{ station.zone }} | {{ station.location?.lat.toFixed(4) }}, {{ station.location?.lng.toFixed(4) }}</p>
                   </div>
                 </div>
               </td>

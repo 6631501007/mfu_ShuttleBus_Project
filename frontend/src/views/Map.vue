@@ -111,8 +111,17 @@ const logout = () => {
 }
 
 const createMap = () => {
-  const initialLocation = stations.value.length
-    ? stations.value[0].location
+  if (map) {
+    map.remove()
+    map = null
+  }
+
+  const validStations = stations.value.filter(
+    (station) => station.location && typeof station.location.lat === 'number' && typeof station.location.lng === 'number'
+  )
+
+  const initialLocation = validStations.length
+    ? validStations[0].location
     : { lat: 20.04498749707566, lng: 99.89428182346516 }
 
   map = L.map('map').setView([initialLocation.lat, initialLocation.lng], 15)
@@ -121,7 +130,7 @@ const createMap = () => {
     attribution: '&copy; OpenStreetMap'
   }).addTo(map)
 
-  stations.value.forEach((station) => {
+  validStations.forEach((station) => {
     const marker = L.marker([station.location.lat, station.location.lng]).addTo(map)
     marker.bindPopup(`
       <div style="font-family: 'Inter', sans-serif; font-size: 13px;">

@@ -1,49 +1,33 @@
 const mongoose = require('mongoose');
 
-const zoneSchema = new mongoose.Schema(
-  {
-    name: String,
-    desc: String,
-    currentPassengers: Number,
-    limit: Number,
-    color: String,
-    criticalPercent: Number
-  },
-  { _id: false }
-);
-
-const notificationChannelsSchema = new mongoose.Schema(
-  {
-    emailEnabled: Boolean,
-    smsEnabled: Boolean,
+const settingSchema = new mongoose.Schema({
+  zones: [
+    {
+      name: String,
+      desc: String,
+      currentPassengers: Number,
+      limit: Number,
+      color: String,
+      criticalPercent: { type: Number, default: null }
+    }
+  ],
+  notificationChannels: {
+    emailEnabled: { type: Boolean, default: false },
+    smsEnabled: { type: Boolean, default: false },
     emails: [String],
     mobiles: [String]
   },
-  { _id: false }
-);
-
-const hardwareSchema = new mongoose.Schema(
-  {
-    deviceId: String,
-    name: String,
-    type: String,
-    ip: String,
-    status: String,
-    details: String
-  },
-  { _id: false }
-);
-
-const settingSchema = new mongoose.Schema(
-  {
-    zones: [zoneSchema],
-    notificationChannels: notificationChannelsSchema,
-    delayThreshold: { type: Number, default: 15 },
-    hardware: [hardwareSchema]
-  },
-  {
-    timestamps: true
-  }
-);
+  delayThreshold: { type: Number, default: 15 },
+  hardware: [
+    {
+      deviceId: String,
+      name: String,
+      type: { type: String, enum: ['sensor', 'camera', 'other'] },
+      ip: String,
+      status: { type: String, enum: ['online', 'offline'], default: 'offline' },
+      details: String
+    }
+  ]
+}, { timestamps: true });
 
 module.exports = mongoose.model('Setting', settingSchema);

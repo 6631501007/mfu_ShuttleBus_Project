@@ -78,42 +78,48 @@
         </div>
 
         <div class="settings-grid top-grid">
+          <!-- ===== STATION THRESHOLDS (ใช้ Station API) ===== -->
           <div class="setting-card">
             <div class="card-header">
               <div class="header-title-card">
                 <i class='bx bxs-group'></i>
                 <h3>Station Thresholds</h3>
               </div>
-              <button class="btn-dark" @click="openAddModal">Add Zone</button>
+              <button class="btn-dark" @click="openAddModal">Add Station</button>
             </div>
             <div class="threshold-list">
-              <div class="threshold-item" v-for="(zone, index) in zones" :key="index">
+              <div v-if="stations.length === 0" class="empty-state">
+                <p>No stations found.</p>
+              </div>
+              <div class="threshold-item" v-for="station in stations" :key="station._id">
                 <div class="item-info">
-                  <strong>{{ zone.name }}</strong>
-                  <span>{{ zone.desc }}</span>
+                  <strong>{{ station.name }}</strong>
+                  <span>{{ station.desc || station.description || '—' }}</span>
                 </div>
                 <div class="progress-section">
                   <div class="progress-bar-bg">
-                    <div class="progress-fill" :class="zone.color"
-                      :style="{ width: getPercentage(zone.currentPassengers, zone.limit) + '%' }"></div>
-                    <div v-if="zone.criticalPercent" class="progress-marker"
-                      :style="{ left: zone.criticalPercent + '%' }"></div>
+                    <div class="progress-fill" :class="getProgressColor(station.waitingPassengers, station.capacity)"
+                      :style="{ width: getPercentage(station.waitingPassengers, station.capacity) + '%' }"></div>
                   </div>
                   <div class="progress-labels">
-                    <span class="current">CURRENT: {{ getPercentage(zone.currentPassengers, zone.limit) }}%</span>
-                    <span v-if="zone.criticalPercent" class="text-red">CRITICAL: {{ zone.criticalPercent }}%</span>
-                    <span v-else class="limit-label">LIMIT: {{ zone.limit }}</span>
+                    <span class="current">CURRENT: {{ getPercentage(station.waitingPassengers, station.capacity)
+                      }}%</span>
+                    <span class="limit-label">CAPACITY: {{ station.capacity ?? '—' }}</span>
                   </div>
                 </div>
                 <div class="limit-box">
-                  <span>Limit:</span>
-                  <strong>{{ zone.limit }}</strong>
+                  <span>Now:</span>
+                  <strong>{{ station.waitingPassengers ?? 0 }}</strong>
                 </div>
-                <i class='bx bx-pencil edit-icon' @click="openEditModal(index)"></i>
+                <div class="item-actions">
+                  <i class='bx bx-pencil edit-icon' @click="openEditModal(station)" title="Edit"></i>
+                  <i class='bx bx-trash delete-icon' @click="deleteStation(station._id)" title="Delete"></i>
+                </div>
               </div>
             </div>
           </div>
 
+          <!-- ===== NOTIFICATION CHANNELS ===== -->
           <div class="setting-card">
             <div class="card-header">
               <div class="header-title-card">
@@ -124,20 +130,36 @@
             <div class="channel-section">
               <div class="channel-row">
                 <strong>EMAIL ALERTS</strong>
-                <label class="switch"><input type="checkbox" v-model="notificationChannels.emailEnabled"><span class="slider"></span></label>
+                <label class="switch"><input type="checkbox" v-model="notificationChannels.emailEnabled"><span
+                    class="slider"></span></label>
               </div>
-              <p class="channel-desc">{{ notificationChannels.emails.length ? notificationChannels.emails.join(', ') : 'No active email recipients' }}</p>
-              <span class="add-link">+ Add recipient</span>
+              <p class="channel-desc">{{ notificationChannels.emails.length ? notificationChannels.emails.join(', ') :
+                'No active email recipients' }}</p>
+              <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px;">
+                <span v-for="(email, idx) in notificationChannels.emails" :key="idx" class="tag-item">
+                  {{ email }}
+                  <i class='bx bx-x' @click="removeEmail(idx)" style="cursor:pointer; margin-left:4px;"></i>
+                </span>
+              </div>
+              <span class="add-link" @click="openNotificationModal('email')">+ Add recipient</span>
             </div>
             <div class="channel-section">
               <div class="channel-row">
                 <strong>SMS / MOBILE</strong>
-                <label class="switch"><input type="checkbox" v-model="notificationChannels.smsEnabled"><span class="slider"></span></label>
+                <label class="switch"><input type="checkbox" v-model="notificationChannels.smsEnabled"><span
+                    class="slider"></span></label>
               </div>
               <p class="channel-desc" :class="{ empty: notificationChannels.mobiles.length === 0 }">
-                {{ notificationChannels.mobiles.length ? notificationChannels.mobiles.join(', ') : 'No active numbers' }}
+                {{ notificationChannels.mobiles.length ? notificationChannels.mobiles.join(', ') : 'No active numbers'
+                }}
               </p>
-              <span class="add-link"><i class='bx bx-mobile'></i> Register device</span>
+              <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px;">
+                <span v-for="(mobile, idx) in notificationChannels.mobiles" :key="idx" class="tag-item">
+                  {{ mobile }}
+                  <i class='bx bx-x' @click="removeMobile(idx)" style="cursor:pointer; margin-left:4px;"></i>
+                </span>
+              </div>
+              <span class="add-link" @click="openNotificationModal('mobile')"><i class='bx bx-mobile'></i> Register device</span>
             </div>
             <div class="queue-threshold-section">
               <strong>Queue Delay Threshold</strong>
@@ -151,6 +173,7 @@
         </div>
 
         <div class="settings-grid bottom-grid">
+          <!-- ===== CONNECTED HARDWARE ===== -->
           <div class="setting-card">
             <div class="card-header">
               <div class="header-title-card">
@@ -161,8 +184,12 @@
             </div>
             <div class="hardware-list">
               <div class="hw-item" v-for="(hw, index) in hardware" :key="index">
-                <i :class="['bx', 'hw-icon', hw.status === 'online' ? 'bx-check-circle online' : 'bx-error-triangle offline']"></i>
-                <div class="hw-info"><strong :class="hw.status === 'offline' ? 'text-red' : ''">{{ hw.name }}</strong><span>{{ hw.details }}</span></div>
+                <i
+                  :class="['bx', 'hw-icon', hw.status === 'online' ? 'bx-check-circle online' : 'bx-error-triangle offline']"></i>
+                <div class="hw-info">
+                  <strong :class="hw.status === 'offline' ? 'text-red' : ''">{{ hw.name }}</strong>
+                  <span>{{ hw.details }}</span>
+                </div>
                 <div class="hw-actions">
                   <i class='bx bx-pencil edit-icon' @click="openEditHardwareModal(index)" title="Edit"></i>
                   <i class='bx bx-trash delete-icon' @click="deleteHardware(index)" title="Delete"></i>
@@ -182,19 +209,30 @@
       </div>
     </main>
 
+    <!-- ===== STATION MODAL (Add / Edit) ===== -->
     <div class="modal-overlay" v-if="isModalOpen" @click.self="closeModal">
       <div class="modal-content">
         <div class="modal-header">
-          <h3>{{ modalMode === 'add' ? 'Add New Zone' : 'Edit Zone' }}</h3>
+          <h3>{{ modalMode === 'add' ? 'Add New Station' : 'Edit Station' }}</h3>
           <i class='bx bx-x close-btn' @click="closeModal"></i>
         </div>
         <div class="modal-body">
-          <div class="form-group"><label>Station Name</label><input type="text" v-model="formData.name"
-              placeholder="e.g. Station 10" /></div>
-          <div class="form-group"><label>Description</label><input type="text" v-model="formData.desc"
-              placeholder="e.g. Main Waiting Area" /></div>
-          <div class="form-group"><label>Passenger Limit</label><input type="number" v-model="formData.limit"
-              placeholder="Enter max limit" /></div>
+          <div class="form-group">
+            <label>Station Name</label>
+            <input type="text" v-model="formData.name" placeholder="e.g. Station A" />
+          </div>
+          <div class="form-group">
+            <label>Description</label>
+            <input type="text" v-model="formData.desc" placeholder="e.g. Main Waiting Area" />
+          </div>
+          <div class="form-group">
+            <label>Capacity (Passenger Limit)</label>
+            <input type="number" v-model.number="formData.capacity" placeholder="e.g. 100" min="1" />
+          </div>
+          <div class="form-group" v-if="modalMode === 'add'">
+            <label>Initial Waiting Passengers</label>
+            <input type="number" v-model.number="formData.waitingPassengers" placeholder="e.g. 0" min="0" />
+          </div>
         </div>
         <div class="modal-actions">
           <button class="btn-outline" @click="closeModal">Cancel</button>
@@ -203,6 +241,7 @@
       </div>
     </div>
 
+    <!-- ===== HARDWARE MODAL ===== -->
     <div class="modal-overlay" v-if="isHardwareModalOpen" @click.self="closeHardwareModal">
       <div class="modal-content">
         <div class="modal-header">
@@ -210,21 +249,31 @@
           <i class='bx bx-x close-btn' @click="closeHardwareModal"></i>
         </div>
         <div class="modal-body">
-          <div class="form-group"><label>Device Name</label><input type="text" v-model="hardwareFormData.name"
-              placeholder="e.g. Sensor-Unit-001" /></div>
-          <div class="form-group"><label>Device Type</label>
-            <select v-model="hardwareFormData.type" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 8px;">
+          <div class="form-group">
+            <label>Device Name</label>
+            <input type="text" v-model="hardwareFormData.name" placeholder="e.g. Sensor-Unit-001" />
+          </div>
+          <div class="form-group">
+            <label>Device Type</label>
+            <select v-model="hardwareFormData.type"
+              style="width:100%;padding:8px;border:1px solid #ddd;border-radius:8px;">
               <option value="sensor">Sensor</option>
               <option value="camera">Camera</option>
               <option value="other">Other</option>
             </select>
           </div>
-          <div class="form-group"><label>IP Address</label><input type="text" v-model="hardwareFormData.ip"
-              placeholder="e.g. 192.168.1.100" /></div>
-          <div class="form-group"><label>Firmware Version</label><input type="text" v-model="hardwareFormData.fw"
-              placeholder="e.g. v2.4.1" /></div>
-          <div class="form-group"><label>Status</label>
-            <select v-model="hardwareFormData.status" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 8px;">
+          <div class="form-group">
+            <label>IP Address</label>
+            <input type="text" v-model="hardwareFormData.ip" placeholder="e.g. 192.168.1.100" />
+          </div>
+          <div class="form-group">
+            <label>Firmware Version</label>
+            <input type="text" v-model="hardwareFormData.fw" placeholder="e.g. v2.4.1" />
+          </div>
+          <div class="form-group">
+            <label>Status</label>
+            <select v-model="hardwareFormData.status"
+              style="width:100%;padding:8px;border:1px solid #ddd;border-radius:8px;">
               <option value="online">Online</option>
               <option value="offline">Offline</option>
             </select>
@@ -236,95 +285,267 @@
         </div>
       </div>
     </div>
+
+    <!-- ===== NOTIFICATION CHANNEL MODAL ===== -->
+    <div class="modal-overlay" v-if="isNotificationModalOpen" @click.self="closeNotificationModal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>{{ notificationModalType === 'email' ? 'Add Email Recipient' : 'Add Mobile Number' }}</h3>
+          <i class='bx bx-x close-btn' @click="closeNotificationModal"></i>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label>{{ notificationModalType === 'email' ? 'Email Address' : 'Mobile Number' }}</label>
+            <input 
+              type="text" 
+              v-model="newChannelValue" 
+              :placeholder="notificationModalType === 'email' ? 'e.g. admin@example.com' : 'e.g. +66812345678'"
+              @keyup.enter="addNotificationChannel"
+            />
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button class="btn-outline" @click="closeNotificationModal">Cancel</button>
+          <button class="btn-dark-blue" @click="addNotificationChannel">Add</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue';
-import { useRouter } from 'vue-router'
+import { useRouter } from 'vue-router';
 
-const router = useRouter()
+const router = useRouter();
+
+// ── UI state ──────────────────────────────────────────────
 const isDropdownOpen = ref(false);
-const delayThreshold = ref(15);
 const language = ref('English');
+
+// ── Settings (notification + hardware) ───────────────────
+const delayThreshold = ref(15);
 const notificationChannels = ref({
   emailEnabled: false,
   smsEnabled: false,
   emails: [],
   mobiles: []
 });
-const zones = ref([]);
 const hardware = ref([]);
+
+// ── Stations (Station Thresholds) ─────────────────────────
+const stations = ref([]);
+
+// ── Station Modal ─────────────────────────────────────────
+const isModalOpen = ref(false);
+const modalMode = ref('add');           // 'add' | 'edit'
+const editStationId = ref(null);
+const formData = ref({ name: '', desc: '', capacity: 100, waitingPassengers: 0 });
+
+// ── Notification Channel Modal ───────────────────────────
+const isNotificationModalOpen = ref(false);
+const notificationModalType = ref('email');  // 'email' | 'mobile'
+const newChannelValue = ref('');
+
+// ── Hardware Modal ────────────────────────────────────────
 const isHardwareModalOpen = ref(false);
 const hardwareModalMode = ref('add');
 const hardwareEditIndex = ref(-1);
 const hardwareFormData = ref({ name: '', type: 'sensor', ip: '', fw: '', status: 'online' });
-const isModalOpen = ref(false);
-const modalMode = ref('add');
-const editIndex = ref(-1);
-const formData = ref({ name: '', desc: '', limit: 100 });
 
+// ─────────────────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────────────────
 const toggleLanguage = () => {
   language.value = language.value === 'English' ? 'Thai' : 'English';
 };
 
+const getPercentage = (current, limit) => {
+  if (!limit || limit <= 0) return 0;
+  return Math.min(100, Math.round(((current ?? 0) / limit) * 100));
+};
+
+const getProgressColor = (current, capacity) => {
+  const pct = getPercentage(current, capacity);
+  if (pct >= 90) return 'red';
+  if (pct >= 70) return 'yellow';
+  return 'blue';
+};
+
+// ─────────────────────────────────────────────────────────
+// Station API
+// ─────────────────────────────────────────────────────────
+const loadStations = async () => {
+  try {
+    const res = await fetch('http://localhost:3000/api/stations');
+    if (!res.ok) throw new Error('Cannot load stations');
+    stations.value = await res.json();
+  } catch (error) {
+    console.error(error);
+  }
+};
+
+const openAddModal = () => {
+  modalMode.value = 'add';
+  formData.value = { name: '', desc: '', capacity: 100, waitingPassengers: 0 };
+  isModalOpen.value = true;
+};
+
+const openEditModal = (station) => {
+  modalMode.value = 'edit';
+  editStationId.value = station._id;
+  formData.value = {
+    name: station.name,
+    desc: station.desc || station.description || '',
+    capacity: station.capacity ?? 100,
+    waitingPassengers: station.waitingPassengers ?? 0
+  };
+  isModalOpen.value = true;
+};
+
+const closeModal = () => { isModalOpen.value = false; };
+
+const confirmModal = () => {
+  if (!formData.value.name) return;
+
+  if (modalMode.value === 'add') {
+    stations.value.push({
+      _id: `pending-${Date.now()}`,
+      stationId: 'ST-' + Date.now(),
+      name: formData.value.name,
+      desc: formData.value.desc,
+      capacity: formData.value.capacity,
+      waitingPassengers: formData.value.waitingPassengers ?? 0,
+      status: 'normal',
+      zone: formData.value.zone || 'Unknown',
+      location: formData.value.location || { lat: 0, lng: 0 },
+      incomingBuses: 'N/A'
+    });
+  } else {
+    const index = stations.value.findIndex((station) => station._id === editStationId.value);
+    if (index !== -1) {
+      stations.value[index] = {
+        ...stations.value[index],
+        name: formData.value.name,
+        desc: formData.value.desc,
+        capacity: formData.value.capacity
+      };
+    }
+  }
+
+  closeModal();
+};
+
+const deleteStation = (id) => {
+  if (!confirm('Delete this station?')) return;
+  stations.value = stations.value.filter((station) => station._id !== id);
+};
+
+// ─────────────────────────────────────────────────────────
+// Settings API (notification + hardware)
+// ─────────────────────────────────────────────────────────
 const loadSettings = async () => {
   try {
     const res = await fetch('http://localhost:3000/api/settings');
     const data = await res.json();
     if (!res.ok) throw new Error(data.message || 'Cannot load settings');
-
-    zones.value = data.zones || [];
     notificationChannels.value = data.notificationChannels || {
-      emailEnabled: false,
-      smsEnabled: false,
-      emails: [],
-      mobiles: []
+      emailEnabled: false, smsEnabled: false, emails: [], mobiles: []
     };
     delayThreshold.value = data.delayThreshold ?? 15;
     hardware.value = data.hardware || [];
   } catch (error) {
     console.error(error);
-    zones.value = [
-      { name: 'Station: 14 - M-square', desc: 'Red Zone Area', currentPassengers: 382, limit: 450, color: 'red', criticalPercent: 90 },
-      { name: 'Station: 9 - Swimming pool', desc: 'Main Route Wait Area', currentPassengers: 50, limit: 120, color: 'blue', criticalPercent: null },
-      { name: 'VIP Terminal', desc: 'Premium Lounge Area', currentPassengers: 51, limit: 75, color: 'yellow', criticalPercent: null }
-    ];
-    hardware.value = [
-      { name: 'Sensor-Unit-4882', type: 'sensor', details: 'FW v2.4.1 • 192.168.1.42', ip: '192.168.1.42', fw: 'v2.4.1', status: 'online' },
-      { name: 'CAM-STATION-009', type: 'camera', details: 'FW v3.1.0 • 192.168.1.109', ip: '192.168.1.109', fw: 'v3.1.0', status: 'online' },
-      { name: 'Sensor-Unit-2114', type: 'sensor', details: 'Disconnected • Last seen 2h ago', ip: '192.168.1.50', fw: 'v2.3.8', status: 'offline' }
-    ];
   }
 };
 
 const saveSettings = async () => {
   try {
-    const payload = {
-      zones: zones.value,
+    const settingsPayload = {
       notificationChannels: notificationChannels.value,
       delayThreshold: delayThreshold.value,
       hardware: hardware.value
     };
-    const res = await fetch('http://localhost:3000/api/settings', {
+
+    const settingsRes = await fetch('http://localhost:3000/api/settings', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(settingsPayload)
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.message || 'Cannot save settings');
+    const settingsData = await settingsRes.json();
+    if (!settingsRes.ok) throw new Error(settingsData.message || 'Cannot save settings');
+
+    const stationsRes = await fetch('http://localhost:3000/api/stations-bulk', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ stations: stations.value })
+    });
+    const stationsData = await stationsRes.json();
+    if (!stationsRes.ok) throw new Error(stationsData.message || 'Cannot save stations');
+
     alert('Settings saved successfully');
     await loadSettings();
+    await loadStations();
   } catch (error) {
     console.error(error);
     alert('Unable to save settings');
   }
 };
 
-const discardChanges = () => {
-  loadSettings();
+// ─────────────────────────────────────────────────────────
+// Notification Channel Functions
+// ─────────────────────────────────────────────────────────
+const openNotificationModal = (type) => {
+  notificationModalType.value = type;
+  newChannelValue.value = '';
+  isNotificationModalOpen.value = true;
 };
 
+const closeNotificationModal = () => {
+  isNotificationModalOpen.value = false;
+  newChannelValue.value = '';
+};
+
+const addNotificationChannel = () => {
+  const value = newChannelValue.value.trim();
+  if (!value) {
+    alert('Please enter a value');
+    return;
+  }
+
+  if (notificationModalType.value === 'email') {
+    if (notificationChannels.value.emails.includes(value)) {
+      alert('This email already exists');
+      return;
+    }
+    notificationChannels.value.emails.push(value);
+  } else if (notificationModalType.value === 'mobile') {
+    if (notificationChannels.value.mobiles.includes(value)) {
+      alert('This mobile number already exists');
+      return;
+    }
+    notificationChannels.value.mobiles.push(value);
+  }
+
+  closeNotificationModal();
+};
+
+const removeEmail = (index) => {
+  notificationChannels.value.emails.splice(index, 1);
+};
+
+const removeMobile = (index) => {
+  notificationChannels.value.mobiles.splice(index, 1);
+};
+
+const discardChanges = () => {
+  loadSettings();
+  loadStations();
+};
+
+// ─────────────────────────────────────────────────────────
+// Hardware Modal
+// ─────────────────────────────────────────────────────────
 const openAddHardwareModal = () => {
   hardwareModalMode.value = 'add';
   hardwareFormData.value = { name: '', type: 'sensor', ip: '', fw: '', status: 'online' };
@@ -335,96 +556,56 @@ const openEditHardwareModal = (index) => {
   hardwareModalMode.value = 'edit';
   hardwareEditIndex.value = index;
   const hw = hardware.value[index];
-  hardwareFormData.value = { name: hw.name, type: hw.type, ip: hw.ip, fw: hw.fw, status: hw.status };
+  hardwareFormData.value = { name: hw.name, type: hw.type || 'sensor', ip: hw.ip || '', fw: hw.fw || '', status: hw.status };
   isHardwareModalOpen.value = true;
 };
 
-const closeHardwareModal = () => {
-  isHardwareModalOpen.value = false;
-};
+const closeHardwareModal = () => { isHardwareModalOpen.value = false; };
 
 const confirmHardwareModal = () => {
   if (!hardwareFormData.value.name) return;
+  const payload = {
+    name: hardwareFormData.value.name,
+    type: hardwareFormData.value.type,
+    ip: hardwareFormData.value.ip,
+    status: hardwareFormData.value.status,
+    fw: hardwareFormData.value.fw,
+    details: `FW ${hardwareFormData.value.fw} • ${hardwareFormData.value.ip}`
+  };
+
   if (hardwareModalMode.value === 'add') {
-    hardware.value.push({
-      name: hardwareFormData.value.name,
-      type: hardwareFormData.value.type,
-      details: `FW ${hardwareFormData.value.fw} • ${hardwareFormData.value.ip}`,
-      ip: hardwareFormData.value.ip,
-      fw: hardwareFormData.value.fw,
-      status: hardwareFormData.value.status
-    });
-  } else {
-    const hw = hardware.value[hardwareEditIndex.value];
-    hw.name = hardwareFormData.value.name;
-    hw.type = hardwareFormData.value.type;
-    hw.ip = hardwareFormData.value.ip;
-    hw.fw = hardwareFormData.value.fw;
-    hw.status = hardwareFormData.value.status;
-    hw.details = `FW ${hardwareFormData.value.fw} • ${hardwareFormData.value.ip}`;
+    hardware.value.push(payload);
+  } else if (hardwareEditIndex.value >= 0) {
+    hardware.value[hardwareEditIndex.value] = {
+      ...hardware.value[hardwareEditIndex.value],
+      ...payload
+    };
   }
+
   closeHardwareModal();
 };
 
 const deleteHardware = (index) => {
+  if (!confirm('Delete this hardware?')) return;
   hardware.value.splice(index, 1);
 };
 
+// ─────────────────────────────────────────────────────────
+// Auth / Dropdown
+// ─────────────────────────────────────────────────────────
 const closeDropdown = (e) => {
-  if (!e.target.closest('.profile-dropdown-container')) {
-    isDropdownOpen.value = false;
-  }
-};
-
-const getPercentage = (current, limit) => {
-  if (!limit || limit <= 0) return 0;
-  return Math.min(100, Math.round((current / limit) * 100));
-};
-
-const openAddModal = () => {
-  modalMode.value = 'add';
-  formData.value = { name: '', desc: '', limit: 100 };
-  isModalOpen.value = true;
-};
-
-const openEditModal = (index) => {
-  modalMode.value = 'edit';
-  editIndex.value = index;
-  const z = zones.value[index];
-  formData.value = { name: z.name, desc: z.desc, limit: z.limit };
-  isModalOpen.value = true;
-};
-
-const closeModal = () => { isModalOpen.value = false; };
-
-const confirmModal = () => {
-  if (!formData.value.name) return;
-  if (modalMode.value === 'add') {
-    zones.value.push({
-      name: formData.value.name,
-      desc: formData.value.desc,
-      currentPassengers: 0,
-      limit: formData.value.limit,
-      color: 'blue',
-      criticalPercent: null
-    });
-  } else {
-    const z = zones.value[editIndex.value];
-    z.name = formData.value.name;
-    z.desc = formData.value.desc;
-    z.limit = formData.value.limit;
-  }
-  closeModal();
+  if (!e.target.closest('.profile-dropdown-container')) isDropdownOpen.value = false;
 };
 
 const logout = () => {
-  localStorage.removeItem('token')
-  localStorage.removeItem('role')
-  router.push('/')
-}
+  localStorage.removeItem('token');
+  localStorage.removeItem('role');
+  router.push('/');
+};
 
 onMounted(() => {
   document.addEventListener('click', closeDropdown);
+  loadStations();
   loadSettings();
 });
 
@@ -692,11 +873,6 @@ onUnmounted(() => document.removeEventListener('click', closeDropdown));
   color: #d72660;
 }
 
-.dropdown-divider {
-  height: 1px;
-  background: #e5e7eb;
-}
-
 .logout-item {
   color: #d72660;
 }
@@ -786,6 +962,13 @@ onUnmounted(() => document.removeEventListener('click', closeDropdown));
   gap: 12px;
 }
 
+.empty-state {
+  padding: 24px;
+  text-align: center;
+  color: #9ca3af;
+  font-size: 14px;
+}
+
 .threshold-item {
   background: #f9fafb;
   border-radius: 12px;
@@ -850,14 +1033,6 @@ onUnmounted(() => document.removeEventListener('click', closeDropdown));
   background: #f59e0b;
 }
 
-.progress-marker {
-  position: absolute;
-  top: -2px;
-  height: 12px;
-  width: 2px;
-  background: #dc2626;
-}
-
 .progress-labels {
   display: flex;
   justify-content: space-between;
@@ -893,6 +1068,12 @@ onUnmounted(() => document.removeEventListener('click', closeDropdown));
 .limit-box strong {
   font-size: 16px;
   font-weight: 700;
+}
+
+.item-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
 }
 
 .edit-icon {
@@ -1034,16 +1215,6 @@ input:checked+.slider:before {
 }
 
 /* Hardware */
-.badge-dark {
-  background: #0f172a;
-  color: white;
-  font-size: 10px;
-  padding: 4px 10px;
-  border-radius: 6px;
-  font-weight: bold;
-  letter-spacing: .5px;
-}
-
 .hardware-list {
   display: flex;
   flex-direction: column;
@@ -1085,29 +1256,10 @@ input:checked+.slider:before {
   color: #6b7280;
 }
 
-.refresh-icon {
-  color: #9ca3af;
-  font-size: 20px;
-  cursor: pointer;
-}
-
 .hw-actions {
   display: flex;
   gap: 12px;
   margin-left: auto;
-}
-
-.edit-icon,
-.add-icon {
-  color: #9ca3af;
-  font-size: 18px;
-  cursor: pointer;
-  transition: color 0.2s;
-}
-
-.edit-icon:hover,
-.add-icon:hover {
-  color: #d72660;
 }
 
 /* Action Bar */
@@ -1245,5 +1397,21 @@ input:checked+.slider:before {
   display: flex;
   justify-content: flex-end;
   gap: 12px;
+}
+
+.tag-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #f3f4f6;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #374151;
+}
+
+.tag-item i:hover {
+  color: #d72660;
+  cursor: pointer;
 }
 </style>

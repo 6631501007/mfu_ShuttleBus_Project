@@ -50,7 +50,7 @@
           <h2 class="header-title">Feedback</h2>
           <div class="search-bar">
             <i class='bx bx-search search-icon'></i>
-            <input class="search-input" type="text" placeholder="Search feedback..." />
+            <input class="search-input" v-model="searchQuery" type="text" placeholder="Search feedback..." />
           </div>
         </div>
 
@@ -96,26 +96,40 @@
           </div>
         </div>
 
-        <!-- SUBMIT FORM -->
-        <div class="feedback-form">
-          <div class="form-row">
-            <input v-model="newFeedback.userName" type="text" placeholder="Your name" />
-            <select v-model="newFeedback.rating">
-              <option value="1">⭐ Rating: 1</option>
-              <option value="2">⭐ Rating: 2</option>
-              <option value="3">⭐ Rating: 3</option>
-              <option value="4">⭐ Rating: 4</option>
-              <option value="5">⭐ Rating: 5</option>
-            </select>
+        <!-- FILTER -->
+        <section class="filters">
+          <div class="filter-group">
+            <label>Status</label>
+            <div class="select-box">
+              <select v-model="statusFilter">
+                <option value="">All statuses</option>
+                <option value="new">New</option>
+                <option value="resolved">Resolved</option>
+              </select>
+              <i class='bx bx-chevron-down arrow'></i>
+            </div>
           </div>
-          <textarea v-model="newFeedback.message" placeholder="Write your feedback here..."></textarea>
-          <button class="btn-dark" @click="submitFeedback">Submit Feedback</button>
-        </div>
+
+          <div class="filter-group">
+            <label>Rating</label>
+            <div class="select-box">
+              <select v-model.number="ratingFilter">
+                <option value="">All ratings</option>
+                <option value="1">1 star</option>
+                <option value="2">2 stars</option>
+                <option value="3">3 stars</option>
+                <option value="4">4 stars</option>
+                <option value="5">5 stars</option>
+              </select>
+              <i class='bx bx-chevron-down arrow'></i>
+            </div>
+          </div>
+        </section>
 
         <!-- FEEDBACK ITEMS -->
         <div class="feedback-list">
-          <div v-if="feedbacks.length === 0" class="empty-state">No feedback available.</div>
-          <div class="feedback-item" v-for="item in feedbacks" :key="item._id">
+          <div v-if="filteredFeedbacks.length === 0" class="empty-state">No feedback available.</div>
+          <div class="feedback-item" v-for="item in filteredFeedbacks" :key="item._id">
             <div class="feedback-header-row">
               <div class="feedback-user">
                 <div class="user-avatar-small">{{ item.userName?.slice(0, 2) }}</div>
@@ -150,7 +164,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
@@ -158,7 +172,25 @@ const isDropdownOpen = ref(false)
 const language = ref('English')
 const feedbacks = ref([])
 const summary = ref({ newFeedback: 0, resolved: 0 })
-const newFeedback = ref({ userName: '', message: '', rating: 3 })
+const statusFilter = ref('')
+const ratingFilter = ref('')
+const searchQuery = ref('')
+
+const filteredFeedbacks = computed(() => {
+  const normalizedQuery = searchQuery.value.toLowerCase().trim()
+  const ratingValue = ratingFilter.value ? Number(ratingFilter.value) : null
+
+  return feedbacks.value.filter((item) => {
+    const matchesStatus = !statusFilter.value || item.status === statusFilter.value
+    const matchesRating = !ratingValue || Number(item.rating) === ratingValue
+    const matchesSearch =
+      !normalizedQuery ||
+      item.userName?.toLowerCase().includes(normalizedQuery) ||
+      item.message?.toLowerCase().includes(normalizedQuery)
+
+    return matchesStatus && matchesRating && matchesSearch
+  })
+})
 
 const closeDropdown = (e) => {
   if (!e.target.closest('.profile-dropdown-container')) {
@@ -180,29 +212,6 @@ const loadFeedbacks = async () => {
     summary.value = data.summary || { newFeedback: 0, resolved: 0 }
   } catch (error) {
     console.error(error)
-  }
-}
-
-const submitFeedback = async () => {
-  if (!newFeedback.value.userName || !newFeedback.value.message) {
-    alert('Please enter your name and feedback message.')
-    return
-  }
-
-  try {
-    const res = await fetch('http://localhost:3000/api/feedback', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newFeedback.value)
-    })
-    const data = await res.json()
-    if (!res.ok) throw new Error(data.message || 'Cannot submit feedback')
-
-    newFeedback.value = { userName: '', message: '', rating: 3 }
-    await loadFeedbacks()
-  } catch (error) {
-    console.error(error)
-    alert('Unable to submit feedback')
   }
 }
 
@@ -272,8 +281,6 @@ onUnmounted(() => {
   justify-content: space-between;
   flex-shrink: 0;
 }
-
-.sidebar-top {}
 
 /* Logo */
 .logo-title {
@@ -585,6 +592,54 @@ onUnmounted(() => {
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 16px;
   margin-bottom: 24px;
+}
+
+.filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.filter-group label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #4b5563;
+  letter-spacing: 0.04em;
+}
+
+.select-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  padding: 10px 14px;
+}
+
+.select-box select {
+  width: 100%;
+  border: none;
+  background: transparent;
+  outline: none;
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  color: #374151;
+  padding-right: 28px;
+}
+
+.select-box .arrow {
+  position: absolute;
+  right: 14px;
+  color: #6b7280;
+  pointer-events: none;
 }
 
 .summary-item {
