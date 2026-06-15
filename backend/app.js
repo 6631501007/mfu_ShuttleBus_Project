@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const { Readable } = require('stream');
 require('dotenv').config();
 const User = require('./models/user');
 const Station = require('./models/station');
@@ -21,6 +22,19 @@ const MONGO_URI = process.env.MONGO_URI;
 
 const requiredEnv = ['JWT_SECRET', 'MONGO_URI'];
 const missingEnv = requiredEnv.filter(key => !process.env[key]);
+const LIVEFEED_STALE_MS = 15000;
+const LIVEFEED_SOURCE_STREAM_URL =
+  process.env.LIVEFEED_SOURCE_STREAM_URL ||
+  process.env.LIVEFEED_STREAM_URL ||
+  'http://localhost:8090/stream';
+const LIVEFEED_PUBLIC_STREAM_URL = process.env.LIVEFEED_PUBLIC_STREAM_URL || '/api/livefeed/stream';
+
+const livefeedDetection = {
+  count: 0,
+  elapsed: 0,
+  timestamp: null,
+  updatedAt: null
+};
 
 if (missingEnv.length > 0) {
   console.error(`Missing required environment variables: ${missingEnv.join(', ')}`);
@@ -51,6 +65,71 @@ mongoose
   .connect(MONGO_URI)
   .then(() => console.log('MongoDB Connected'))
   .catch(err => console.error('MongoDB connection error:', err));
+
+const getLivefeedDetectionStatus = () => {
+  const lastSeenAt = livefeedDetection.updatedAt;
+  const isRunning = Boolean(lastSeenAt && Date.now() - lastSeenAt < LIVEFEED_STALE_MS);
+
+  return {
+    running: isRunning,
+    count: isRunning ? livefeedDetection.count : 0,
+    elapsed: isRunning ? livefeedDetection.elapsed : 0,
+    timestamp: livefeedDetection.timestamp,
+    lastSeenAt,
+    streamUrl: LIVEFEED_PUBLIC_STREAM_URL
+  };
+};
+
+/////////////////// Live Feed AI ingest ///////////////////
+app.post('/api/livefeed/update', (req, res) => {
+  const count = Number(req.body?.count);
+  const elapsed = Number(req.body?.elapsed);
+
+  if (!Number.isFinite(count) || count < 0) {
+    return res.status(400).json({ message: 'count must be a non-negative number' });
+  }
+
+  livefeedDetection.count = Math.round(count);
+  livefeedDetection.elapsed = Number.isFinite(elapsed) && elapsed >= 0 ? elapsed : 0;
+  livefeedDetection.timestamp = Number(req.body?.timestamp) || Date.now() / 1000;
+  livefeedDetection.updatedAt = Date.now();
+
+  res.json({ message: 'Live feed updated', detection: getLivefeedDetectionStatus() });
+});
+
+app.post('/api/livefeed/stop', (req, res) => {
+  livefeedDetection.count = 0;
+  livefeedDetection.elapsed = 0;
+  livefeedDetection.timestamp = Date.now() / 1000;
+  livefeedDetection.updatedAt = null;
+
+  res.json({ message: 'Live feed stopped', detection: getLivefeedDetectionStatus() });
+});
+
+app.get('/api/livefeed/stream', async (req, res) => {
+  const controller = new AbortController();
+  req.on('close', () => controller.abort());
+
+  try {
+    const detectorStream = await fetch(LIVEFEED_SOURCE_STREAM_URL, { signal: controller.signal });
+
+    if (!detectorStream.ok || !detectorStream.body) {
+      return res.status(502).send('Live feed stream is unavailable');
+    }
+
+    res.setHeader(
+      'Content-Type',
+      detectorStream.headers.get('content-type') || 'multipart/x-mixed-replace; boundary=frame'
+    );
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Connection', 'close');
+
+    Readable.fromWeb(detectorStream.body).pipe(res);
+  } catch (error) {
+    if (error.name === 'AbortError') return;
+    res.status(502).send('Live feed stream is unavailable');
+  }
+});
 
 /////////////////// Register ///////////////////
 app.post('/register', async (req, res) => {
@@ -185,6 +264,11 @@ app.get('/api/map', adminMiddleware, async (req, res) => {
   } catch (error) {
     res.status(500).json(error);
   }
+});
+
+/////////////////// Live Feed ///////////////////
+app.get('/api/livefeed/detection', adminMiddleware, (req, res) => {
+  res.json(getLivefeedDetectionStatus());
 });
 
 /////////////////// Feedback ///////////////////

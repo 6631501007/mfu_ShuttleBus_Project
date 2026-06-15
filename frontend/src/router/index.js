@@ -65,9 +65,6 @@ router.beforeEach((to) => {
     return '/home'
   }
 
-  if (to.path === '/' && token) {
-    return role === 'admin' ? '/dashboard' : '/home'
-  }
 })
 
 export default router

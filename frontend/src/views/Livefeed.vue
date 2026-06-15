@@ -108,15 +108,26 @@
 
             <!-- Monitoring Zones -->
             <div class="panel">
-              <div class="panel-label">Monitoring Zones</div>
+              <div class="panel-head">
+                <div class="panel-label">Monitoring Zones</div>
+                <span class="ai-status" :class="{ 'ai-status-live': detection.running }">
+                  <span class="ai-status-dot"></span>
+                  {{ detection.running ? 'AI Live' : 'AI Offline' }}
+                </span>
+              </div>
               <div class="zones-list">
-                <div v-for="zone in zones" :key="zone.name" class="zone-row">
+                <div v-for="(zone, idx) in zones" :key="zone.name" class="zone-row"
+                  :class="{ 'zone-row-active': idx === 0 && detection.running }">
                   <div class="zone-left">
                     <span class="zone-dot" :style="`background:${zone.color}`"></span>
                     <span class="zone-name">{{ zone.name }}</span>
                   </div>
                   <span class="zone-pax">{{ zone.pax }} pax</span>
                 </div>
+              </div>
+              <div class="ai-meta">
+                <span>{{ detection.running ? `Runtime ${detectionElapsed}` : 'Waiting for detector updates' }}</span>
+                <span v-if="detection.lastSeenAt">Last signal {{ detectionLastSeen }}</span>
               </div>
             </div>
 
@@ -132,6 +143,33 @@
 
           <!-- CAMERA GRID -->
           <div class="camera-col">
+            <button type="button" class="cam-card ai-stream-card" :class="{ 'ai-stream-card-live': detection.running }"
+              :disabled="!canOpenAiStream" @click="openAiStream">
+              <div class="ai-stream-placeholder">
+                <div class="ai-blur-scene">
+                  <div class="ai-blur-person ai-blur-person-1"></div>
+                  <div class="ai-blur-person ai-blur-person-2"></div>
+                  <div class="ai-blur-person ai-blur-person-3"></div>
+                </div>
+                <div class="ai-stream-veil"></div>
+                <div class="ai-stream-prompt">
+                  <i :class="detection.running ? 'bx bx-show' : 'bx bx-video-off'"></i>
+                  <span>{{ detection.running ? 'Click to view live feed' : 'AI camera stream offline' }}</span>
+                </div>
+              </div>
+
+              <div class="cam-top-bar">
+                <div class="cam-top-left">
+                  <span class="cam-status-badge" :class="detection.running ? 'badge-live' : 'badge-standby'">
+                    <span v-if="detection.running" class="rec-dot"></span>
+                    {{ detection.running ? 'AI ACTIVE' : 'OFFLINE' }}
+                  </span>
+                  <span class="cam-id-label">AI-001 | HUMAN DETECTOR</span>
+                </div>
+                <span class="cam-time">{{ liveTime }}</span>
+              </div>
+            </button>
+
             <div v-for="cam in cameras" :key="cam.id" class="cam-card">
               <div class="cam-bg" :style="`background:${cam.bg}`"></div>
               <div class="cam-grid-overlay"></div>
@@ -174,18 +212,55 @@
         </div>
       </div>
     </main>
+
+    <div v-if="isAiStreamOpen" class="stream-modal-backdrop" @click.self="closeAiStream">
+      <section class="stream-modal" role="dialog" aria-modal="true" aria-label="AI camera live feed">
+        <header class="stream-modal-head">
+          <div>
+            <p class="stream-modal-kicker">AI-001 | HUMAN DETECTOR</p>
+            <h3 class="stream-modal-title">Live Camera Feed</h3>
+          </div>
+          <button type="button" class="stream-close-btn" aria-label="Close live feed" @click="closeAiStream">
+            <i class='bx bx-x'></i>
+          </button>
+        </header>
+
+        <div class="stream-modal-body">
+          <img v-if="resolvedStreamUrl" :src="resolvedStreamUrl" class="stream-modal-img" alt="Live AI stream" />
+          <div v-else class="stream-modal-empty">
+            <i class='bx bx-video-off'></i>
+            <span>Live stream unavailable</span>
+          </div>
+        </div>
+
+        <footer class="stream-modal-foot">
+          <span class="cam-status-badge badge-live"><span class="rec-dot"></span> LIVE</span>
+          <span>{{ detection.count }} pax detected</span>
+          <span>Runtime {{ detectionElapsed }}</span>
+        </footer>
+      </section>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { computed, reactive, ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { apiFetch, apiUrl } from '../lib/api'
 
 const router = useRouter()
 const activeView = ref('grid')
 const liveTime = ref('')
 const isDropdownOpen = ref(false)
 const language = ref('English')
+const isAiStreamOpen = ref(false)
+const detection = reactive({
+  running: false,
+  count: 0,
+  elapsed: 0,
+  lastSeenAt: null,
+  streamUrl: ''
+})
 
 const toggleLanguage = () => {
   language.value = language.value === 'English' ? 'Thai' : 'English'
@@ -206,12 +281,56 @@ const viewButtons = [
   }
 ]
 
-const zones = [
+const staticZones = [
   { name: 'Main Entry', pax: 142, color: '#4caf50' },
   { name: 'Security L1', pax: 89, color: '#ff9800' },
   { name: 'Duty Free B', pax: 312, color: '#d72660' },
   { name: 'Gate 14-16', pax: 42, color: '#00897b' }
 ]
+
+const zones = computed(() => [
+  {
+    name: 'Detect Human AI',
+    pax: detection.running ? detection.count : 0,
+    color: detection.running ? '#16a34a' : '#9ca3af'
+  },
+  ...staticZones
+])
+
+const formatDuration = (seconds) => {
+  const safeSeconds = Number.isFinite(seconds) ? Math.max(0, seconds) : 0
+  const h = Math.floor(safeSeconds / 3600)
+  const m = Math.floor((safeSeconds % 3600) / 60)
+  const s = Math.floor(safeSeconds % 60)
+  return [h, m, s].map(value => String(value).padStart(2, '0')).join(':')
+}
+
+const detectionElapsed = computed(() => formatDuration(detection.elapsed))
+
+const detectionLastSeen = computed(() => {
+  if (!detection.lastSeenAt) return ''
+  return new Date(detection.lastSeenAt).toLocaleTimeString('en-GB', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  })
+})
+
+const resolvedStreamUrl = computed(() => {
+  if (!detection.streamUrl) return ''
+  if (/^https?:\/\//i.test(detection.streamUrl)) return detection.streamUrl
+  return apiUrl(detection.streamUrl)
+})
+
+const canOpenAiStream = computed(() => detection.running && Boolean(resolvedStreamUrl.value))
+
+const openAiStream = () => {
+  if (canOpenAiStream.value) isAiStreamOpen.value = true
+}
+
+const closeAiStream = () => {
+  isAiStreamOpen.value = false
+}
 
 const cameras = [
   {
@@ -244,18 +363,40 @@ const cameras = [
 ]
 
 let timer = null
+let detectionTimer = null
 function updateTime() {
   const now = new Date()
   liveTime.value = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
 }
 
+const loadDetectionStatus = async () => {
+  try {
+    const res = await apiFetch('/api/livefeed/detection')
+    if (!res.ok) return
+
+    const data = await res.json()
+    detection.running = Boolean(data.running)
+    detection.count = Number(data.count) || 0
+    detection.elapsed = Number(data.elapsed) || 0
+    detection.lastSeenAt = data.lastSeenAt || null
+    detection.streamUrl = data.streamUrl || ''
+    if (!detection.running) closeAiStream()
+  } catch (error) {
+    detection.running = false
+    closeAiStream()
+  }
+}
+
 onMounted(() => {
   updateTime()
+  loadDetectionStatus()
   timer = setInterval(updateTime, 1000)
+  detectionTimer = setInterval(loadDetectionStatus, 1000)
   document.addEventListener('click', closeDropdown)
 })
 onUnmounted(() => {
   clearInterval(timer)
+  clearInterval(detectionTimer)
   document.removeEventListener('click', closeDropdown)
 })
 
@@ -662,6 +803,14 @@ const logout = () => {
   border: 1px solid #f0f0f0;
 }
 
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
 .panel-label {
   font-family: 'Inter', sans-serif;
   font-size: 10px;
@@ -669,7 +818,31 @@ const logout = () => {
   letter-spacing: .1em;
   text-transform: uppercase;
   color: #9ca3af;
-  margin-bottom: 12px;
+}
+
+.ai-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #f3f4f6;
+  color: #6b7280;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.ai-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.ai-status-live {
+  background: #dcfce7;
+  color: #15803d;
 }
 
 .zones-list {
@@ -686,6 +859,20 @@ const logout = () => {
   border-radius: 8px;
   background: #f9fafb;
   font-size: 12px;
+  border: 1px solid transparent;
+  transition: background .2s, border-color .2s, box-shadow .2s;
+}
+
+.zone-row-active {
+  background: #ecfdf5;
+  border-color: #16a34a;
+  box-shadow: 0 0 0 1px rgba(22, 163, 74, .18), 0 0 18px rgba(22, 163, 74, .35);
+  animation: zone-active-pulse 1.8s ease-in-out infinite;
+}
+
+.zone-row-active .zone-name,
+.zone-row-active .zone-pax {
+  color: #166534;
 }
 
 .zone-left {
@@ -709,6 +896,18 @@ const logout = () => {
 .zone-pax {
   font-weight: 700;
   color: #1f2937;
+}
+
+.ai-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #f3f4f6;
+  color: #6b7280;
+  font-size: 11px;
+  line-height: 1.35;
 }
 
 .alert-card {
@@ -777,6 +976,118 @@ const logout = () => {
   overflow: hidden;
   flex-shrink: 0;
   aspect-ratio: 16/6;
+}
+
+.ai-stream-card {
+  width: 100%;
+  display: block;
+  padding: 0;
+  background: #111827;
+  border: 1px solid rgba(156, 163, 175, .35);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color .2s, box-shadow .2s, transform .2s;
+}
+
+.ai-stream-card:disabled {
+  cursor: not-allowed;
+}
+
+.ai-stream-card:not(:disabled):hover {
+  transform: translateY(-1px);
+}
+
+.ai-stream-card-live {
+  border-color: rgba(22, 163, 74, .65);
+  box-shadow: 0 0 0 1px rgba(22, 163, 74, .18);
+}
+
+.ai-stream-placeholder {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.ai-blur-scene {
+  position: absolute;
+  inset: 0;
+  filter: blur(12px);
+  transform: scale(1.06);
+  background:
+    linear-gradient(160deg, rgba(15, 23, 42, .18), rgba(17, 24, 39, .82)),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, .05) 0 1px, transparent 1px 48px),
+    linear-gradient(135deg, #1b2738 0%, #121826 48%, #18251f 100%);
+}
+
+.ai-blur-scene::before,
+.ai-blur-scene::after {
+  content: '';
+  position: absolute;
+  left: 8%;
+  right: 8%;
+  height: 28%;
+  border: 1px solid rgba(255, 255, 255, .12);
+  border-width: 1px 0;
+}
+
+.ai-blur-scene::before {
+  top: 24%;
+}
+
+.ai-blur-scene::after {
+  bottom: 18%;
+}
+
+.ai-blur-person {
+  position: absolute;
+  bottom: 14%;
+  width: 32px;
+  height: 74px;
+  border-radius: 999px 999px 12px 12px;
+  background: rgba(226, 232, 240, .5);
+  box-shadow: 0 -28px 0 -8px rgba(226, 232, 240, .55);
+}
+
+.ai-blur-person-1 {
+  left: 28%;
+  height: 66px;
+  opacity: .55;
+}
+
+.ai-blur-person-2 {
+  left: 49%;
+  height: 82px;
+  opacity: .72;
+}
+
+.ai-blur-person-3 {
+  left: 68%;
+  height: 58px;
+  opacity: .45;
+}
+
+.ai-stream-veil {
+  position: absolute;
+  inset: 0;
+  background: rgba(17, 24, 39, .46);
+}
+
+.ai-stream-prompt {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: #e5e7eb;
+  font-size: 13px;
+  font-weight: 700;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, .6);
+}
+
+.ai-stream-prompt i {
+  font-size: 30px;
 }
 
 .cam-bg {
@@ -870,6 +1181,10 @@ const logout = () => {
   background: #d72660;
 }
 
+.badge-live {
+  background: #16a34a;
+}
+
 .badge-standby {
   background: #555;
 }
@@ -908,6 +1223,109 @@ const logout = () => {
   background: linear-gradient(to top, rgba(0, 200, 100, .15), transparent);
 }
 
+.stream-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, .72);
+}
+
+.stream-modal {
+  width: min(980px, 100%);
+  max-height: min(88vh, 760px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 12px;
+  background: #0f172a;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, .35);
+}
+
+.stream-modal-head,
+.stream-modal-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  color: #e5e7eb;
+}
+
+.stream-modal-head {
+  border-bottom: 1px solid rgba(148, 163, 184, .22);
+}
+
+.stream-modal-kicker {
+  margin: 0 0 2px;
+  color: #94a3b8;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .08em;
+}
+
+.stream-modal-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.stream-close-btn {
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: 1px solid rgba(148, 163, 184, .3);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, .65);
+  color: #e5e7eb;
+  cursor: pointer;
+}
+
+.stream-close-btn i {
+  font-size: 24px;
+}
+
+.stream-modal-body {
+  min-height: 280px;
+  background: #020617;
+}
+
+.stream-modal-img {
+  width: 100%;
+  max-height: 64vh;
+  display: block;
+  object-fit: contain;
+  background: #020617;
+}
+
+.stream-modal-empty {
+  min-height: 360px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: #94a3b8;
+  font-weight: 700;
+}
+
+.stream-modal-empty i {
+  font-size: 32px;
+}
+
+.stream-modal-foot {
+  justify-content: flex-start;
+  border-top: 1px solid rgba(148, 163, 184, .22);
+  color: #cbd5e1;
+  font-size: 12px;
+}
+
 @keyframes pulse {
 
   0%,
@@ -919,4 +1337,14 @@ const logout = () => {
     opacity: .3;
   }
 }
+
+@keyframes zone-active-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.1);
+  }
+}
+
 </style>

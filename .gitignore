@@ -1,6 +1,22 @@
 .env
 .env.*
 !.env.example
-node_modules
-dist
+
+# Dependencies and build output
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+
+# Logs
 *.log
+
+# Python local artifacts
+.venv/
+**/.venv/
+__pycache__/
+**/__pycache__/
+*.pyc
+
+# AI model weights
+*.pt
