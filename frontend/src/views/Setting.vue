@@ -233,6 +233,15 @@
             <label>Initial Waiting Passengers</label>
             <input type="number" v-model.number="formData.waitingPassengers" placeholder="e.g. 0" min="0" />
           </div>
+          <div class="form-group">
+            <label>Pick Station Location</label>
+            <div id="station-modal-map" class="modal-map"></div>
+            <p class="map-help">Click on the map to choose the station position. This will appear on the Map page.</p>
+            <div class="location-coordinates">
+              <span>Lat: {{ formData.location.lat.toFixed(6) }}</span>
+              <span>Lng: {{ formData.location.lng.toFixed(6) }}</span>
+            </div>
+          </div>
         </div>
         <div class="modal-actions">
           <button class="btn-outline" @click="closeModal">Cancel</button>
@@ -314,8 +323,10 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, onMounted, onUnmounted, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 import { apiFetch } from '../lib/api'
 
 const router = useRouter();
@@ -336,12 +347,16 @@ const hardware = ref([]);
 
 // ── Stations (Station Thresholds) ─────────────────────────
 const stations = ref([]);
+const defaultStationLocation = { lat: 20.04498749707566, lng: 99.89428182346516 };
 
 // ── Station Modal ─────────────────────────────────────────
 const isModalOpen = ref(false);
 const modalMode = ref('add');           // 'add' | 'edit'
 const editStationId = ref(null);
-const formData = ref({ name: '', desc: '', capacity: 100, waitingPassengers: 0 });
+const modalMap = ref(null);
+let modalMarker = null;
+const selectedLocation = ref({ ...defaultStationLocation });
+const formData = ref({ name: '', desc: '', capacity: 100, waitingPassengers: 0, location: { ...defaultStationLocation } });
 
 // ── Notification Channel Modal ───────────────────────────
 const isNotificationModalOpen = ref(false);
@@ -388,8 +403,16 @@ const loadStations = async () => {
 
 const openAddModal = () => {
   modalMode.value = 'add';
-  formData.value = { name: '', desc: '', capacity: 100, waitingPassengers: 0 };
+  formData.value = {
+    name: '',
+    desc: '',
+    capacity: 100,
+    waitingPassengers: 0,
+    location: { ...defaultStationLocation }
+  };
+  selectedLocation.value = { ...formData.value.location };
   isModalOpen.value = true;
+  nextTick(initModalMap);
 };
 
 const openEditModal = (station) => {
@@ -399,12 +422,20 @@ const openEditModal = (station) => {
     name: station.name,
     desc: station.desc || station.description || '',
     capacity: station.capacity ?? 100,
-    waitingPassengers: station.waitingPassengers ?? 0
+    waitingPassengers: station.waitingPassengers ?? 0,
+    location: station.location && station.location.lat != null && station.location.lng != null
+      ? { ...station.location }
+      : { ...defaultStationLocation }
   };
+  selectedLocation.value = { ...formData.value.location };
   isModalOpen.value = true;
+  nextTick(initModalMap);
 };
 
-const closeModal = () => { isModalOpen.value = false; };
+const closeModal = () => {
+  isModalOpen.value = false;
+  destroyModalMap();
+};
 
 const confirmModal = () => {
   if (!formData.value.name) return;
@@ -429,7 +460,8 @@ const confirmModal = () => {
         ...stations.value[index],
         name: formData.value.name,
         desc: formData.value.desc,
-        capacity: formData.value.capacity
+        capacity: formData.value.capacity,
+        location: formData.value.location || stations.value[index].location
       };
     }
   }
@@ -602,13 +634,56 @@ const logout = () => {
   router.push('/');
 };
 
+const destroyModalMap = () => {
+  if (modalMap.value) {
+    modalMap.value.off();
+    modalMap.value.remove();
+    modalMap.value = null;
+    modalMarker = null;
+  }
+};
+
+const initModalMap = () => {
+  const mapElement = document.getElementById('station-modal-map');
+  if (!mapElement) return;
+
+  if (modalMap.value) {
+    destroyModalMap();
+  }
+
+  const initialLocation = formData.value.location || defaultStationLocation;
+  modalMap.value = L.map(mapElement).setView([initialLocation.lat, initialLocation.lng], 13);
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap'
+  }).addTo(modalMap.value);
+
+  modalMarker = L.marker([initialLocation.lat, initialLocation.lng]).addTo(modalMap.value);
+  modalMarker.bindPopup('Selected station location').openPopup();
+
+  modalMap.value.on('click', (e) => {
+    selectedLocation.value = { lat: e.latlng.lat, lng: e.latlng.lng };
+    formData.value.location = { ...selectedLocation.value };
+
+    if (modalMarker) {
+      modalMarker.setLatLng(e.latlng).openPopup();
+    } else {
+      modalMarker = L.marker(e.latlng).addTo(modalMap.value);
+      modalMarker.bindPopup('Selected station location').openPopup();
+    }
+  });
+};
+
 onMounted(() => {
   document.addEventListener('click', closeDropdown);
   loadStations();
   loadSettings();
 });
 
-onUnmounted(() => document.removeEventListener('click', closeDropdown));
+onUnmounted(() => {
+  document.removeEventListener('click', closeDropdown);
+  destroyModalMap();
+});
 </script>
 
 <style scoped>
@@ -1387,6 +1462,29 @@ input:checked+.slider:before {
 
 .form-group input:focus {
   border-color: #0f172a;
+}
+
+.modal-map {
+  width: 100%;
+  height: 240px;
+  border-radius: 12px;
+  overflow: hidden;
+  margin-top: 10px;
+  border: 1px solid #e5e7eb;
+}
+
+.map-help {
+  margin-top: 8px;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.location-coordinates {
+  display: flex;
+  gap: 16px;
+  margin-top: 8px;
+  font-size: 13px;
+  color: #374151;
 }
 
 .modal-actions {
