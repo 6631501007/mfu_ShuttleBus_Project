@@ -1,5 +1,15 @@
 # Demo Project Setup Guide
 
+
+## Language / ภาษา
+
+- 🇬🇧 [English Instructions](#english-instructions)
+- 🇹🇭 [คำแนะนำภาษาไทย](#คำแนะนำภาษาไทย)
+
+---
+
+## English Instructions
+
 This project has three parts:
 
 - `frontend/` - Vue 3 + Vite web app
@@ -12,16 +22,6 @@ Run them in this order:
 2. Frontend
 3. AI service, only if you want the live camera feed
 
----
-
-## Language / ภาษา
-
-- 🇬🇧 [English Instructions](#english-instructions)
-- 🇹🇭 [คำแนะนำภาษาไทย](#คำแนะนำภาษาไทย)
-
----
-
-## English Instructions
 
 ### 1. Install Required Software
 
