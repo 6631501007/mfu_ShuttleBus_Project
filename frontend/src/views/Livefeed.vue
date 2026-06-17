@@ -226,7 +226,21 @@
         </header>
 
         <div class="stream-modal-body">
-          <img v-if="resolvedStreamUrl" :src="resolvedStreamUrl" class="stream-modal-img" alt="Live AI stream" />
+          <div v-if="resolvedStreamUrl" class="stream-video-wrap">
+            <img :src="resolvedStreamUrl" class="stream-modal-img" alt="Live AI stream" />
+            <div class="stream-overlay" aria-hidden="true">
+              <div
+                v-for="(person, idx) in overlayDetections"
+                :key="`${person.bbox.x}-${person.bbox.y}-${idx}`"
+                class="stream-detection-box"
+                :style="boxStyle(person.bbox)"
+              >
+                <span class="stream-detection-label">
+                  Person {{ formatConfidence(person.confidence) }}
+                </span>
+              </div>
+            </div>
+          </div>
           <div v-else class="stream-modal-empty">
             <i class='bx bx-video-off'></i>
             <span>Live stream unavailable</span>
@@ -259,7 +273,10 @@ const detection = reactive({
   count: 0,
   elapsed: 0,
   lastSeenAt: null,
-  streamUrl: ''
+  streamUrl: '',
+  frameWidth: 0,
+  frameHeight: 0,
+  detections: []
 })
 
 const toggleLanguage = () => {
@@ -324,6 +341,33 @@ const resolvedStreamUrl = computed(() => {
 
 const canOpenAiStream = computed(() => detection.running && Boolean(resolvedStreamUrl.value))
 
+const overlayDetections = computed(() => {
+  if (!detection.running || !detection.frameWidth || !detection.frameHeight) return []
+  return detection.detections.filter(item => item?.bbox)
+})
+
+const boxStyle = (bbox) => {
+  const frameWidth = Math.max(Number(detection.frameWidth) || 1, 1)
+  const frameHeight = Math.max(Number(detection.frameHeight) || 1, 1)
+  const x = Math.max(0, Number(bbox.x) || 0)
+  const y = Math.max(0, Number(bbox.y) || 0)
+  const width = Math.max(0, Number(bbox.width) || 0)
+  const height = Math.max(0, Number(bbox.height) || 0)
+
+  return {
+    left: `${(x / frameWidth) * 100}%`,
+    top: `${(y / frameHeight) * 100}%`,
+    width: `${(width / frameWidth) * 100}%`,
+    height: `${(height / frameHeight) * 100}%`
+  }
+}
+
+const formatConfidence = (confidence) => {
+  const value = Number(confidence)
+  if (!Number.isFinite(value) || value <= 0) return ''
+  return `${Math.round(value * 100)}%`
+}
+
 const openAiStream = () => {
   if (canOpenAiStream.value) isAiStreamOpen.value = true
 }
@@ -380,9 +424,13 @@ const loadDetectionStatus = async () => {
     detection.elapsed = Number(data.elapsed) || 0
     detection.lastSeenAt = data.lastSeenAt || null
     detection.streamUrl = data.streamUrl || ''
+    detection.frameWidth = Number(data.frameWidth) || 0
+    detection.frameHeight = Number(data.frameHeight) || 0
+    detection.detections = Array.isArray(data.detections) ? data.detections : []
     if (!detection.running) closeAiStream()
   } catch (error) {
     detection.running = false
+    detection.detections = []
     closeAiStream()
   }
 }
@@ -391,7 +439,7 @@ onMounted(() => {
   updateTime()
   loadDetectionStatus()
   timer = setInterval(updateTime, 1000)
-  detectionTimer = setInterval(loadDetectionStatus, 1000)
+  detectionTimer = setInterval(loadDetectionStatus, 250)
   document.addEventListener('click', closeDropdown)
 })
 onUnmounted(() => {
@@ -1296,12 +1344,49 @@ const logout = () => {
   background: #020617;
 }
 
+.stream-video-wrap {
+  position: relative;
+  width: 100%;
+  background: #020617;
+}
+
 .stream-modal-img {
   width: 100%;
   max-height: 64vh;
   display: block;
   object-fit: contain;
   background: #020617;
+}
+
+.stream-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.stream-detection-box {
+  position: absolute;
+  min-width: 28px;
+  min-height: 28px;
+  border: 2px solid #22c55e;
+  box-shadow:
+    0 0 0 1px rgba(2, 6, 23, .75),
+    0 0 18px rgba(34, 197, 94, .32);
+}
+
+.stream-detection-label {
+  position: absolute;
+  left: -2px;
+  bottom: 100%;
+  max-width: 180px;
+  padding: 3px 6px;
+  border-radius: 4px 4px 0 0;
+  background: #22c55e;
+  color: #04130a;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.2;
+  white-space: nowrap;
 }
 
 .stream-modal-empty {
