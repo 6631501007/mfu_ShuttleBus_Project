@@ -14,6 +14,13 @@ Run them in this order:
 
 ---
 
+## Language / ภาษา
+
+- 🇬🇧 [English Instructions](#english-instructions)
+- 🇹🇭 [คำแนะนำภาษาไทย](#คำแนะนำภาษาไทย)
+
+---
+
 ## English Instructions
 
 ### 1. Install Required Software
