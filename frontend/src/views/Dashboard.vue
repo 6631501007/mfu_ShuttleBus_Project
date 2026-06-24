@@ -182,6 +182,7 @@
 import { computed, ref, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router'
 import { apiFetch } from '../lib/api'
+import { createRedStationNotification, isRedStation } from '../lib/stationAlert'
 
 const router = useRouter()
 const isDropdownOpen = ref(false);
@@ -215,15 +216,28 @@ const passengerChartData = computed(() => {
     : normalizeChartData(monthlyChartData.value);
 });
 
+const mergeNotifications = (apiNotifications, stationItems) => {
+  const redStationNotifications = stationItems
+    .filter(isRedStation)
+    .map(createRedStationNotification);
+
+  const seenStations = new Set(redStationNotifications.map(item => item.station));
+  const remainingNotifications = apiNotifications.filter(item => !seenStations.has(item.station));
+
+  return [...redStationNotifications, ...remainingNotifications];
+};
+
 const loadDashboard = async () => {
   try {
     const res = await apiFetch('/api/dashboard');
     const data = await res.json();
     if (!res.ok) throw new Error(data.message || 'Cannot load dashboard');
 
+    const stationItems = data.stations || [];
+
     kpis.value = data.kpis || kpis.value;
-    notifications.value = data.notifications || [];
-    stations.value = data.stations || [];
+    notifications.value = mergeNotifications(data.notifications || [], stationItems);
+    stations.value = stationItems;
     buses.value = data.buses || [];
     weeklyChartData.value = data.passengerChart?.weekly || [];
     monthlyChartData.value = data.passengerChart?.monthly || [];

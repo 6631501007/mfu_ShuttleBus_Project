@@ -75,6 +75,18 @@
         </div>
       </header>
 
+      <!-- Legend -->
+      <div class="map-legend">
+        <div class="legend-item">
+          <span class="legend-line line1"></span>
+          <span class="legend-label">Line 1</span>
+        </div>
+        <div class="legend-item">
+          <span class="legend-line line2"></span>
+          <span class="legend-label">Line 2</span>
+        </div>
+      </div>
+
       <div class="map-wrapper">
         <div id="map"></div>
       </div>
@@ -88,12 +100,18 @@ import { useRouter } from 'vue-router'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { apiFetch } from '../lib/api'
+import { getStationMarkerColor } from '../lib/stationAlert'
 
 const router = useRouter()
 const isDropdownOpen = ref(false)
 const language = ref('English')
 const stations = ref([])
 let map = null
+let busMarker1 = null
+let busMarker2 = null
+let animFrame1 = null
+let animFrame2 = null
+const markerShadowUrl = new URL('leaflet/dist/images/marker-shadow.png', import.meta.url).href
 
 const closeDropdown = (e) => {
   if (!e.target.closest('.profile-dropdown-container')) {
@@ -111,6 +129,204 @@ const logout = () => {
   router.push('/')
 }
 
+// ===== BUS ICON =====
+const createBusIcon = (color) => {
+  return L.divIcon({
+    className: '',
+    html: `
+      <div style="
+        width: 36px; height: 36px;
+        background: ${color};
+        border-radius: 6px;
+        display: flex; align-items: center; justify-content: center;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+        border: 2px solid #fff;
+      ">
+        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="white">
+          <path d="M4 16c0 .88.39 1.67 1 2.22V20a1 1 0 001 1h1a1 1 0 001-1v-1h8v1a1 1 0 001 1h1a1 1 0 001-1v-1.78c.61-.55 1-1.34 1-2.22V6c0-3.5-3.58-4-8-4s-8 .5-8 4v10zm3.5 1a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm9 0a1.5 1.5 0 110-3 1.5 1.5 0 010 3zM4 9h16v5H4V9zm0-3h16v2H4V6z"/>
+        </svg>
+      </div>
+    `,
+    iconSize: [36, 36],
+    iconAnchor: [18, 18],
+  })
+}
+
+const createStationIcon = (waitingPassengers) => {
+  const color = getStationMarkerColor(waitingPassengers)
+  const iconSvg = encodeURIComponent(`
+    <svg xmlns="http://www.w3.org/2000/svg" width="25" height="41" viewBox="0 0 25 41">
+      <path fill="${color}" stroke="#ffffff" stroke-width="1.5" d="M12.5 0.75C6.02 0.75 0.75 6.02 0.75 12.5c0 8.75 11.75 27.75 11.75 27.75S24.25 21.25 24.25 12.5C24.25 6.02 18.98 0.75 12.5 0.75z"/>
+      <circle cx="12.5" cy="12.5" r="4.6" fill="#ffffff"/>
+    </svg>
+  `)
+
+  return L.icon({
+    iconUrl: `data:image/svg+xml;charset=UTF-8,${iconSvg}`,
+    shadowUrl: markerShadowUrl,
+    iconSize: [25, 41],
+    iconAnchor: [12, 41],
+    popupAnchor: [1, -34],
+    shadowSize: [41, 41],
+  })
+}
+
+// ===== LINE 1 ROUTE (red — วนในมหาวิทยาลัย) =====
+// จาก Lamduan ↓ ลงมา D1 ↓ Gate ล่าง ↓ วนกลับขึ้น
+const line1Coords = [
+  [20.059122488586976, 99.89957519248625], //start at Lamduan
+  [20.059016556456683, 99.89887599993799],
+  [20.05882164115006, 99.89841588613203],
+  [20.05846994552775, 99.89790164129006], 
+  [20.05666908209837, 99.89663407286383],
+  [20.055321964758665, 99.89635610134665], 
+  [20.055152469211116, 99.89621626283699],
+  [20.05506772136869, 99.89563435420006], 
+  [20.05481983422042, 99.8947400963255],
+  [20.05464610072599, 99.89436117907354], 
+  [20.05420541002393, 99.89326502559464],
+  [20.052887617366558, 99.89243265970515], 
+  [20.051773163481492, 99.89175602173002],
+  [20.050270793343998, 99.89107873503055], 
+  [20.048902067507093, 99.89134487931362],
+  [20.04887240458636, 99.89136292299227], 
+  [20.04793590089854, 99.89201700636846],
+  [20.047401964169126, 99.89217939946788], 
+  [20.047304499334476, 99.89219744314654],
+  [20.047054480568967, 99.89217037762856], 
+  [20.046842599947563, 99.89210722475323],
+  [20.046634956661205, 99.89200347360091], 
+  [20.045901846517605, 99.89162906723776],
+  [20.04532931123896, 99.89133773954178],
+  [20.044803841000153, 99.89130165218447], 
+  [20.044587719643353, 99.8913467613737],
+  [20.04423599212999, 99.89151366540135],
+  [20.04418937758115, 99.89226247806594],
+  [20.04409614844196, 99.89294362693555],
+  [20.04405377154333, 99.89302482354287],
+  [20.043829173783752, 99.8935706448225],
+  [20.043867313048587, 99.89348493734883],
+  [20.043663903529104, 99.89419315173645],
+  [20.04379950990253, 99.89472092940898],
+  [20.043884263827803, 99.89503218286593],
+  [20.04385883765503, 99.89550131851124],
+  [20.043570674075788, 99.89592534495986],
+  [20.043447780623808, 99.8962681748545],
+  [20.043528297034236, 99.89642154612316],
+  [20.043515583901872, 99.89645312259256],
+  [20.043324887057974, 99.89663355937923],
+  [20.043180804844585, 99.89665611397756],
+  [20.043062148804893, 99.89662904845954],
+  [20.04296891899652, 99.89645312259256],
+  [20.043134189982535, 99.89559604785597],
+  [20.04345625601969, 99.89505473749603],
+  [20.043384214989768, 99.89488332254871],
+  [20.04362576419501, 99.89423826103643],
+  // turn back up right side
+  [20.043642715014556, 99.89421570633219],
+  [20.043663903529104, 99.89419315173645],
+  [20.043867313048587, 99.89348493734883],
+  [20.043829173783752, 99.8935706448225],
+  [20.04405377154333, 99.89302482354287],
+  [20.04409614844196, 99.89294362693555],
+  [20.04418937758115, 99.89226247806594],
+  [20.044210566007497, 99.89155877464874],
+  [20.044189377574487, 99.8913783378621],
+  [20.044558055917136, 99.89122496656353],
+  [20.044998773700335, 99.89117534644721],
+  [20.045439490246657, 99.8912836085192],
+  [20.045943770187726, 99.89148208898746],
+  [20.046397196964286, 99.89185649531976],
+  [20.047054480568967, 99.89217037762856],
+  [20.047304499334476, 99.89219744314654],
+  [20.047401964169126, 99.89217939946788],
+  [20.04793590089854, 99.89201700636846],
+  [20.04887240458636, 99.89136292299227],
+  [20.048902067507093, 99.89134487931362],
+  [20.050270793343998, 99.89107873503055],
+  [20.051773163481492, 99.89175602173002],
+  [20.052887617366558, 99.89243265970515],
+  [20.05420541002393, 99.89326502559464],
+  [20.05464610072599, 99.89436117907354],
+  [20.05481983422042, 99.8947400963255],
+  [20.05506772136869, 99.89563435420006],
+  [20.055152469211116, 99.89621626283699],
+  [20.055321964758665, 99.89635610134665],
+  [20.05666908209837, 99.89663407286383],
+  [20.05846994552775, 99.89790164129006],
+  [20.05882164115006, 99.89841588613203],
+  [20.059016556456683, 99.89887599993799],
+  [20.059122488586976, 99.89957519248625], // back to start
+]
+
+// ===== LINE 2 ROUTE (yellow — ถนนหลักกลาง) =====
+const line2Coords = [
+  [20.059122488586976, 99.89957519248625], //start at Lamduan 
+  [20.059016556456683, 99.89887599993799],
+  [20.05882164115006, 99.89841588613203],
+  [20.05846994552775, 99.89790164129006], 
+  [20.05666908209837, 99.89663407286383],
+  [20.055321964758665, 99.89635610134665], 
+  [20.055152469211116, 99.89621626283699],
+  [20.05506772136869, 99.89563435420006], 
+  [20.05481983422042, 99.8947400963255],
+  [20.05464610072599, 99.89436117907354], 
+  [20.05420541002393, 99.89326502559464],
+  [20.052887617366558, 99.89243265970515], 
+  [20.051773163481492, 99.89175602173002],
+  [20.050270793343998, 99.89107873503055], 
+  [20.048902067507093, 99.89134487931362],
+  [20.04887240458636, 99.89136292299227], 
+  [20.04793590089854, 99.89201700636846],
+  [20.047401964169126, 99.89217939946788], 
+  [20.047304499334476, 99.89219744314654],
+  [20.047054480568967, 99.89217037762856], 
+  [20.046842599947563, 99.89210722475323],
+  [20.046634956661205, 99.89200347360091], 
+  [20.045901846517605, 99.89162906723776],
+  [20.04532931123896, 99.89133773954178],
+  [20.044803841000153, 99.89130165218447], 
+  [20.044587719643353, 99.8913467613737],
+  [20.04423599212999, 99.89151366540135],
+  [20.04403695987033, 99.8915970569913],
+  [20.043871689834347, 99.89168276446496],
+  [20.04321060792684, 99.89194439782362],
+  [20.042354587507702, 99.89224662944123],
+  [20.042057945676632, 99.89251277370855],
+  [20.04179096755251, 99.89298190935385],
+  [20.04174859003077, 99.89321647717648],
+  [20.04159603085455, 99.89321647719025],
+  [20.04138838063099, 99.89407355192684],
+  [20.041269723237136, 99.8944795346968],
+]
+
+// ===== Animate bus along polyline =====
+const animateBus = (marker, coords, speed, startOffset = 0) => {
+  let index = startOffset
+  let progress = 0
+
+  const step = () => {
+    if (!marker) return
+
+    const from = coords[index % coords.length]
+    const to = coords[(index + 1) % coords.length]
+
+    const lat = from[0] + (to[0] - from[0]) * progress
+    const lng = from[1] + (to[1] - from[1]) * progress
+    marker.setLatLng([lat, lng])
+
+    progress += speed
+    if (progress >= 1) {
+      progress = 0
+      index = (index + 1) % coords.length
+    }
+
+    return requestAnimationFrame(step)
+  }
+
+  return requestAnimationFrame(step)
+}
+
 const createMap = () => {
   if (map) {
     map.remove()
@@ -118,29 +334,67 @@ const createMap = () => {
   }
 
   const validStations = stations.value.filter(
-    (station) => station.location && typeof station.location.lat === 'number' && typeof station.location.lng === 'number'
+    (s) => s.location && typeof s.location.lat === 'number' && typeof s.location.lng === 'number'
   )
 
-  const initialLocation = validStations.length
+  const center = validStations.length
     ? validStations[0].location
-    : { lat: 20.04498749707566, lng: 99.89428182346516 }
+    : { lat: 20.0365, lng: 99.8950 }
 
-  map = L.map('map').setView([initialLocation.lat, initialLocation.lng], 15)
+  map = L.map('map').setView([center.lat, center.lng], 15)
 
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; OpenStreetMap'
   }).addTo(map)
 
+  // Draw Line 1
+  L.polyline(line1Coords, {
+    color: '#c0392b',
+    weight: 4,
+    opacity: 0.85,
+  }).addTo(map)
+
+  // Draw Line 2
+  L.polyline(line2Coords, {
+    color: '#e6a817',
+    weight: 4,
+    opacity: 0.85,
+    dashArray: '8, 4',
+  }).addTo(map)
+
+  // Station markers from API
   validStations.forEach((station) => {
-    const marker = L.marker([station.location.lat, station.location.lng]).addTo(map)
+    const markerColor = getStationMarkerColor(station.waitingPassengers)
+    const marker = L.marker([station.location.lat, station.location.lng], {
+      icon: createStationIcon(station.waitingPassengers),
+    }).addTo(map)
+
     marker.bindPopup(`
       <div style="font-family: 'Inter', sans-serif; font-size: 13px;">
-        <b style="color: #d72660;">${station.name}</b><br>
+        <b style="color: ${markerColor};">${station.name}</b><br>
         People waiting now: ${station.waitingPassengers}<br>
         <span style="color: #6b7280; font-size: 12px;">${station.incomingBuses}</span>
       </div>
     `)
   })
+
+  // Bus marker Line 1
+  busMarker1 = L.marker(line1Coords[0], {
+    icon: createBusIcon('#c0392b'),
+    zIndexOffset: 1000,
+  }).addTo(map)
+  busMarker1.bindTooltip('Line 1', { permanent: false, direction: 'top' })
+
+  // Bus marker Line 2
+  busMarker2 = L.marker(line2Coords[0], {
+    icon: createBusIcon('#e6a817'),
+    zIndexOffset: 1000,
+  }).addTo(map)
+  busMarker2.bindTooltip('Line 2', { permanent: false, direction: 'top' })
+
+  // Animate
+  animFrame1 = animateBus(busMarker1, line1Coords, 0.003, 0)
+  animFrame2 = animateBus(busMarker2, line2Coords, 0.004, 5)
 }
 
 const loadStations = async () => {
@@ -149,11 +403,10 @@ const loadStations = async () => {
     const data = await res.json()
     if (!res.ok) throw new Error(data.message || 'Cannot load map data')
     stations.value = data.stations || []
-    createMap()
   } catch (error) {
     console.error(error)
-    createMap()
   }
+  createMap()
 }
 
 onMounted(() => {
@@ -163,6 +416,8 @@ onMounted(() => {
 
 onUnmounted(() => {
   document.removeEventListener('click', closeDropdown)
+  if (animFrame1) cancelAnimationFrame(animFrame1)
+  if (animFrame2) cancelAnimationFrame(animFrame2)
   if (map) map.remove()
 })
 </script>
@@ -197,7 +452,6 @@ onUnmounted(() => {
   flex-shrink: 0;
 }
 
-/* Logo */
 .logo-title {
   font-family: 'Inter', sans-serif;
   font-size: 26px;
@@ -220,7 +474,6 @@ onUnmounted(() => {
   margin-top: 3px;
 }
 
-/* Menu */
 .menu {
   margin-top: 40px;
 }
@@ -263,7 +516,6 @@ onUnmounted(() => {
   font-weight: 600;
 }
 
-/* User card */
 .user-card {
   display: flex;
   align-items: center;
@@ -310,7 +562,6 @@ onUnmounted(() => {
   flex-direction: column;
   overflow: hidden;
   padding: 24px 32px;
-  overflow-y: auto;
 }
 
 /* ===== TOP HEADER ===== */
@@ -318,7 +569,7 @@ onUnmounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 24px;
+  margin-bottom: 12px;
 }
 
 .header-left {
@@ -413,7 +664,6 @@ onUnmounted(() => {
   color: #1f2937;
 }
 
-/* Profile Dropdown */
 .profile-dropdown-container {
   position: relative;
 }
@@ -479,10 +729,39 @@ onUnmounted(() => {
   background: #fff0f5;
 }
 
-.dropdown-divider {
-  height: 1px;
-  background: #e5e7eb;
-  margin: 4px 0;
+/* ===== LEGEND ===== */
+.map-legend {
+  display: flex;
+  gap: 20px;
+  margin-bottom: 10px;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.legend-line {
+  display: inline-block;
+  width: 32px;
+  height: 4px;
+  border-radius: 2px;
+}
+
+.legend-line.line1 {
+  background: #c0392b;
+}
+
+.legend-line.line2 {
+  background: #e6a817;
+}
+
+.legend-label {
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  color: #374151;
 }
 
 /* ===== MAP WRAPPER ===== */
