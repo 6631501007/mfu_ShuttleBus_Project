@@ -1,9 +1,11 @@
 const express = require('express');
+const http = require('http');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { Readable } = require('stream');
+const { Server } = require('socket.io');
 require('dotenv').config();
 const User = require('./models/user');
 const Station = require('./models/station');
@@ -15,6 +17,14 @@ const Setting = require('./models/setting');
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: '*',
+    methods: ['GET', 'POST'],
+  },
+});
 
 const PORT = process.env.PORT || 3000;
 const SECRET_KEY = process.env.JWT_SECRET;
@@ -33,7 +43,11 @@ const livefeedDetection = {
   count: 0,
   elapsed: 0,
   timestamp: null,
-  updatedAt: null
+  updatedAt: null,
+  cameraId: null,
+  frameWidth: 0,
+  frameHeight: 0,
+  detections: []
 };
 
 if (missingEnv.length > 0) {
@@ -76,23 +90,63 @@ const getLivefeedDetectionStatus = () => {
     elapsed: isRunning ? livefeedDetection.elapsed : 0,
     timestamp: livefeedDetection.timestamp,
     lastSeenAt,
-    streamUrl: LIVEFEED_PUBLIC_STREAM_URL
+    streamUrl: LIVEFEED_PUBLIC_STREAM_URL,
+    cameraId: livefeedDetection.cameraId,
+    frameWidth: livefeedDetection.frameWidth,
+    frameHeight: livefeedDetection.frameHeight,
+    detections: isRunning ? livefeedDetection.detections : []
   };
+};
+
+const updateLivefeedDetection = (payload) => {
+  const count = Number(payload?.peopleCount ?? payload?.count);
+  const elapsed = Number(payload?.elapsed);
+  const detections = Array.isArray(payload?.detections) ? payload.detections : [];
+  const frameWidth = Number(payload?.frameWidth);
+  const frameHeight = Number(payload?.frameHeight);
+
+  if (!Number.isFinite(count) || count < 0) {
+    return false;
+  }
+
+  livefeedDetection.count = Math.round(count);
+  livefeedDetection.elapsed = Number.isFinite(elapsed) && elapsed >= 0 ? elapsed : 0;
+  livefeedDetection.timestamp = Number(payload?.timestamp) || Date.now();
+  livefeedDetection.updatedAt = Date.now();
+  livefeedDetection.cameraId = payload?.cameraId || livefeedDetection.cameraId;
+  livefeedDetection.frameWidth = Number.isFinite(frameWidth) && frameWidth > 0 ? frameWidth : livefeedDetection.frameWidth;
+  livefeedDetection.frameHeight = Number.isFinite(frameHeight) && frameHeight > 0 ? frameHeight : livefeedDetection.frameHeight;
+  livefeedDetection.detections = detections
+    .filter(item => item?.bbox)
+    .map(item => ({
+      class: item.class || 'person',
+      confidence: Number(item.confidence) || 0,
+      bbox: {
+        x: Number(item.bbox.x) || 0,
+        y: Number(item.bbox.y) || 0,
+        width: Number(item.bbox.width) || 0,
+        height: Number(item.bbox.height) || 0
+      }
+    }));
+
+  return true;
 };
 
 /////////////////// Live Feed AI ingest ///////////////////
 app.post('/api/livefeed/update', (req, res) => {
-  const count = Number(req.body?.count);
+  const count = Number(req.body?.peopleCount ?? req.body?.count);
   const elapsed = Number(req.body?.elapsed);
+  const detections = Array.isArray(req.body?.detections) ? req.body.detections : [];
+  const frameWidth = Number(req.body?.frameWidth);
+  const frameHeight = Number(req.body?.frameHeight);
 
   if (!Number.isFinite(count) || count < 0) {
     return res.status(400).json({ message: 'count must be a non-negative number' });
   }
 
-  livefeedDetection.count = Math.round(count);
-  livefeedDetection.elapsed = Number.isFinite(elapsed) && elapsed >= 0 ? elapsed : 0;
-  livefeedDetection.timestamp = Number(req.body?.timestamp) || Date.now() / 1000;
-  livefeedDetection.updatedAt = Date.now();
+  if (!updateLivefeedDetection(req.body)) {
+    return res.status(400).json({ message: 'count must be a non-negative number' });
+  }
 
   res.json({ message: 'Live feed updated', detection: getLivefeedDetectionStatus() });
 });
@@ -102,6 +156,7 @@ app.post('/api/livefeed/stop', (req, res) => {
   livefeedDetection.elapsed = 0;
   livefeedDetection.timestamp = Date.now() / 1000;
   livefeedDetection.updatedAt = null;
+  livefeedDetection.detections = [];
 
   res.json({ message: 'Live feed stopped', detection: getLivefeedDetectionStatus() });
 });
@@ -269,6 +324,27 @@ app.get('/api/map', adminMiddleware, async (req, res) => {
 /////////////////// Live Feed ///////////////////
 app.get('/api/livefeed/detection', adminMiddleware, (req, res) => {
   res.json(getLivefeedDetectionStatus());
+});
+
+io.on('connection', (socket) => {
+  console.log(`[SOCKET.IO] Client connected: ${socket.id}`);
+
+  socket.on('detection:update', (payload) => {
+    if (!updateLivefeedDetection(payload)) {
+      console.warn('[SOCKET.IO] Invalid detection payload received');
+      socket.emit('detection:error', { message: 'Invalid detection payload' });
+      return;
+    }
+
+    // console.log(
+    //   `[SOCKET.IO] detection:update camera=${livefeedDetection.cameraId} count=${livefeedDetection.count}`
+    // );
+    io.emit('detection:broadcast', getLivefeedDetectionStatus());
+  });
+
+  socket.on('disconnect', () => {
+    console.log(`[SOCKET.IO] Client disconnected: ${socket.id}`);
+  });
 });
 
 /////////////////// Feedback ///////////////////
@@ -491,4 +567,4 @@ app.post('/api/buses', adminMiddleware, async (req, res) => {
 
 
 /////////////////// Start server ///////////////////
-app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
+server.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
