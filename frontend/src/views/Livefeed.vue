@@ -131,13 +131,7 @@
               </div>
             </div>
 
-            <!-- Alert card -->
-            <div class="alert-card">
-              <div class="alert-label">Real-Time Alert</div>
-              <div class="alert-title">Crowd Density High</div>
-              <p class="alert-desc">Sector 4C is exceeding threshold. Automated dispatch suggested.</p>
-              <button class="alert-btn">View Sector</button>
-            </div>
+
 
           </div>
 
@@ -299,10 +293,7 @@ const viewButtons = [
 ]
 
 const staticZones = [
-  { name: 'Main Entry', pax: 142, color: '#4caf50' },
-  { name: 'Security L1', pax: 89, color: '#ff9800' },
-  { name: 'Duty Free B', pax: 312, color: '#d72660' },
-  { name: 'Gate 14-16', pax: 42, color: '#00897b' }
+
 ]
 
 const zones = computed(() => [
@@ -377,33 +368,7 @@ const closeAiStream = () => {
 }
 
 const cameras = [
-  {
-    id: 'CAM-001', name: 'SOUTH ENTRY', status: 'REC',
-    bg: 'linear-gradient(135deg,#1a2030 0%,#0d1520 100%)',
-    people: [{ w: 8 }, { w: 10 }, { w: 7 }, { w: 9 }],
-    boxes: [
-      { id: 'ID:4022', x: 55, y: 18, w: 16, h: 42, color: '#d72660' },
-      { id: 'ID:4023', x: 74, y: 30, w: 14, h: 38, color: '#d72660' }
-    ]
-  },
-  {
-    id: 'CAM-014', name: 'SECURITY L1', status: 'REC',
-    bg: 'linear-gradient(135deg,#1a2520 0%,#0d1a18 100%)',
-    people: [{ w: 9 }, { w: 8 }, { w: 11 }, { w: 7 }, { w: 9 }],
-    boxes: null
-  },
-  {
-    id: 'CAM-022', name: 'DUTY FREE B', status: 'STANDBY',
-    bg: 'linear-gradient(135deg,#1e1e28 0%,#141420 100%)',
-    people: [{ w: 7 }, { w: 8 }, { w: 10 }, { w: 7 }, { w: 9 }, { w: 8 }],
-    boxes: null
-  },
-  {
-    id: 'CAM-008', name: 'GATE 14-16', status: 'REC',
-    bg: 'linear-gradient(135deg,#1a1e20 0%,#10141a 100%)',
-    people: [{ w: 9 }, { w: 7 }],
-    boxes: null
-  }
+
 ]
 
 let timer = null
