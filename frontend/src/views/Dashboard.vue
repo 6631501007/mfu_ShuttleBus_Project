@@ -56,7 +56,7 @@
 
         <div class="header-right">
           <div class="action-icons">
-            <i class='bx bx-bell icon-btn'></i>
+            <TopbarNotification />
             <div class="lang-switcher" @click="toggleLanguage">
               <i class='bx bx-globe'></i>
               <span class="lang-text">{{ language }}</span>
@@ -181,6 +181,7 @@
 <script setup>
 import { computed, ref, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router'
+import TopbarNotification from '../components/TopbarNotification.vue'
 import { apiFetch } from '../lib/api'
 import { createRedStationNotification, isRedStation } from '../lib/stationAlert'
 

@@ -53,7 +53,7 @@
         </div>
         <div class="header-right">
           <div class="action-icons">
-            <i class='bx bx-bell icon-btn'></i>
+            <TopbarNotification />
             <div class="lang-switcher" @click="toggleLanguage">
               <i class='bx bx-globe'></i>
               <span>{{ language }}</span>
@@ -327,6 +327,7 @@ import { ref, onMounted, onUnmounted, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import TopbarNotification from '../components/TopbarNotification.vue'
 import { apiFetch } from '../lib/api'
 
 const router = useRouter();

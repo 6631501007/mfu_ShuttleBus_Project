@@ -56,7 +56,7 @@
 
         <div class="header-right">
           <div class="action-icons">
-            <i class='bx bx-bell icon-btn'></i>
+            <TopbarNotification />
             <div class="lang-switcher" @click="toggleLanguage">
               <i class='bx bx-globe'></i>
               <span class="lang-text">{{ language }}</span>
@@ -77,14 +77,13 @@
 
       <!-- Legend -->
       <div class="map-legend">
-        <div class="legend-item">
-          <span class="legend-line line1"></span>
-          <span class="legend-label">Line 1</span>
-        </div>
-        <div class="legend-item">
-          <span class="legend-line line2"></span>
-          <span class="legend-label">Line 2</span>
-        </div>
+        <button
+          class="legend-item legend-toggle"
+          type="button"
+          @click="toggleLine"
+        >
+          <span class="legend-label">Line {{ activeLine }}</span>
+        </button>
       </div>
 
       <div class="map-wrapper">
@@ -99,6 +98,7 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
+import TopbarNotification from '../components/TopbarNotification.vue'
 import { apiFetch } from '../lib/api'
 import { getStationMarkerColor } from '../lib/stationAlert'
 
@@ -106,7 +106,10 @@ const router = useRouter()
 const isDropdownOpen = ref(false)
 const language = ref('English')
 const stations = ref([])
+const activeLine = ref(1)
 let map = null
+let lineLayer1 = null
+let lineLayer2 = null
 let busMarker1 = null
 let busMarker2 = null
 let animFrame1 = null
@@ -130,25 +133,12 @@ const logout = () => {
 }
 
 // ===== BUS ICON =====
-const createBusIcon = (color) => {
-  return L.divIcon({
-    className: '',
-    html: `
-      <div style="
-        width: 36px; height: 36px;
-        background: ${color};
-        border-radius: 6px;
-        display: flex; align-items: center; justify-content: center;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.35);
-        border: 2px solid #fff;
-      ">
-        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="white">
-          <path d="M4 16c0 .88.39 1.67 1 2.22V20a1 1 0 001 1h1a1 1 0 001-1v-1h8v1a1 1 0 001 1h1a1 1 0 001-1v-1.78c.61-.55 1-1.34 1-2.22V6c0-3.5-3.58-4-8-4s-8 .5-8 4v10zm3.5 1a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm9 0a1.5 1.5 0 110-3 1.5 1.5 0 010 3zM4 9h16v5H4V9zm0-3h16v2H4V6z"/>
-        </svg>
-      </div>
-    `,
-    iconSize: [36, 36],
-    iconAnchor: [18, 18],
+const createBusIcon = () => {
+  return L.icon({
+    iconUrl: '/travel.png',
+    iconSize: [32, 32],
+    iconAnchor: [16, 16],
+    popupAnchor: [0, -16],
   })
 }
 
@@ -169,6 +159,28 @@ const createStationIcon = (waitingPassengers) => {
     popupAnchor: [1, -34],
     shadowSize: [41, 41],
   })
+}
+
+const setLayerVisibility = (layer, shouldShow) => {
+  if (!map || !layer) return
+
+  if (shouldShow && !map.hasLayer(layer)) {
+    layer.addTo(map)
+  } else if (!shouldShow && map.hasLayer(layer)) {
+    map.removeLayer(layer)
+  }
+}
+
+const syncLineVisibility = () => {
+  setLayerVisibility(lineLayer1, activeLine.value === 1)
+  setLayerVisibility(busMarker1, activeLine.value === 1)
+  setLayerVisibility(lineLayer2, activeLine.value === 2)
+  setLayerVisibility(busMarker2, activeLine.value === 2)
+}
+
+const toggleLine = () => {
+  activeLine.value = activeLine.value === 1 ? 2 : 1
+  syncLineVisibility()
 }
 
 // ===== LINE 1 ROUTE (red — วนในมหาวิทยาลัย) =====
@@ -348,19 +360,19 @@ const createMap = () => {
   }).addTo(map)
 
   // Draw Line 1
-  L.polyline(line1Coords, {
+  lineLayer1 = L.polyline(line1Coords, {
     color: '#c0392b',
     weight: 4,
     opacity: 0.85,
-  }).addTo(map)
+  })
 
   // Draw Line 2
-  L.polyline(line2Coords, {
+  lineLayer2 = L.polyline(line2Coords, {
     color: '#e6a817',
     weight: 4,
     opacity: 0.85,
     dashArray: '8, 4',
-  }).addTo(map)
+  })
 
   // Station markers from API
   validStations.forEach((station) => {
@@ -376,21 +388,26 @@ const createMap = () => {
         <span style="color: #6b7280; font-size: 12px;">${station.incomingBuses}</span>
       </div>
     `)
+
+    marker.on('mouseover', () => marker.openPopup())
+    marker.on('mouseout', () => marker.closePopup())
   })
 
   // Bus marker Line 1
   busMarker1 = L.marker(line1Coords[0], {
-    icon: createBusIcon('#c0392b'),
+    icon: createBusIcon(),
     zIndexOffset: 1000,
-  }).addTo(map)
+  })
   busMarker1.bindTooltip('Line 1', { permanent: false, direction: 'top' })
 
   // Bus marker Line 2
   busMarker2 = L.marker(line2Coords[0], {
-    icon: createBusIcon('#e6a817'),
+    icon: createBusIcon(),
     zIndexOffset: 1000,
-  }).addTo(map)
+  })
   busMarker2.bindTooltip('Line 2', { permanent: false, direction: 'top' })
+
+  syncLineVisibility()
 
   // Animate
   animFrame1 = animateBus(busMarker1, line1Coords, 0.003, 0)
@@ -742,6 +759,29 @@ onUnmounted(() => {
   gap: 8px;
 }
 
+.legend-toggle {
+  min-width: 92px;
+  border: 1px solid #d1d5db;
+  border-radius: 999px;
+  background: #fff;
+  color: #111827;
+  padding: 9px 18px;
+  cursor: pointer;
+  box-shadow: 0 8px 18px rgba(17, 24, 39, 0.12);
+  transition: transform 0.2s, background 0.2s, box-shadow 0.2s;
+}
+
+.legend-toggle:hover {
+  background: #f9fafb;
+  transform: translateY(-1px);
+  box-shadow: 0 10px 22px rgba(17, 24, 39, 0.16);
+}
+
+.legend-toggle:active {
+  transform: translateY(0);
+  box-shadow: 0 5px 12px rgba(17, 24, 39, 0.1);
+}
+
 .legend-line {
   display: inline-block;
   width: 32px;
@@ -759,9 +799,9 @@ onUnmounted(() => {
 
 .legend-label {
   font-family: 'Inter', sans-serif;
-  font-size: 13px;
-  font-weight: 500;
-  color: #374151;
+  font-size: 14px;
+  font-weight: 700;
+  color: #111827;
 }
 
 /* ===== MAP WRAPPER ===== */
