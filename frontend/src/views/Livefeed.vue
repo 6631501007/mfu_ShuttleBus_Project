@@ -224,13 +224,22 @@
             <img :src="resolvedStreamUrl" class="stream-modal-img" alt="Live AI stream" />
             <div class="stream-overlay" aria-hidden="true">
               <div
+                v-for="zone in overlayZones"
+                :key="zone.name"
+                class="stream-zone-box"
+                :style="zoneStyle(zone)"
+              >
+                <span>{{ zone.name }}</span>
+              </div>
+              <div
                 v-for="(person, idx) in overlayDetections"
                 :key="`${person.bbox.x}-${person.bbox.y}-${idx}`"
                 class="stream-detection-box"
+                :class="{ 'stream-detection-box-counted': person.counted }"
                 :style="boxStyle(person.bbox)"
               >
                 <span class="stream-detection-label">
-                  Person {{ formatConfidence(person.confidence) }}
+                  Person {{ formatConfidence(person.confidence) }} {{ person.dwellSeconds ? `${Math.floor(person.dwellSeconds)}s` : '' }}
                 </span>
               </div>
             </div>
@@ -243,7 +252,7 @@
 
         <footer class="stream-modal-foot">
           <span class="cam-status-badge badge-live"><span class="rec-dot"></span> LIVE</span>
-          <span>{{ detection.count }} pax detected</span>
+          <span>{{ detection.count }} pax counted</span>
           <span>Runtime {{ detectionElapsed }}</span>
         </footer>
       </section>
@@ -270,7 +279,8 @@ const detection = reactive({
   streamUrl: '',
   frameWidth: 0,
   frameHeight: 0,
-  detections: []
+  detections: [],
+  zones: []
 })
 
 const toggleLanguage = () => {
@@ -337,6 +347,11 @@ const overlayDetections = computed(() => {
   return detection.detections.filter(item => item?.bbox)
 })
 
+const overlayZones = computed(() => {
+  if (!detection.running) return []
+  return detection.zones.filter(zone => zone?.enabled !== false)
+})
+
 const boxStyle = (bbox) => {
   const frameWidth = Math.max(Number(detection.frameWidth) || 1, 1)
   const frameHeight = Math.max(Number(detection.frameHeight) || 1, 1)
@@ -352,6 +367,15 @@ const boxStyle = (bbox) => {
     height: `${(height / frameHeight) * 100}%`
   }
 }
+
+const zoneStyle = (zone) => ({
+  left: `${Math.max(0, Number(zone.x) || 0)}%`,
+  top: `${Math.max(0, Number(zone.y) || 0)}%`,
+  width: `${Math.max(1, Number(zone.width) || 1)}%`,
+  height: `${Math.max(1, Number(zone.height) || 1)}%`,
+  borderColor: zone.color || '#16a34a',
+  color: zone.color || '#16a34a'
+})
 
 const formatConfidence = (confidence) => {
   const value = Number(confidence)
@@ -392,10 +416,12 @@ const loadDetectionStatus = async () => {
     detection.frameWidth = Number(data.frameWidth) || 0
     detection.frameHeight = Number(data.frameHeight) || 0
     detection.detections = Array.isArray(data.detections) ? data.detections : []
+    detection.zones = Array.isArray(data.zones) ? data.zones : []
     if (!detection.running) closeAiStream()
   } catch (error) {
     detection.running = false
     detection.detections = []
+    detection.zones = []
     closeAiStream()
   }
 }
@@ -1339,6 +1365,13 @@ const logout = () => {
     0 0 18px rgba(34, 197, 94, .32);
 }
 
+.stream-detection-box-counted {
+  border-color: #f59e0b;
+  box-shadow:
+    0 0 0 1px rgba(2, 6, 23, .75),
+    0 0 18px rgba(245, 158, 11, .38);
+}
+
 .stream-detection-label {
   position: absolute;
   left: -2px;
@@ -1351,6 +1384,27 @@ const logout = () => {
   font-size: 11px;
   font-weight: 800;
   line-height: 1.2;
+  white-space: nowrap;
+}
+
+.stream-zone-box {
+  position: absolute;
+  border: 2px dashed currentColor;
+  background: color-mix(in srgb, currentColor 12%, transparent);
+  border-radius: 4px;
+  pointer-events: none;
+}
+
+.stream-zone-box span {
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: rgba(15, 23, 42, .82);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
   white-space: nowrap;
 }
 

@@ -197,7 +197,71 @@
               </div>
             </div>
           </div>
-          <div></div>
+          <div class="setting-card">
+            <div class="card-header">
+              <div class="header-title-card">
+                <i class='bx bx-selection'></i>
+                <h3>Live Feed Counting Grid</h3>
+              </div>
+              <button class="btn-dark" @click="addLivefeedZone">Add Grid</button>
+            </div>
+            <div class="livefeed-config">
+              <div class="livefeed-toolbar">
+                <div class="form-group compact">
+                  <label>Dwell Time Before Count</label>
+                  <input type="number" min="1" v-model.number="livefeed.dwellSeconds" />
+                </div>
+                <label class="image-upload-btn">
+                  <i class='bx bx-image-add'></i>
+                  Upload Camera Image
+                  <input type="file" accept="image/*" @change="handleReferenceImageUpload" />
+                </label>
+                <button v-if="livefeed.referenceImage" class="btn-outline small" type="button" @click="clearReferenceImage">
+                  Clear Image
+                </button>
+              </div>
+
+              <div class="zone-editor" ref="zoneEditorRef" @pointerdown="startZoneEditorPointer">
+                <img v-if="livefeed.referenceImage" :src="livefeed.referenceImage" class="zone-reference-image" alt="" />
+                <div v-else class="zone-reference-empty">
+                  <i class='bx bx-image'></i>
+                  <span>Upload a camera reference image</span>
+                </div>
+                <div
+                  v-for="(zone, index) in livefeed.zones"
+                  :key="index"
+                  class="zone-editor-box"
+                  :class="{ 'zone-editor-box-disabled': !zone.enabled }"
+                  :data-zone-index="index"
+                  data-action="move"
+                  :style="zonePreviewStyle(zone)"
+                >
+                  <span>{{ zone.name }}</span>
+                  <button
+                    v-for="handle in resizeHandles"
+                    :key="handle"
+                    type="button"
+                    class="zone-resize-handle"
+                    :class="`zone-resize-${handle}`"
+                    :data-zone-index="index"
+                    :data-action="handle"
+                    :aria-label="`Resize ${zone.name}`"
+                  ></button>
+                </div>
+              </div>
+
+              <div v-for="(zone, index) in livefeed.zones" :key="index" class="zone-config-row">
+                <div class="zone-config-head">
+                  <input type="text" v-model="zone.name" placeholder="Grid name" />
+                  <label class="zone-enabled"><input type="checkbox" v-model="zone.enabled" /> Enabled</label>
+                  <i class='bx bx-trash delete-icon' @click="deleteLivefeedZone(index)" title="Delete"></i>
+                </div>
+                <div class="zone-grid-inputs">
+                  <label>Color<input type="color" v-model="zone.color" /></label>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -344,6 +408,16 @@ const notificationChannels = ref({
   mobiles: []
 });
 const hardware = ref([]);
+const zoneEditorRef = ref(null);
+const resizeHandles = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
+const livefeed = ref({
+  dwellSeconds: 30,
+  referenceImage: '',
+  zones: [
+    { name: 'Counting Zone', x: 20, y: 20, width: 60, height: 60, color: '#16a34a', enabled: true }
+  ]
+});
+let zoneDragState = null;
 
 // ── Stations (Station Thresholds) ─────────────────────────
 const stations = ref([]);
@@ -386,6 +460,117 @@ const getProgressColor = (current, capacity) => {
   if (pct >= 90) return 'red';
   if (pct >= 70) return 'yellow';
   return 'blue';
+};
+
+const normalizeZone = (zone, index = 0) => {
+  const width = Math.min(100, Math.max(1, Number(zone?.width) || 1));
+  const height = Math.min(100, Math.max(1, Number(zone?.height) || 1));
+  const x = Math.min(100 - width, Math.max(0, Number(zone?.x) || 0));
+  const y = Math.min(100 - height, Math.max(0, Number(zone?.y) || 0));
+  return {
+    name: zone?.name || `Counting Zone ${index + 1}`,
+    x,
+    y,
+    width,
+    height,
+    color: zone?.color || '#16a34a',
+    enabled: zone?.enabled !== false
+  };
+};
+
+const zonePreviewStyle = (zone) => ({
+  left: `${Math.max(0, Number(zone.x) || 0)}%`,
+  top: `${Math.max(0, Number(zone.y) || 0)}%`,
+  width: `${Math.max(1, Number(zone.width) || 1)}%`,
+  height: `${Math.max(1, Number(zone.height) || 1)}%`,
+  borderColor: zone.color || '#16a34a',
+  color: zone.color || '#16a34a',
+  backgroundColor: `${zone.color || '#16a34a'}22`
+});
+
+const handleReferenceImageUpload = (event) => {
+  const file = event.target.files?.[0];
+  event.target.value = '';
+  if (!file) return;
+  if (!file.type.startsWith('image/')) {
+    alert('Please choose an image file');
+    return;
+  }
+  if (file.size > 4 * 1024 * 1024) {
+    alert('Please choose an image smaller than 4 MB');
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    livefeed.value.referenceImage = String(reader.result || '');
+  };
+  reader.readAsDataURL(file);
+};
+
+const clearReferenceImage = () => {
+  livefeed.value.referenceImage = '';
+};
+
+const startZoneEditorPointer = (event) => {
+  const target = event.target.closest('[data-zone-index]');
+  if (!target || !zoneEditorRef.value) return;
+
+  const zoneIndex = Number(target.dataset.zoneIndex);
+  const zone = livefeed.value.zones[zoneIndex];
+  if (!zone) return;
+
+  const rect = zoneEditorRef.value.getBoundingClientRect();
+  zoneDragState = {
+    pointerId: event.pointerId,
+    action: target.dataset.action || 'move',
+    zoneIndex,
+    rect,
+    startX: event.clientX,
+    startY: event.clientY,
+    startZone: { ...zone }
+  };
+
+  target.setPointerCapture?.(event.pointerId);
+  window.addEventListener('pointermove', moveZoneEditorPointer);
+  window.addEventListener('pointerup', stopZoneEditorPointer, { once: true });
+};
+
+const moveZoneEditorPointer = (event) => {
+  if (!zoneDragState || event.pointerId !== zoneDragState.pointerId) return;
+  const zone = livefeed.value.zones[zoneDragState.zoneIndex];
+  if (!zone) return;
+
+  const dx = ((event.clientX - zoneDragState.startX) / zoneDragState.rect.width) * 100;
+  const dy = ((event.clientY - zoneDragState.startY) / zoneDragState.rect.height) * 100;
+  const start = zoneDragState.startZone;
+  let x = Number(start.x) || 0;
+  let y = Number(start.y) || 0;
+  let width = Number(start.width) || 1;
+  let height = Number(start.height) || 1;
+
+  if (zoneDragState.action === 'move') {
+    x += dx;
+    y += dy;
+  } else {
+    if (zoneDragState.action.includes('w')) {
+      x += dx;
+      width -= dx;
+    }
+    if (zoneDragState.action.includes('e')) width += dx;
+    if (zoneDragState.action.includes('n')) {
+      y += dy;
+      height -= dy;
+    }
+    if (zoneDragState.action.includes('s')) height += dy;
+  }
+
+  Object.assign(zone, normalizeZone({ ...zone, x, y, width, height }, zoneDragState.zoneIndex));
+};
+
+const stopZoneEditorPointer = () => {
+  zoneDragState = null;
+  window.removeEventListener('pointermove', moveZoneEditorPointer);
 };
 
 // ─────────────────────────────────────────────────────────
@@ -487,6 +672,14 @@ const loadSettings = async () => {
     };
     delayThreshold.value = data.delayThreshold ?? 15;
     hardware.value = data.hardware || [];
+    livefeed.value = {
+      dwellSeconds: data.livefeed?.dwellSeconds ?? 30,
+      referenceImage: data.livefeed?.referenceImage || '',
+      zones: (Array.isArray(data.livefeed?.zones) && data.livefeed.zones.length
+        ? data.livefeed.zones
+        : [{ name: 'Counting Zone', x: 20, y: 20, width: 60, height: 60, color: '#16a34a', enabled: true }]
+      ).map(normalizeZone)
+    };
   } catch (error) {
     console.error(error);
   }
@@ -497,7 +690,12 @@ const saveSettings = async () => {
     const settingsPayload = {
       notificationChannels: notificationChannels.value,
       delayThreshold: delayThreshold.value,
-      hardware: hardware.value
+      hardware: hardware.value,
+      livefeed: {
+        dwellSeconds: Math.max(1, Number(livefeed.value.dwellSeconds) || 30),
+        referenceImage: livefeed.value.referenceImage || '',
+        zones: livefeed.value.zones.map(normalizeZone)
+      }
     };
 
     const settingsRes = await apiFetch('/api/settings', {
@@ -521,6 +719,23 @@ const saveSettings = async () => {
     console.error(error);
     alert('Unable to save settings');
   }
+};
+
+const addLivefeedZone = () => {
+  livefeed.value.zones.push({
+    name: `Counting Zone ${livefeed.value.zones.length + 1}`,
+    x: 20,
+    y: 20,
+    width: 60,
+    height: 60,
+    color: '#16a34a',
+    enabled: true
+  });
+};
+
+const deleteLivefeedZone = (index) => {
+  if (livefeed.value.zones.length <= 1) return;
+  livefeed.value.zones.splice(index, 1);
 };
 
 // ─────────────────────────────────────────────────────────
@@ -682,6 +897,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   document.removeEventListener('click', closeDropdown);
+  window.removeEventListener('pointermove', moveZoneEditorPointer);
   destroyModalMap();
 });
 </script>
@@ -1462,6 +1678,242 @@ input:checked+.slider:before {
 
 .form-group input:focus {
   border-color: #0f172a;
+}
+
+.livefeed-config {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.livefeed-toolbar {
+  display: flex;
+  align-items: end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.form-group.compact {
+  max-width: 220px;
+}
+
+.image-upload-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 14px;
+  border: 1px solid #0f172a;
+  border-radius: 8px;
+  background: #0f172a;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.image-upload-btn input {
+  display: none;
+}
+
+.btn-outline.small {
+  height: 40px;
+  padding: 0 12px;
+  font-size: 12px;
+}
+
+.zone-editor {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border: 1px solid #d1d5db;
+  border-radius: 12px;
+  background:
+    linear-gradient(rgba(15, 23, 42, .08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(15, 23, 42, .08) 1px, transparent 1px),
+    #eef2f7;
+  background-size: 10% 10%;
+  overflow: hidden;
+  touch-action: none;
+}
+
+.zone-reference-image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #020617;
+  user-select: none;
+  pointer-events: none;
+}
+
+.zone-reference-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: #6b7280;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.zone-reference-empty i {
+  font-size: 34px;
+  color: #9ca3af;
+}
+
+.zone-editor-box {
+  position: absolute;
+  min-width: 28px;
+  min-height: 28px;
+  border: 2px dashed #16a34a;
+  border-radius: 5px;
+  cursor: move;
+  box-shadow: 0 0 0 1px rgba(15, 23, 42, .45);
+}
+
+.zone-editor-box-disabled {
+  opacity: .42;
+}
+
+.zone-editor-box span {
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  max-width: calc(100% - 16px);
+  padding: 4px 8px;
+  border-radius: 5px;
+  background: rgba(15, 23, 42, .82);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.zone-resize-handle {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border: 2px solid #fff;
+  border-radius: 999px;
+  background: currentColor;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, .4);
+}
+
+.zone-resize-nw,
+.zone-resize-se {
+  cursor: nwse-resize;
+}
+
+.zone-resize-ne,
+.zone-resize-sw {
+  cursor: nesw-resize;
+}
+
+.zone-resize-n,
+.zone-resize-s {
+  cursor: ns-resize;
+}
+
+.zone-resize-e,
+.zone-resize-w {
+  cursor: ew-resize;
+}
+
+.zone-resize-nw { left: -7px; top: -7px; }
+.zone-resize-n { left: calc(50% - 6px); top: -7px; }
+.zone-resize-ne { right: -7px; top: -7px; }
+.zone-resize-e { right: -7px; top: calc(50% - 6px); }
+.zone-resize-se { right: -7px; bottom: -7px; }
+.zone-resize-s { left: calc(50% - 6px); bottom: -7px; }
+.zone-resize-sw { left: -7px; bottom: -7px; }
+.zone-resize-w { left: -7px; top: calc(50% - 6px); }
+
+.zone-config-row {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #f9fafb;
+}
+
+.zone-config-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.zone-config-head input[type="text"],
+.zone-grid-inputs input[type="number"] {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-family: 'Inter', sans-serif;
+}
+
+.zone-enabled {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #4b5563;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.zone-grid-inputs {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(70px, 1fr));
+  gap: 10px;
+}
+
+.zone-grid-inputs label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  color: #6b7280;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.zone-grid-inputs input[type="color"] {
+  width: 100%;
+  height: 36px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.zone-preview {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 6;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  background:
+    linear-gradient(rgba(15, 23, 42, .08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(15, 23, 42, .08) 1px, transparent 1px),
+    #fff;
+  background-size: 10% 25%;
+  overflow: hidden;
+}
+
+.zone-preview-box {
+  position: absolute;
+  border: 2px dashed #16a34a;
+  border-radius: 4px;
 }
 
 .modal-map {

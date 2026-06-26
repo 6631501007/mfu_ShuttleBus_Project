@@ -16,7 +16,7 @@ const Setting = require('./models/setting');
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 
 const server = http.createServer(app);
 const io = new Server(server, {
@@ -41,13 +41,31 @@ const LIVEFEED_PUBLIC_STREAM_URL = process.env.LIVEFEED_PUBLIC_STREAM_URL || '/a
 
 const livefeedDetection = {
   count: 0,
+  activeCount: 0,
   elapsed: 0,
   timestamp: null,
   updatedAt: null,
   cameraId: null,
   frameWidth: 0,
   frameHeight: 0,
-  detections: []
+  detections: [],
+  zones: []
+};
+
+const DEFAULT_LIVEFEED_CONFIG = {
+  dwellSeconds: 30,
+  referenceImage: '',
+  zones: [
+    {
+      name: 'Counting Zone',
+      x: 20,
+      y: 20,
+      width: 60,
+      height: 60,
+      color: '#16a34a',
+      enabled: true
+    }
+  ]
 };
 
 if (missingEnv.length > 0) {
@@ -87,6 +105,7 @@ const getLivefeedDetectionStatus = () => {
   return {
     running: isRunning,
     count: isRunning ? livefeedDetection.count : 0,
+    activeCount: isRunning ? livefeedDetection.activeCount : 0,
     elapsed: isRunning ? livefeedDetection.elapsed : 0,
     timestamp: livefeedDetection.timestamp,
     lastSeenAt,
@@ -94,12 +113,53 @@ const getLivefeedDetectionStatus = () => {
     cameraId: livefeedDetection.cameraId,
     frameWidth: livefeedDetection.frameWidth,
     frameHeight: livefeedDetection.frameHeight,
-    detections: isRunning ? livefeedDetection.detections : []
+    detections: isRunning ? livefeedDetection.detections : [],
+    zones: livefeedDetection.zones
   };
+};
+
+const clampPercent = (value, fallback) => {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return fallback;
+  return Math.min(100, Math.max(0, number));
+};
+
+const normalizeLivefeedZone = (zone = {}, index = 0) => {
+  const x = clampPercent(zone.x, DEFAULT_LIVEFEED_CONFIG.zones[0].x);
+  const y = clampPercent(zone.y, DEFAULT_LIVEFEED_CONFIG.zones[0].y);
+  const maxWidth = Math.max(1, 100 - x);
+  const maxHeight = Math.max(1, 100 - y);
+
+  return {
+    name: zone.name || `Counting Zone ${index + 1}`,
+    x,
+    y,
+    width: Math.min(maxWidth, Math.max(1, clampPercent(zone.width, DEFAULT_LIVEFEED_CONFIG.zones[0].width))),
+    height: Math.min(maxHeight, Math.max(1, clampPercent(zone.height, DEFAULT_LIVEFEED_CONFIG.zones[0].height))),
+    color: zone.color || DEFAULT_LIVEFEED_CONFIG.zones[0].color,
+    enabled: zone.enabled !== false
+  };
+};
+
+const normalizeLivefeedConfig = (livefeed = {}) => {
+  const dwellSeconds = Number(livefeed.dwellSeconds);
+  const zones = Array.isArray(livefeed.zones) ? livefeed.zones : DEFAULT_LIVEFEED_CONFIG.zones;
+
+  return {
+    dwellSeconds: Number.isFinite(dwellSeconds) && dwellSeconds > 0 ? dwellSeconds : DEFAULT_LIVEFEED_CONFIG.dwellSeconds,
+    referenceImage: typeof livefeed.referenceImage === 'string' ? livefeed.referenceImage : '',
+    zones: zones.map(normalizeLivefeedZone).filter(zone => zone.enabled)
+  };
+};
+
+const getLivefeedConfig = async () => {
+  const settings = await Setting.findOne().lean();
+  return normalizeLivefeedConfig(settings?.livefeed || DEFAULT_LIVEFEED_CONFIG);
 };
 
 const updateLivefeedDetection = (payload) => {
   const count = Number(payload?.peopleCount ?? payload?.count);
+  const activeCount = Number(payload?.activeCount);
   const elapsed = Number(payload?.elapsed);
   const detections = Array.isArray(payload?.detections) ? payload.detections : [];
   const frameWidth = Number(payload?.frameWidth);
@@ -110,6 +170,7 @@ const updateLivefeedDetection = (payload) => {
   }
 
   livefeedDetection.count = Math.round(count);
+  livefeedDetection.activeCount = Number.isFinite(activeCount) && activeCount >= 0 ? Math.round(activeCount) : detections.length;
   livefeedDetection.elapsed = Number.isFinite(elapsed) && elapsed >= 0 ? elapsed : 0;
   livefeedDetection.timestamp = Number(payload?.timestamp) || Date.now();
   livefeedDetection.updatedAt = Date.now();
@@ -121,6 +182,10 @@ const updateLivefeedDetection = (payload) => {
     .map(item => ({
       class: item.class || 'person',
       confidence: Number(item.confidence) || 0,
+      trackId: item.trackId || null,
+      dwellSeconds: Number(item.dwellSeconds) || 0,
+      counted: Boolean(item.counted),
+      zoneName: item.zoneName || null,
       bbox: {
         x: Number(item.bbox.x) || 0,
         y: Number(item.bbox.y) || 0,
@@ -128,6 +193,9 @@ const updateLivefeedDetection = (payload) => {
         height: Number(item.bbox.height) || 0
       }
     }));
+  livefeedDetection.zones = Array.isArray(payload?.zones)
+    ? payload.zones.map(normalizeLivefeedZone)
+    : livefeedDetection.zones;
 
   return true;
 };
@@ -183,6 +251,14 @@ app.get('/api/livefeed/stream', async (req, res) => {
   } catch (error) {
     if (error.name === 'AbortError') return;
     res.status(502).send('Live feed stream is unavailable');
+  }
+});
+
+app.get('/api/livefeed/config', async (req, res) => {
+  try {
+    res.json(await getLivefeedConfig());
+  } catch (error) {
+    res.status(500).json(error);
   }
 });
 
@@ -397,6 +473,7 @@ app.put('/api/settings', adminMiddleware, async (req, res) => {
     if (settings) {
       settings.markModified('notificationChannels');
       settings.markModified('hardware');
+      settings.markModified('livefeed');
       await settings.save();
     }
     res.json({ message: 'Settings saved', settings });
