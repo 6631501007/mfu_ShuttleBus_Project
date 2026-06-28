@@ -221,7 +221,7 @@
                 </div>
                 <div class="form-group compact">
                   <label>Dwell Time Before Count</label>
-                  <input type="number" min="1" v-model.number="selectedLivefeed.dwellSeconds" :disabled="!selectedLivefeedHardware" />
+                  <input type="number" min="1" v-model.number="selectedLivefeed.dwellSeconds" :disabled="!selectedLivefeedHardware" @change="saveSelectedLivefeedConfig" />
                 </div>
                 <label class="image-upload-btn">
                   <i class='bx bx-image-add'></i>
@@ -265,7 +265,7 @@
               <div v-if="selectedLivefeedHardware" v-for="(zone, index) in selectedLivefeed.zones" :key="index" class="zone-config-row">
                 <div class="zone-config-head">
                   <strong>{{ selectedLivefeedHardware.name }}</strong>
-                  <label class="zone-enabled"><input type="checkbox" v-model="zone.enabled" /> Enabled</label>
+                  <label class="zone-enabled"><input type="checkbox" v-model="zone.enabled" @change="saveSelectedLivefeedConfig" /> Enabled</label>
                 </div>
               </div>
             </div>
@@ -526,6 +526,30 @@ const ensureHardwareLivefeedConfigs = (fallbackLivefeed = livefeed.value) => {
   }
 };
 
+const saveSelectedLivefeedConfig = async () => {
+  const camera = selectedLivefeedHardware.value;
+  if (!camera) return;
+
+  try {
+    const payload = normalizeLivefeedConfig(selectedLivefeed.value, camera.name);
+    Object.assign(selectedLivefeed.value, payload);
+    const res = await apiFetch(`/api/settings/hardware/${getHardwareApiId(camera, 0)}/livefeed`, {
+      method: 'PUT',
+      body: JSON.stringify(payload)
+    });
+    const responseText = await res.text();
+    const data = responseText ? JSON.parse(responseText) : {};
+    if (!res.ok) throw new Error(data.message || 'Cannot save livefeed grid');
+    hardware.value = Array.isArray(data.settings?.hardware) ? data.settings.hardware : hardware.value;
+    ensureHardwareLivefeedConfigs(livefeed.value);
+  } catch (error) {
+    console.error(error);
+    alert(error instanceof SyntaxError
+      ? 'Unable to save livefeed grid. Please use the updated app at http://localhost:5174/ with backend http://localhost:3001/.'
+      : error.message || 'Unable to save livefeed grid');
+  }
+};
+
 const zonePreviewStyle = (zone) => ({
   left: `${Math.max(0, Number(zone.x) || 0)}%`,
   top: `${Math.max(0, Number(zone.y) || 0)}%`,
@@ -552,12 +576,14 @@ const handleReferenceImageUpload = (event) => {
   const reader = new FileReader();
   reader.onload = () => {
     selectedLivefeed.value.referenceImage = String(reader.result || '');
+    saveSelectedLivefeedConfig();
   };
   reader.readAsDataURL(file);
 };
 
 const clearReferenceImage = () => {
   selectedLivefeed.value.referenceImage = '';
+  saveSelectedLivefeedConfig();
 };
 
 const startZoneEditorPointer = (event) => {
@@ -618,6 +644,7 @@ const moveZoneEditorPointer = (event) => {
 };
 
 const stopZoneEditorPointer = () => {
+  if (zoneDragState) saveSelectedLivefeedConfig();
   zoneDragState = null;
   window.removeEventListener('pointermove', moveZoneEditorPointer);
 };
@@ -862,7 +889,8 @@ const toHardwareFormData = (hw = {}) => ({
   ip: hw.ip || '',
   rtspUrl: hw.rtspUrl || '',
   fw: hw.fw || '',
-  status: hw.status || 'offline'
+  status: hw.status || 'offline',
+  livefeed: hw.livefeed
 });
 
 const openAddHardwareModal = () => {
@@ -888,6 +916,13 @@ const confirmHardwareModal = async () => {
     alert('RTSP URL is required before a camera can be set online');
     return;
   }
+  const existingHardware = hardware.value[hardwareEditIndex.value] || {};
+  const hardwareLivefeed = hardwareFormData.value.type === 'camera'
+    ? normalizeLivefeedConfig(
+      hardwareFormData.value.livefeed || existingHardware.livefeed || livefeed.value,
+      hardwareFormData.value.name
+    )
+    : undefined;
   const payload = {
     deviceId: hardwareFormData.value.deviceId || `hw-${Date.now()}`,
     name: hardwareFormData.value.name,
@@ -900,7 +935,8 @@ const confirmHardwareModal = async () => {
       hardwareFormData.value.fw ? `FW ${hardwareFormData.value.fw}` : '',
       hardwareFormData.value.ip,
       hardwareFormData.value.type === 'camera' && hardwareFormData.value.rtspUrl.trim() ? 'RTSP configured' : ''
-    ].filter(Boolean).join(' • ')
+    ].filter(Boolean).join(' • '),
+    livefeed: hardwareLivefeed
   };
 
   try {
