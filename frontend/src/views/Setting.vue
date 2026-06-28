@@ -183,12 +183,13 @@
               <button class="btn-dark" @click="openAddHardwareModal">+ Add Hardware</button>
             </div>
             <div class="hardware-list">
-              <div class="hw-item" v-for="(hw, index) in hardware" :key="index">
+              <div class="hw-item" v-for="(hw, index) in hardware" :key="hw.deviceId || index">
                 <i
                   :class="['bx', 'hw-icon', hw.status === 'online' ? 'bx-check-circle online' : 'bx-error-triangle offline']"></i>
                 <div class="hw-info">
                   <strong :class="hw.status === 'offline' ? 'text-red' : ''">{{ hw.name }}</strong>
                   <span>{{ hw.details }}</span>
+                  <span v-if="hw.type === 'camera' && hw.rtspUrl" class="hw-rtsp">{{ hw.rtspUrl }}</span>
                 </div>
                 <div class="hw-actions">
                   <i class='bx bx-pencil edit-icon' @click="openEditHardwareModal(index)" title="Edit"></i>
@@ -340,6 +341,10 @@
             <input type="text" v-model="hardwareFormData.ip" placeholder="e.g. 192.168.1.100" />
           </div>
           <div class="form-group">
+            <label>RTSP URL</label>
+            <input type="text" v-model="hardwareFormData.rtspUrl" placeholder="rtsp://user:pass@camera-ip/path" />
+          </div>
+          <div class="form-group">
             <label>Firmware Version</label>
             <input type="text" v-model="hardwareFormData.fw" placeholder="e.g. v2.4.1" />
           </div>
@@ -441,7 +446,7 @@ const newChannelValue = ref('');
 const isHardwareModalOpen = ref(false);
 const hardwareModalMode = ref('add');
 const hardwareEditIndex = ref(-1);
-const hardwareFormData = ref({ name: '', type: 'sensor', ip: '', fw: '', status: 'online' });
+const hardwareFormData = ref({ deviceId: '', name: '', type: 'camera', ip: '', rtspUrl: '', fw: '', status: 'offline' });
 
 // ─────────────────────────────────────────────────────────
 // Helpers
@@ -794,7 +799,7 @@ const discardChanges = () => {
 // ─────────────────────────────────────────────────────────
 const openAddHardwareModal = () => {
   hardwareModalMode.value = 'add';
-  hardwareFormData.value = { name: '', type: 'sensor', ip: '', fw: '', status: 'online' };
+  hardwareFormData.value = { deviceId: '', name: '', type: 'camera', ip: '', rtspUrl: '', fw: '', status: 'offline' };
   isHardwareModalOpen.value = true;
 };
 
@@ -802,38 +807,71 @@ const openEditHardwareModal = (index) => {
   hardwareModalMode.value = 'edit';
   hardwareEditIndex.value = index;
   const hw = hardware.value[index];
-  hardwareFormData.value = { name: hw.name, type: hw.type || 'sensor', ip: hw.ip || '', fw: hw.fw || '', status: hw.status };
+  hardwareFormData.value = {
+    deviceId: hw.deviceId || '',
+    name: hw.name,
+    type: hw.type || 'sensor',
+    ip: hw.ip || '',
+    rtspUrl: hw.rtspUrl || '',
+    fw: hw.fw || '',
+    status: hw.status || 'offline'
+  };
   isHardwareModalOpen.value = true;
 };
 
 const closeHardwareModal = () => { isHardwareModalOpen.value = false; };
 
-const confirmHardwareModal = () => {
+const confirmHardwareModal = async () => {
   if (!hardwareFormData.value.name) return;
+  if (hardwareFormData.value.type === 'camera' && hardwareFormData.value.status === 'online' && !hardwareFormData.value.rtspUrl.trim()) {
+    alert('RTSP URL is required before a camera can be set online');
+    return;
+  }
   const payload = {
+    deviceId: hardwareFormData.value.deviceId || `hw-${Date.now()}`,
     name: hardwareFormData.value.name,
     type: hardwareFormData.value.type,
     ip: hardwareFormData.value.ip,
     status: hardwareFormData.value.status,
+    rtspUrl: hardwareFormData.value.rtspUrl.trim(),
     fw: hardwareFormData.value.fw,
-    details: `FW ${hardwareFormData.value.fw} • ${hardwareFormData.value.ip}`
+    details: [
+      hardwareFormData.value.fw ? `FW ${hardwareFormData.value.fw}` : '',
+      hardwareFormData.value.ip,
+      hardwareFormData.value.type === 'camera' && hardwareFormData.value.rtspUrl.trim() ? 'RTSP configured' : ''
+    ].filter(Boolean).join(' • ')
   };
 
-  if (hardwareModalMode.value === 'add') {
-    hardware.value.push(payload);
-  } else if (hardwareEditIndex.value >= 0) {
-    hardware.value[hardwareEditIndex.value] = {
-      ...hardware.value[hardwareEditIndex.value],
-      ...payload
-    };
-  }
+  try {
+    const isAdd = hardwareModalMode.value === 'add';
+    const endpoint = isAdd ? '/api/settings/hardware' : `/api/settings/hardware/${hardwareEditIndex.value}`;
+    const res = await apiFetch(endpoint, {
+      method: isAdd ? 'POST' : 'PUT',
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Cannot save hardware');
 
-  closeHardwareModal();
+    hardware.value = Array.isArray(data.settings?.hardware) ? data.settings.hardware : hardware.value;
+    closeHardwareModal();
+  } catch (error) {
+    console.error(error);
+    alert('Unable to save hardware');
+  }
 };
 
-const deleteHardware = (index) => {
+const deleteHardware = async (index) => {
   if (!confirm('Delete this hardware?')) return;
-  hardware.value.splice(index, 1);
+  try {
+    const res = await apiFetch(`/api/settings/hardware/${index}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Cannot delete hardware');
+
+    hardware.value = Array.isArray(data.settings?.hardware) ? data.settings.hardware : [];
+  } catch (error) {
+    console.error(error);
+    alert('Unable to delete hardware');
+  }
 };
 
 // ─────────────────────────────────────────────────────────
@@ -1546,6 +1584,13 @@ input:checked+.slider:before {
   color: #6b7280;
 }
 
+.hw-rtsp {
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .hw-actions {
   display: flex;
   gap: 12px;
@@ -1665,7 +1710,8 @@ input:checked+.slider:before {
   margin-bottom: 6px;
 }
 
-.form-group input {
+.form-group input,
+.form-group select {
   width: 100%;
   padding: 10px 12px;
   border: 1px solid #d1d5db;
@@ -1676,7 +1722,8 @@ input:checked+.slider:before {
   transition: border-color 0.2s;
 }
 
-.form-group input:focus {
+.form-group input:focus,
+.form-group select:focus {
   border-color: #0f172a;
 }
 

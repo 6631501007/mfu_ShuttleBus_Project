@@ -24,6 +24,8 @@ const settingSchema = new mongoose.Schema({
       name: String,
       type: { type: String, enum: ['sensor', 'camera', 'other'] },
       ip: String,
+      rtspUrl: String,
+      fw: String,
       status: { type: String, enum: ['online', 'offline'], default: 'offline' },
       details: String
     }

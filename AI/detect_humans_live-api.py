@@ -527,8 +527,8 @@ def run_live(
     width  = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     fps    = cap.get(cv2.CAP_PROP_FPS)
-    if fps <= 0:
-        fps = 30.0   # webcams often report 0 — safe fallback
+    if not np.isfinite(fps) or fps <= 0 or fps > 240:
+        fps = 30.0   # webcams and RTSP streams often report unusable FPS values.
 
     print(f"[INFO] Camera source      : {source}")
     print(f"[INFO] Camera ID          : {camera_id}")
