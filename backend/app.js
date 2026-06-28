@@ -145,7 +145,7 @@ const normalizeLivefeedConfig = (livefeed = {}, zoneName = '') => {
   return {
     dwellSeconds: Number.isFinite(dwellSeconds) && dwellSeconds > 0 ? dwellSeconds : DEFAULT_LIVEFEED_CONFIG.dwellSeconds,
     referenceImage: typeof livefeed.referenceImage === 'string' ? livefeed.referenceImage : '',
-    zones: zones.slice(0, 1).map((zone, index) => normalizeLivefeedZone(zone, index, zoneName)).filter(zone => zone.enabled)
+    zones: zones.slice(0, 1).map((zone, index) => normalizeLivefeedZone(zone, index, zoneName))
   };
 };
 
@@ -859,6 +859,31 @@ app.put('/api/settings/hardware/:hardwareId', adminMiddleware, async (req, res) 
     await settings.save();
     await syncHardwareDetectors(settings.toObject());
     res.json({ message: 'Hardware updated', settings });
+  } catch (error) {
+    res.status(500).json(error);
+  }
+});
+
+app.put('/api/settings/hardware/:hardwareId/livefeed', adminMiddleware, async (req, res) => {
+  try {
+    const settings = await Setting.findOne();
+    if (!settings) return res.status(404).json({ message: 'Settings not found' });
+
+    const index = getHardwareIndex(settings, req.params.hardwareId);
+    if (!Number.isInteger(index) || index < 0 || index >= settings.hardware.length) {
+      return res.status(404).json({ message: 'Hardware not found' });
+    }
+
+    const hardware = settings.hardware[index];
+    if (hardware.type !== 'camera') {
+      return res.status(400).json({ message: 'Livefeed grid can only be saved for camera hardware' });
+    }
+
+    hardware.livefeed = normalizeLivefeedConfig(req.body, hardware.name);
+    settings.markModified('hardware');
+    await settings.save();
+    await syncHardwareDetectors(settings.toObject());
+    res.json({ message: 'Hardware livefeed saved', settings });
   } catch (error) {
     res.status(500).json(error);
   }
