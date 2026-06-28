@@ -24,10 +24,42 @@ const settingSchema = new mongoose.Schema({
       name: String,
       type: { type: String, enum: ['sensor', 'camera', 'other'] },
       ip: String,
+      rtspUrl: String,
+      fw: String,
       status: { type: String, enum: ['online', 'offline'], default: 'offline' },
-      details: String
+      details: String,
+      livefeed: {
+        dwellSeconds: { type: Number, default: 30 },
+        referenceImage: { type: String, default: '' },
+        zones: [
+          {
+            name: { type: String, default: 'Counting Zone' },
+            x: { type: Number, default: 20 },
+            y: { type: Number, default: 20 },
+            width: { type: Number, default: 60 },
+            height: { type: Number, default: 60 },
+            color: { type: String, default: '#16a34a' },
+            enabled: { type: Boolean, default: true }
+          }
+        ]
+      }
     }
-  ]
+  ],
+  livefeed: {
+    dwellSeconds: { type: Number, default: 30 },
+    referenceImage: { type: String, default: '' },
+    zones: [
+      {
+        name: { type: String, default: 'Counting Zone' },
+        x: { type: Number, default: 20 },
+        y: { type: Number, default: 20 },
+        width: { type: Number, default: 60 },
+        height: { type: Number, default: 60 },
+        color: { type: String, default: '#16a34a' },
+        enabled: { type: Boolean, default: true }
+      }
+    ]
+  }
 }, { timestamps: true });
 
 module.exports = mongoose.model('Setting', settingSchema);
