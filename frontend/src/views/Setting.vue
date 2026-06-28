@@ -143,24 +143,7 @@
               </div>
               <span class="add-link" @click="openNotificationModal('email')">+ Add recipient</span>
             </div>
-            <div class="channel-section">
-              <div class="channel-row">
-                <strong>SMS / MOBILE</strong>
-                <label class="switch"><input type="checkbox" v-model="notificationChannels.smsEnabled"><span
-                    class="slider"></span></label>
-              </div>
-              <p class="channel-desc" :class="{ empty: notificationChannels.mobiles.length === 0 }">
-                {{ notificationChannels.mobiles.length ? notificationChannels.mobiles.join(', ') : 'No active numbers'
-                }}
-              </p>
-              <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px;">
-                <span v-for="(mobile, idx) in notificationChannels.mobiles" :key="idx" class="tag-item">
-                  {{ mobile }}
-                  <i class='bx bx-x' @click="removeMobile(idx)" style="cursor:pointer; margin-left:4px;"></i>
-                </span>
-              </div>
-              <span class="add-link" @click="openNotificationModal('mobile')"><i class='bx bx-mobile'></i> Register device</span>
-            </div>
+
             <div class="queue-threshold-section">
               <strong>Queue Delay Threshold</strong>
               <div class="range-slider-container">
