@@ -76,6 +76,7 @@ const DEFAULT_LIVEFEED_CONFIG = {
     }
   ]
 };
+const LIVEFEED_GRID_COLOR = '#16a34a';
 
 if (missingEnv.length > 0) {
   console.error(`Missing required environment variables: ${missingEnv.join(', ')}`);
@@ -112,16 +113,53 @@ const createDeviceId = (hardware = {}, index = 0) => {
   return `${name || 'camera'}-${Date.now()}-${index}`;
 };
 
+const clampPercent = (value, fallback) => {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return fallback;
+  return Math.min(100, Math.max(0, number));
+};
+
+const normalizeLivefeedZone = (zone = {}, index = 0, zoneName = '') => {
+  const x = clampPercent(zone.x, DEFAULT_LIVEFEED_CONFIG.zones[0].x);
+  const y = clampPercent(zone.y, DEFAULT_LIVEFEED_CONFIG.zones[0].y);
+  const maxWidth = Math.max(1, 100 - x);
+  const maxHeight = Math.max(1, 100 - y);
+
+  return {
+    name: zoneName || zone.name || `Counting Zone ${index + 1}`,
+    x,
+    y,
+    width: Math.min(maxWidth, Math.max(1, clampPercent(zone.width, DEFAULT_LIVEFEED_CONFIG.zones[0].width))),
+    height: Math.min(maxHeight, Math.max(1, clampPercent(zone.height, DEFAULT_LIVEFEED_CONFIG.zones[0].height))),
+    color: LIVEFEED_GRID_COLOR,
+    enabled: zone.enabled !== false
+  };
+};
+
+const normalizeLivefeedConfig = (livefeed = {}, zoneName = '') => {
+  const dwellSeconds = Number(livefeed.dwellSeconds);
+  const zones = Array.isArray(livefeed.zones) && livefeed.zones.length
+    ? livefeed.zones
+    : DEFAULT_LIVEFEED_CONFIG.zones;
+
+  return {
+    dwellSeconds: Number.isFinite(dwellSeconds) && dwellSeconds > 0 ? dwellSeconds : DEFAULT_LIVEFEED_CONFIG.dwellSeconds,
+    referenceImage: typeof livefeed.referenceImage === 'string' ? livefeed.referenceImage : '',
+    zones: zones.slice(0, 1).map((zone, index) => normalizeLivefeedZone(zone, index, zoneName)).filter(zone => zone.enabled)
+  };
+};
+
 const normalizeHardware = (hardware = {}, index = 0) => {
   const type = ['sensor', 'camera', 'other'].includes(hardware.type) ? hardware.type : 'sensor';
   const status = hardware.status === 'online' ? 'online' : 'offline';
   const rtspUrl = String(hardware.rtspUrl || '').trim();
   const ip = String(hardware.ip || '').trim();
   const fw = String(hardware.fw || '').trim();
+  const name = String(hardware.name || '').trim() || `Hardware ${index + 1}`;
 
-  return {
+  const normalized = {
     deviceId: createDeviceId(hardware, index),
-    name: String(hardware.name || '').trim() || `Hardware ${index + 1}`,
+    name,
     type,
     ip,
     rtspUrl,
@@ -131,14 +169,44 @@ const normalizeHardware = (hardware = {}, index = 0) => {
       fw ? `FW ${fw}` : '',
       ip,
       type === 'camera' && rtspUrl ? 'RTSP configured' : ''
-    ].filter(Boolean).join(' • ')
+    ].filter(Boolean).join(' • '),
+    livefeed: normalizeLivefeedConfig(hardware.livefeed || DEFAULT_LIVEFEED_CONFIG, name)
   };
+
+  if (hardware._id) normalized._id = hardware._id;
+  return normalized;
 };
 
 const normalizeSettingsPayload = (payload = {}) => ({
   ...payload,
   hardware: Array.isArray(payload.hardware) ? payload.hardware.map(normalizeHardware) : [],
 });
+
+const normalizeHardwareIdentifier = (hardwareId) => {
+  if (!hardwareId) return '';
+  if (typeof hardwareId === 'object') {
+    return String(hardwareId.$oid || hardwareId._id || hardwareId.deviceId || '');
+  }
+  try {
+    return decodeURIComponent(String(hardwareId));
+  } catch {
+    return String(hardwareId);
+  }
+};
+
+const getHardwareIndex = (settings, hardwareId) => {
+  if (!settings || !Array.isArray(settings.hardware)) return -1;
+  const normalizedHardwareId = normalizeHardwareIdentifier(hardwareId);
+  const index = settings.hardware.findIndex((item) => (
+    normalizeHardwareIdentifier(item._id) === normalizedHardwareId ||
+    normalizeHardwareIdentifier(item.deviceId) === normalizedHardwareId
+  ));
+  if (index !== -1) return index;
+
+  if (!/^\d+$/.test(normalizedHardwareId)) return -1;
+  const numericIndex = Number(normalizedHardwareId);
+  return Number.isInteger(numericIndex) ? numericIndex : -1;
+};
 
 const getDetectorPort = (hardware, index = 0) => {
   const existing = detectorProcesses.get(hardware.deviceId);
@@ -172,6 +240,7 @@ const startDetector = (hardware, index = 0) => {
     '--mjpeg-port', String(port),
     '--api-url', `http://localhost:${PORT}/api/livefeed/update`,
     '--socketio-url', `http://localhost:${PORT}`,
+    '--config-url', `http://localhost:${PORT}/api/livefeed/config?cameraId=${encodeURIComponent(hardware.deviceId)}`,
     '--no-stop-notify',
   ];
 
@@ -266,42 +335,21 @@ const getLivefeedDetectionStatus = () => {
   return formatDetectionStatus(latest, latest.streamUrl || LIVEFEED_PUBLIC_STREAM_URL);
 };
 
-const clampPercent = (value, fallback) => {
-  const number = Number(value);
-  if (!Number.isFinite(number)) return fallback;
-  return Math.min(100, Math.max(0, number));
-};
-
-const normalizeLivefeedZone = (zone = {}, index = 0) => {
-  const x = clampPercent(zone.x, DEFAULT_LIVEFEED_CONFIG.zones[0].x);
-  const y = clampPercent(zone.y, DEFAULT_LIVEFEED_CONFIG.zones[0].y);
-  const maxWidth = Math.max(1, 100 - x);
-  const maxHeight = Math.max(1, 100 - y);
-
-  return {
-    name: zone.name || `Counting Zone ${index + 1}`,
-    x,
-    y,
-    width: Math.min(maxWidth, Math.max(1, clampPercent(zone.width, DEFAULT_LIVEFEED_CONFIG.zones[0].width))),
-    height: Math.min(maxHeight, Math.max(1, clampPercent(zone.height, DEFAULT_LIVEFEED_CONFIG.zones[0].height))),
-    color: zone.color || DEFAULT_LIVEFEED_CONFIG.zones[0].color,
-    enabled: zone.enabled !== false
-  };
-};
-
-const normalizeLivefeedConfig = (livefeed = {}) => {
-  const dwellSeconds = Number(livefeed.dwellSeconds);
-  const zones = Array.isArray(livefeed.zones) ? livefeed.zones : DEFAULT_LIVEFEED_CONFIG.zones;
-
-  return {
-    dwellSeconds: Number.isFinite(dwellSeconds) && dwellSeconds > 0 ? dwellSeconds : DEFAULT_LIVEFEED_CONFIG.dwellSeconds,
-    referenceImage: typeof livefeed.referenceImage === 'string' ? livefeed.referenceImage : '',
-    zones: zones.map(normalizeLivefeedZone).filter(zone => zone.enabled)
-  };
-};
-
-const getLivefeedConfig = async () => {
+const getLivefeedConfig = async (cameraId = '') => {
   const settings = await Setting.findOne().lean();
+  const hardware = Array.isArray(settings?.hardware) ? settings.hardware : [];
+  const camera = hardware.find(item => (
+    normalizeHardwareIdentifier(item._id) === normalizeHardwareIdentifier(cameraId) ||
+    normalizeHardwareIdentifier(item.deviceId) === normalizeHardwareIdentifier(cameraId)
+  ));
+
+  if (camera) {
+    return normalizeLivefeedConfig(
+      camera.livefeed || settings?.livefeed || DEFAULT_LIVEFEED_CONFIG,
+      camera.name
+    );
+  }
+
   return normalizeLivefeedConfig(settings?.livefeed || DEFAULT_LIVEFEED_CONFIG);
 };
 
@@ -467,7 +515,7 @@ app.get('/api/livefeed/stream/:cameraId', async (req, res) => {
 
 app.get('/api/livefeed/config', async (req, res) => {
   try {
-    res.json(await getLivefeedConfig());
+    res.json(await getLivefeedConfig(req.query.cameraId));
   } catch (error) {
     res.status(500).json(error);
   }
@@ -771,6 +819,15 @@ app.delete('/api/settings/zones/:index', adminMiddleware, async (req, res) => {
 });
 
 /////////////////// Settings - Hardware ///////////////////
+app.get('/api/settings/hardware', adminMiddleware, async (req, res) => {
+  try {
+    const settings = await Setting.findOne().lean();
+    res.json(settings?.hardware || []);
+  } catch (error) {
+    res.status(500).json(error);
+  }
+});
+
 app.post('/api/settings/hardware', adminMiddleware, async (req, res) => {
   try {
     const currentSettings = await Setting.findOne().lean();
@@ -787,11 +844,12 @@ app.post('/api/settings/hardware', adminMiddleware, async (req, res) => {
   }
 });
 
-app.put('/api/settings/hardware/:index', adminMiddleware, async (req, res) => {
+app.put('/api/settings/hardware/:hardwareId', adminMiddleware, async (req, res) => {
   try {
-    const index = parseInt(req.params.index);
     const settings = await Setting.findOne();
     if (!settings) return res.status(404).json({ message: 'Settings not found' });
+
+    const index = getHardwareIndex(settings, req.params.hardwareId);
     if (!Number.isInteger(index) || index < 0 || index >= settings.hardware.length) {
       return res.status(404).json({ message: 'Hardware not found' });
     }
@@ -806,11 +864,12 @@ app.put('/api/settings/hardware/:index', adminMiddleware, async (req, res) => {
   }
 });
 
-app.delete('/api/settings/hardware/:index', adminMiddleware, async (req, res) => {
+app.delete('/api/settings/hardware/:hardwareId', adminMiddleware, async (req, res) => {
   try {
-    const index = parseInt(req.params.index);
     const settings = await Setting.findOne();
     if (!settings) return res.status(404).json({ message: 'Settings not found' });
+
+    const index = getHardwareIndex(settings, req.params.hardwareId);
     if (!Number.isInteger(index) || index < 0 || index >= settings.hardware.length) {
       return res.status(404).json({ message: 'Hardware not found' });
     }
