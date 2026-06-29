@@ -397,12 +397,15 @@ const closeAiStream = () => {
 
 let timer = null
 let cameraTimer = null
+let isLoadingCameras = false
 function updateTime() {
   const now = new Date()
   liveTime.value = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
 }
 
 const loadCameras = async () => {
+  if (isLoadingCameras) return
+  isLoadingCameras = true
   try {
     const res = await apiFetch('/api/livefeed/cameras')
     if (!res.ok) return
@@ -416,6 +419,8 @@ const loadCameras = async () => {
     }
   } catch (error) {
     cameras.value = []
+  } finally {
+    isLoadingCameras = false
   }
 }
 
@@ -423,7 +428,7 @@ onMounted(() => {
   updateTime()
   loadCameras()
   timer = setInterval(updateTime, 1000)
-  cameraTimer = setInterval(loadCameras, 500)
+  cameraTimer = setInterval(loadCameras, 2000)
   document.addEventListener('click', closeDropdown)
 })
 onUnmounted(() => {

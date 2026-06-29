@@ -63,6 +63,13 @@ const resolveDetectorPythonBin = () => {
 };
 const DETECTOR_PYTHON_BIN = resolveDetectorPythonBin();
 const DETECTOR_BASE_PORT = Number(process.env.DETECTOR_BASE_PORT) || 8090;
+const DETECTOR_MODEL = process.env.DETECTOR_MODEL || 'yolov8n';
+const DETECTOR_IMGSZ = Number(process.env.DETECTOR_IMGSZ) || 416;
+const DETECTOR_SKIP_FRAMES = Number(process.env.DETECTOR_SKIP_FRAMES) || 3;
+const DETECTOR_STREAM_FPS = Number(process.env.DETECTOR_STREAM_FPS) || 6;
+const DETECTOR_STREAM_WIDTH = Number(process.env.DETECTOR_STREAM_WIDTH) || 640;
+const DETECTOR_JPEG_QUALITY = Number(process.env.DETECTOR_JPEG_QUALITY) || 65;
+const DETECTOR_SOCKET_EMIT_INTERVAL = Number(process.env.DETECTOR_SOCKET_EMIT_INTERVAL) || 1;
 const detectorProcesses = new Map();
 
 const livefeedDetection = {
@@ -279,7 +286,14 @@ const startDetector = (hardware, index = 0) => {
     '--source', hardware.rtspUrl,
     '--camera-id', hardware.deviceId,
     '--mjpeg-port', String(port),
-    '--api-url', `http://localhost:${PORT}/api/livefeed/update`,
+    '--model', DETECTOR_MODEL,
+    '--imgsz', String(DETECTOR_IMGSZ),
+    '--skip-frames', String(DETECTOR_SKIP_FRAMES),
+    '--stream-fps', String(DETECTOR_STREAM_FPS),
+    '--stream-width', String(DETECTOR_STREAM_WIDTH),
+    '--jpeg-quality', String(DETECTOR_JPEG_QUALITY),
+    '--emit-interval', String(DETECTOR_SOCKET_EMIT_INTERVAL),
+    '--api-url', '',
     '--socketio-url', `http://localhost:${PORT}`,
     '--config-url', `http://localhost:${PORT}/api/livefeed/config?cameraId=${encodeURIComponent(hardware.deviceId)}`,
     '--no-stop-notify',
@@ -504,6 +518,13 @@ const proxyDetectorStream = async (req, res, streamUrl, unavailableMessage) => {
   req.once('close', () => {
     if (!controller.signal.aborted) controller.abort();
   });
+  const isExpectedStreamClose = error => (
+    error?.name === 'AbortError' ||
+    error?.message === 'terminated' ||
+    error?.cause?.code === 'UND_ERR_SOCKET' ||
+    controller.signal.aborted ||
+    res.destroyed
+  );
 
   try {
     const detectorStream = await fetch(streamUrl, { signal: controller.signal });
@@ -521,7 +542,7 @@ const proxyDetectorStream = async (req, res, streamUrl, unavailableMessage) => {
 
     const nodeStream = Readable.fromWeb(detectorStream.body);
     nodeStream.on('error', error => {
-      if (error.name === 'AbortError' || controller.signal.aborted || res.destroyed) return;
+      if (isExpectedStreamClose(error)) return;
       console.error('[LIVEFEED] Stream proxy error:', error);
       if (!res.headersSent) {
         res.status(502).send(unavailableMessage);
@@ -531,7 +552,7 @@ const proxyDetectorStream = async (req, res, streamUrl, unavailableMessage) => {
     });
     nodeStream.pipe(res);
   } catch (error) {
-    if (error.name === 'AbortError') return;
+    if (isExpectedStreamClose(error)) return;
     if (!res.headersSent) res.status(502).send(unavailableMessage);
   }
 };
