@@ -122,7 +122,7 @@
                     <span class="zone-dot" :style="`background:${zone.color}`"></span>
                     <span class="zone-name">{{ zone.name }}</span>
                   </div>
-                  <span class="zone-pax">{{ zone.pax }} pax</span>
+                  
                 </div>
               </div>
               <div class="ai-meta">

@@ -15,6 +15,7 @@ const Station = require('./models/station');
 const Bus = require('./models/bus');
 const Feedback = require('./models/feedback');
 const Analytics = require('./models/analytics');
+const HourlyAnalytics = require('./models/hourlyAnalytics');
 const Setting = require('./models/setting');
 
 const app = express();
@@ -63,13 +64,14 @@ const resolveDetectorPythonBin = () => {
 };
 const DETECTOR_PYTHON_BIN = resolveDetectorPythonBin();
 const DETECTOR_BASE_PORT = Number(process.env.DETECTOR_BASE_PORT) || 8090;
-const DETECTOR_MODEL = process.env.DETECTOR_MODEL || 'yolov8n';
-const DETECTOR_IMGSZ = Number(process.env.DETECTOR_IMGSZ) || 416;
-const DETECTOR_SKIP_FRAMES = Number(process.env.DETECTOR_SKIP_FRAMES) || 3;
+const DETECTOR_MODEL = process.env.DETECTOR_MODEL || 'yolov8s';
+const DETECTOR_IMGSZ = Number(process.env.DETECTOR_IMGSZ) || 640;
+const DETECTOR_SKIP_FRAMES = Number(process.env.DETECTOR_SKIP_FRAMES) || 2;
 const DETECTOR_STREAM_FPS = Number(process.env.DETECTOR_STREAM_FPS) || 6;
 const DETECTOR_STREAM_WIDTH = Number(process.env.DETECTOR_STREAM_WIDTH) || 640;
 const DETECTOR_JPEG_QUALITY = Number(process.env.DETECTOR_JPEG_QUALITY) || 65;
-const DETECTOR_SOCKET_EMIT_INTERVAL = Number(process.env.DETECTOR_SOCKET_EMIT_INTERVAL) || 1;
+const DETECTOR_SOCKET_EMIT_INTERVAL = Number(process.env.DETECTOR_SOCKET_EMIT_INTERVAL) || 0.5;
+const ANALYTICS_TIMEZONE = process.env.ANALYTICS_TIMEZONE || 'Asia/Bangkok';
 const detectorProcesses = new Map();
 
 const livefeedDetection = {
@@ -259,6 +261,129 @@ const getHardwareIndex = (settings, hardwareId) => {
 const getDetectorPort = (hardware, index = 0) => {
   const existing = detectorProcesses.get(hardware.deviceId);
   return existing?.port || DETECTOR_BASE_PORT + index + 1;
+};
+
+const getHourlyBucket = (value = new Date()) => {
+  const sourceDate = value instanceof Date ? value : new Date(value);
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: ANALYTICS_TIMEZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    hour12: false
+  });
+  const parts = Object.fromEntries(
+    formatter.formatToParts(sourceDate).map(part => [part.type, part.value])
+  );
+  const hour = Number(parts.hour === '24' ? 0 : parts.hour);
+  const date = new Date(`${parts.year}-${parts.month}-${parts.day}T00:00:00.000Z`);
+  const timestamp = new Date(`${parts.year}-${parts.month}-${parts.day}T${String(hour).padStart(2, '0')}:00:00.000Z`);
+
+  return { date, hour, timestamp };
+};
+
+const getLocalTimeLabel = (value = new Date()) => (
+  new Intl.DateTimeFormat('en-GB', {
+    timeZone: ANALYTICS_TIMEZONE,
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  }).format(value)
+);
+
+const getMedian = (values = []) => {
+  if (!values.length) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2
+    ? sorted[mid]
+    : (sorted[mid - 1] + sorted[mid]) / 2;
+};
+
+const resolveStationIdForCamera = async (cameraId) => {
+  const settings = await Setting.findOne().lean();
+  const hardware = Array.isArray(settings?.hardware) ? settings.hardware : [];
+  const camera = hardware.find(item => (
+    normalizeHardwareIdentifier(item._id) === normalizeHardwareIdentifier(cameraId) ||
+    normalizeHardwareIdentifier(item.deviceId) === normalizeHardwareIdentifier(cameraId)
+  ));
+
+  return String(
+    camera?.stationId ||
+    camera?.station_id ||
+    camera?.station ||
+    camera?.name ||
+    cameraId ||
+    'UNKNOWN_STATION'
+  ).trim().replace(/\s+/g, '_').toUpperCase();
+};
+
+const updateHourlyAnalytics = async (payload = {}, detectionState = {}) => {
+  const currentQueueCount = Number(detectionState.activeCount ?? payload.activeCount ?? payload.peopleCount ?? payload.count);
+  if (!Number.isFinite(currentQueueCount) || currentQueueCount < 0) return;
+
+  const cameraId = detectionState.cameraId || payload.cameraId || 'AI-001';
+  const stationId = await resolveStationIdForCamera(cameraId);
+  const now = new Date(Number(payload.timestamp) || Date.now());
+  const bucket = getHourlyBucket(now);
+  const dwellSamples = (detectionState.detections || [])
+    .map(item => Number(item.dwellSeconds))
+    .filter(value => Number.isFinite(value) && value >= 0);
+
+  const existing = await HourlyAnalytics
+    .findOne({ station_id: stationId, timestamp: bucket.timestamp })
+    .select('+queue_time_samples_seconds +last_total_persons_seen');
+
+  const queueTimeSamples = [
+    ...(existing?.queue_time_samples_seconds || []),
+    ...dwellSamples
+  ].slice(-1000);
+  const sampleCount = (existing?.sample_count || 0) + 1;
+  const previousTotalSeen = existing?.last_total_persons_seen || 0;
+  const totalSeen = Number(detectionState.count ?? payload.peopleCount ?? payload.count);
+  const processedDelta = Number.isFinite(totalSeen)
+    ? Math.max(0, Math.round(totalSeen) - previousTotalSeen)
+    : 0;
+  const peakQueueCount = Math.max(existing?.peak_queue_count || 0, Math.round(currentQueueCount));
+  const shouldUpdatePeak = !existing || Math.round(currentQueueCount) >= (existing.peak_queue_count || 0);
+
+  const previousAverage = existing?.avg_queue_time_seconds || 0;
+  const currentAverage = dwellSamples.length
+    ? dwellSamples.reduce((sum, value) => sum + value, 0) / dwellSamples.length
+    : currentQueueCount > 0 ? previousAverage : 0;
+  const nextAverage = sampleCount > 1
+    ? (((previousAverage * (sampleCount - 1)) + currentAverage) / sampleCount)
+    : currentAverage;
+
+  const roundedQueueCount = Math.round(currentQueueCount);
+  const analytics = existing || new HourlyAnalytics({
+    station_id: stationId,
+    timestamp: bucket.timestamp,
+    min_queue_count: roundedQueueCount
+  });
+
+  analytics.station_id = stationId;
+  analytics.camera_id = cameraId;
+  analytics.date = bucket.date;
+  analytics.hour = bucket.hour;
+  analytics.timestamp = bucket.timestamp;
+  analytics.timezone = ANALYTICS_TIMEZONE;
+  analytics.current_queue_count = roundedQueueCount;
+  analytics.max_queue_count = Math.max(existing?.max_queue_count || roundedQueueCount, roundedQueueCount);
+  analytics.min_queue_count = existing && Number.isFinite(existing.min_queue_count)
+    ? Math.min(existing.min_queue_count, roundedQueueCount)
+    : roundedQueueCount;
+  analytics.avg_queue_time_seconds = Number(nextAverage.toFixed(1));
+  analytics.median_queue_time_seconds = Number(getMedian(queueTimeSamples).toFixed(1));
+  analytics.peak_time = shouldUpdatePeak ? getLocalTimeLabel(now) : existing.peak_time;
+  analytics.peak_queue_count = peakQueueCount;
+  analytics.total_persons_processed = (existing?.total_persons_processed || 0) + processedDelta;
+  analytics.sample_count = sampleCount;
+  analytics.queue_time_samples_seconds = queueTimeSamples;
+  analytics.last_total_persons_seen = Number.isFinite(totalSeen) ? Math.round(totalSeen) : previousTotalSeen;
+
+  await analytics.save();
 };
 
 const stopDetector = (deviceId) => {
@@ -455,7 +580,7 @@ const updateLivefeedDetection = (payload) => {
   Object.assign(livefeedDetection, detectionState);
   cameraDetections.set(cameraId, detectionState);
 
-  return true;
+  return detectionState;
 };
 
 const formatDetectionStatus = (detectionState = {}, streamUrl = '') => {
@@ -479,7 +604,7 @@ const formatDetectionStatus = (detectionState = {}, streamUrl = '') => {
 };
 
 /////////////////// Live Feed AI ingest ///////////////////
-app.post('/api/livefeed/update', (req, res) => {
+app.post('/api/livefeed/update', async (req, res) => {
   const count = Number(req.body?.peopleCount ?? req.body?.count);
   const elapsed = Number(req.body?.elapsed);
   const detections = Array.isArray(req.body?.detections) ? req.body.detections : [];
@@ -490,8 +615,15 @@ app.post('/api/livefeed/update', (req, res) => {
     return res.status(400).json({ message: 'count must be a non-negative number' });
   }
 
-  if (!updateLivefeedDetection(req.body)) {
+  const detectionState = updateLivefeedDetection(req.body);
+  if (!detectionState) {
     return res.status(400).json({ message: 'count must be a non-negative number' });
+  }
+
+  try {
+    await updateHourlyAnalytics(req.body, detectionState);
+  } catch (error) {
+    console.error('[HOURLY_ANALYTICS] Could not update hourly analytics:', error);
   }
 
   res.json({ message: 'Live feed updated', detection: getLivefeedDetectionStatus() });
@@ -617,6 +749,11 @@ app.get('/api/dashboard', adminMiddleware, async (req, res) => {
     const stations = await Station.find().lean();
     const buses = await Bus.find().lean();
     const analytics = await Analytics.findOne().sort({ createdAt: -1 }).lean();
+    const hourlyAnalytics = await HourlyAnalytics
+      .find()
+      .sort({ timestamp: -1, station_id: 1 })
+      .limit(12)
+      .lean();
 
     const passengerChart = analytics
       ? { weekly: analytics.weeklyData, monthly: analytics.monthlyData }
@@ -644,7 +781,7 @@ app.get('/api/dashboard', adminMiddleware, async (req, res) => {
         severity: s.status === 'critical' ? 'high' : 'medium'
       }));
 
-    res.json({ kpis, passengerChart, notifications, stations, buses });
+    res.json({ kpis, passengerChart, notifications, stations, buses, hourlyAnalytics });
   } catch (error) {
     res.status(500).json(error);
   }
@@ -662,6 +799,24 @@ app.get('/api/analytics', adminMiddleware, async (req, res) => {
       dateRanges: analytics?.dateRanges || [],
       terminals: analytics?.terminals || []
     });
+  } catch (error) {
+    res.status(500).json(error);
+  }
+});
+
+app.get('/api/hourly-analytics', adminMiddleware, async (req, res) => {
+  try {
+    const limit = Math.min(Math.max(Number(req.query.limit) || 24, 1), 168);
+    const query = {};
+    if (req.query.station_id) query.station_id = String(req.query.station_id);
+
+    const hourlyAnalytics = await HourlyAnalytics
+      .find(query)
+      .sort({ timestamp: -1, station_id: 1 })
+      .limit(limit)
+      .lean();
+
+    res.json({ hourlyAnalytics });
   } catch (error) {
     res.status(500).json(error);
   }
@@ -752,11 +907,18 @@ app.get('/api/livefeed/cameras', adminMiddleware, async (req, res) => {
 io.on('connection', (socket) => {
   console.log(`[SOCKET.IO] Client connected: ${socket.id}`);
 
-  socket.on('detection:update', (payload) => {
-    if (!updateLivefeedDetection(payload)) {
+  socket.on('detection:update', async (payload) => {
+    const detectionState = updateLivefeedDetection(payload);
+    if (!detectionState) {
       console.warn('[SOCKET.IO] Invalid detection payload received');
       socket.emit('detection:error', { message: 'Invalid detection payload' });
       return;
+    }
+
+    try {
+      await updateHourlyAnalytics(payload, detectionState);
+    } catch (error) {
+      console.error('[HOURLY_ANALYTICS] Could not update hourly analytics:', error);
     }
 
     // console.log(
