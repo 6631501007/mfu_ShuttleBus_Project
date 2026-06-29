@@ -529,7 +529,7 @@ const saveSelectedLivefeedConfig = async () => {
   } catch (error) {
     console.error(error);
     alert(error instanceof SyntaxError
-      ? 'Unable to save livefeed grid. Please use the updated app at http://localhost:5174/ with backend http://localhost:3001/.'
+      ? 'Unable to save livefeed grid. Please use the updated app at http://localhost:5173/ with backend http://localhost:3000/.'
       : error.message || 'Unable to save livefeed grid');
   }
 };
