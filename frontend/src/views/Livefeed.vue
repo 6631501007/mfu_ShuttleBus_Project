@@ -161,7 +161,7 @@
                     <span v-if="cam.running" class="rec-dot"></span>
                     {{ cam.running ? 'AI ACTIVE' : 'OFFLINE' }}
                   </span>
-                  <span class="cam-id-label">{{ cam.deviceId }} | {{ cam.name }}</span>
+                  <span class="cam-id-label">{{ cam.deviceId }} | {{ cameraDisplayName(cam) }}</span>
                 </div>
                 <span class="cam-time">{{ liveTime }}</span>
               </div>
@@ -177,7 +177,7 @@
         <header class="stream-modal-head">
           <div>
             <p class="stream-modal-kicker">{{ selectedCamera?.deviceId }} | HUMAN DETECTOR</p>
-            <h3 class="stream-modal-title">{{ selectedCamera?.name || 'Live Camera Feed' }}</h3>
+            <h3 class="stream-modal-title">{{ cameraDisplayName(selectedCamera) || 'Live Camera Feed' }}</h3>
           </div>
           <button type="button" class="stream-close-btn" aria-label="Close live feed" @click="closeAiStream">
             <i class='bx bx-x'></i>
@@ -194,7 +194,7 @@
                 class="stream-zone-box"
                 :style="zoneStyle(zone)"
               >
-                <span>{{ zone.name }}</span>
+                <span>{{ zoneDisplayName(zone, selectedCamera) }}</span>
               </div>
               <div
                 v-for="(person, idx) in overlayDetections"
@@ -263,9 +263,30 @@ const staticZones = [
 
 ]
 
+const displayNameFrom = (value, fallback = '') => {
+  if (Array.isArray(value)) return displayNameFrom(value[0], fallback)
+  if (value && typeof value === 'object') return displayNameFrom(value.name, fallback)
+
+  const text = String(value || '').trim()
+  if (!text) return fallback
+
+  if (text.startsWith('{') || text.startsWith('[')) {
+    try {
+      return displayNameFrom(JSON.parse(text), fallback)
+    } catch {
+      return fallback || text
+    }
+  }
+
+  return text
+}
+
+const cameraDisplayName = (camera) => displayNameFrom(camera?.name, camera?.deviceId || '')
+const zoneDisplayName = (zone, camera) => displayNameFrom(zone?.name, cameraDisplayName(camera) || 'Counting Zone')
+
 const zones = computed(() => [
   ...cameras.value.map(camera => ({
-    name: camera.name,
+    name: cameraDisplayName(camera),
     pax: camera.detection?.running ? Number(camera.detection.count) || 0 : 0,
     color: camera.detection?.running ? '#16a34a' : '#9ca3af'
   })),

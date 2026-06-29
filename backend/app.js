@@ -5,6 +5,7 @@ const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const path = require('path');
+const fs = require('fs');
 const { spawn } = require('child_process');
 const { Readable } = require('stream');
 const { Server } = require('socket.io');
@@ -40,10 +41,27 @@ const LIVEFEED_SOURCE_STREAM_URL =
   process.env.LIVEFEED_STREAM_URL ||
   'http://localhost:8090/stream';
 const LIVEFEED_PUBLIC_STREAM_URL = process.env.LIVEFEED_PUBLIC_STREAM_URL || '/api/livefeed/stream';
-const DETECTOR_PYTHON_BIN = process.env.DETECTOR_PYTHON_BIN || 'python3';
 const DETECTOR_SCRIPT_PATH = process.env.DETECTOR_SCRIPT_PATH
   ? path.resolve(__dirname, process.env.DETECTOR_SCRIPT_PATH)
   : path.join(__dirname, '..', 'AI', 'detect_humans_live-api.py');
+const resolveDetectorPythonBin = () => {
+  if (process.env.DETECTOR_PYTHON_BIN) {
+    const configuredBin = process.env.DETECTOR_PYTHON_BIN;
+    const looksLikePath =
+      path.isAbsolute(configuredBin) ||
+      configuredBin.startsWith(`.${path.sep}`) ||
+      configuredBin.startsWith(`..${path.sep}`) ||
+      configuredBin.includes(path.sep);
+    return looksLikePath ? path.resolve(__dirname, configuredBin) : configuredBin;
+  }
+
+  const candidates = [
+    path.join(__dirname, '..', 'AI', '.venv', 'bin', 'python'),
+    path.join(__dirname, '..', '.venv', 'bin', 'python'),
+  ];
+  return candidates.find(candidate => fs.existsSync(candidate)) || 'python3';
+};
+const DETECTOR_PYTHON_BIN = resolveDetectorPythonBin();
 const DETECTOR_BASE_PORT = Number(process.env.DETECTOR_BASE_PORT) || 8090;
 const detectorProcesses = new Map();
 
@@ -119,6 +137,29 @@ const clampPercent = (value, fallback) => {
   return Math.min(100, Math.max(0, number));
 };
 
+const getDisplayName = (value, fallback = '') => {
+  if (Array.isArray(value)) {
+    return getDisplayName(value[0], fallback);
+  }
+
+  if (value && typeof value === 'object') {
+    return getDisplayName(value.name, fallback);
+  }
+
+  const text = String(value || '').trim();
+  if (!text) return fallback;
+
+  if (text.startsWith('{') || text.startsWith('[')) {
+    try {
+      return getDisplayName(JSON.parse(text), fallback);
+    } catch {
+      return fallback || text;
+    }
+  }
+
+  return text;
+};
+
 const normalizeLivefeedZone = (zone = {}, index = 0, zoneName = '') => {
   const x = clampPercent(zone.x, DEFAULT_LIVEFEED_CONFIG.zones[0].x);
   const y = clampPercent(zone.y, DEFAULT_LIVEFEED_CONFIG.zones[0].y);
@@ -155,7 +196,7 @@ const normalizeHardware = (hardware = {}, index = 0) => {
   const rtspUrl = String(hardware.rtspUrl || '').trim();
   const ip = String(hardware.ip || '').trim();
   const fw = String(hardware.fw || '').trim();
-  const name = String(hardware.name || '').trim() || `Hardware ${index + 1}`;
+  const name = getDisplayName(hardware.name, `Hardware ${index + 1}`);
 
   const normalized = {
     deviceId: createDeviceId(hardware, index),
@@ -458,15 +499,17 @@ app.post('/api/livefeed/stop', (req, res) => {
   res.json({ message: 'Live feed stopped', detection: getLivefeedDetectionStatus() });
 });
 
-app.get('/api/livefeed/stream', async (req, res) => {
+const proxyDetectorStream = async (req, res, streamUrl, unavailableMessage) => {
   const controller = new AbortController();
-  req.on('close', () => controller.abort());
+  req.once('close', () => {
+    if (!controller.signal.aborted) controller.abort();
+  });
 
   try {
-    const detectorStream = await fetch(LIVEFEED_SOURCE_STREAM_URL, { signal: controller.signal });
+    const detectorStream = await fetch(streamUrl, { signal: controller.signal });
 
     if (!detectorStream.ok || !detectorStream.body) {
-      return res.status(502).send('Live feed stream is unavailable');
+      return res.status(502).send(unavailableMessage);
     }
 
     res.setHeader(
@@ -476,11 +519,25 @@ app.get('/api/livefeed/stream', async (req, res) => {
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
     res.setHeader('Connection', 'close');
 
-    Readable.fromWeb(detectorStream.body).pipe(res);
+    const nodeStream = Readable.fromWeb(detectorStream.body);
+    nodeStream.on('error', error => {
+      if (error.name === 'AbortError' || controller.signal.aborted || res.destroyed) return;
+      console.error('[LIVEFEED] Stream proxy error:', error);
+      if (!res.headersSent) {
+        res.status(502).send(unavailableMessage);
+      } else {
+        res.destroy(error);
+      }
+    });
+    nodeStream.pipe(res);
   } catch (error) {
     if (error.name === 'AbortError') return;
-    res.status(502).send('Live feed stream is unavailable');
+    if (!res.headersSent) res.status(502).send(unavailableMessage);
   }
+};
+
+app.get('/api/livefeed/stream', async (req, res) => {
+  proxyDetectorStream(req, res, LIVEFEED_SOURCE_STREAM_URL, 'Live feed stream is unavailable');
 });
 
 app.get('/api/livefeed/stream/:cameraId', async (req, res) => {
@@ -489,28 +546,7 @@ app.get('/api/livefeed/stream/:cameraId', async (req, res) => {
     return res.status(404).send('Camera stream is offline');
   }
 
-  const controller = new AbortController();
-  req.on('close', () => controller.abort());
-
-  try {
-    const detectorStream = await fetch(`http://localhost:${running.port}/stream`, { signal: controller.signal });
-
-    if (!detectorStream.ok || !detectorStream.body) {
-      return res.status(502).send('Camera stream is unavailable');
-    }
-
-    res.setHeader(
-      'Content-Type',
-      detectorStream.headers.get('content-type') || 'multipart/x-mixed-replace; boundary=frame'
-    );
-    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-    res.setHeader('Connection', 'close');
-
-    Readable.fromWeb(detectorStream.body).pipe(res);
-  } catch (error) {
-    if (error.name === 'AbortError') return;
-    res.status(502).send('Camera stream is unavailable');
-  }
+  proxyDetectorStream(req, res, `http://localhost:${running.port}/stream`, 'Camera stream is unavailable');
 });
 
 app.get('/api/livefeed/config', async (req, res) => {
