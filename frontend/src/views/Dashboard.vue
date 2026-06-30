@@ -103,12 +103,17 @@
               <p class="chart-sub">Passenger traffic overview across all stations</p>
             </div>
             <div class="chart-toggles">
-              <button class="toggle" :class="{ 'toggle-active': activePassengerView === 'weekly' }" @click="activePassengerView = 'weekly'">Weekly</button>
-              <button class="toggle" :class="{ 'toggle-active': activePassengerView === 'monthly' }" @click="activePassengerView = 'monthly'">Monthly</button>
+              <button class="toggle" :class="{ 'toggle-active': activePassengerView === 'weekly' }" @click="setPassengerView('weekly')">Weekly</button>
+              <button class="toggle" :class="{ 'toggle-active': activePassengerView === 'monthly' }" @click="setPassengerView('monthly')">Monthly</button>
             </div>
           </div>
           <div class="bars-container">
-            <div class="bar-wrapper" v-for="item in passengerChartData" :key="item.label">
+            <div 
+              class="bar-wrapper" 
+              v-for="(item, index) in passengerChartData" 
+              :key="item.label"
+              @click="selectedChartIndex = index"
+            >
               <div class="bar" :class="{ 'bar-active': item.active }" :style="{ height: item.height + '%' }"></div>
               <span class="bar-day" :class="{ 'bar-day-active': item.active }">{{ item.label }}</span>
               <span class="bar-val" :class="{ 'bar-val-active': item.active }">{{ item.value }}</span>
@@ -188,7 +193,9 @@ import { createRedStationNotification, isRedStation } from '../lib/stationAlert'
 const router = useRouter()
 const isDropdownOpen = ref(false);
 const language = ref('English');
+
 const activePassengerView = ref('weekly');
+const selectedChartIndex = ref(null); // เพิ่มตัวแปรสำหรับเก็บ Index ของแท่งกราฟที่ถูกเลือก
 
 const kpis = ref([
   { title: 'TOTAL PASSENGERS', value: '-', trend: 'Loading...', type: 'positive', icon: 'bx bxs-group', indicator: 'bx bx-up-arrow-alt' },
@@ -202,20 +209,31 @@ const buses = ref([]);
 const weeklyChartData = ref([]);
 const monthlyChartData = ref([]);
 
-const normalizeChartData = (items) => {
+// อัปเดตฟังก์ชันเพื่อให้รองรับการคลิกเลือก (Select) แท่งกราฟ
+const normalizeChartData = (items, selectedIdx) => {
   const max = Math.max(...items.map(item => item.value), 1);
+  
+  // ถ้าไม่ได้เลือกอะไร ให้ค่าเริ่มต้นเป็นแท่งสุดท้าย (ขวาสุด)
+  const activeIdx = selectedIdx !== null ? selectedIdx : items.length - 1;
+
   return items.map((item, index) => ({
     ...item,
     height: Math.round((item.value / max) * 100),
-    active: index === items.length - 1
+    active: index === activeIdx
   }));
 };
 
 const passengerChartData = computed(() => {
   return activePassengerView.value === 'weekly'
-    ? normalizeChartData(weeklyChartData.value)
-    : normalizeChartData(monthlyChartData.value);
+    ? normalizeChartData(weeklyChartData.value, selectedChartIndex.value)
+    : normalizeChartData(monthlyChartData.value, selectedChartIndex.value);
 });
+
+// ฟังก์ชันสลับดูกราฟ Weekly / Monthly พร้อมเคลียร์สถานะที่เคยคลิก
+const setPassengerView = (view) => {
+  activePassengerView.value = view;
+  selectedChartIndex.value = null; 
+};
 
 const mergeNotifications = (apiNotifications, stationItems) => {
   const redStationNotifications = stationItems
@@ -440,7 +458,6 @@ const logout = () => {
 }
 .header-right { display: flex; align-items: center; gap: 20px; }
 .action-icons { display: flex; gap: 16px; align-items: center; }
-.icon-btn { cursor: pointer; font-size: 22px; color: #6b7280; }
 .lang-switcher {
   display: flex;
   align-items: center;
@@ -452,12 +469,10 @@ const logout = () => {
   background: #fff;
   transition: all 0.2s;
 }
-
 .lang-switcher:hover {
   border-color: #d72660;
   color: #d72660;
 }
-
 .lang-text {
   font-family: 'Inter', sans-serif;
   font-size: 14px;
@@ -494,7 +509,6 @@ const logout = () => {
 }
 .dropdown-item i { font-size: 18px; }
 .dropdown-item:hover { background: #f3f4f6; color: #d72660; }
-.dropdown-divider { height: 1px; background: #e5e7eb; }
 .logout-item { color: #d72660; }
 .logout-item:hover { background: #fff0f5; }
 
@@ -619,7 +633,7 @@ const logout = () => {
   box-shadow: 0 2px 8px rgba(215, 38, 96, 0.15);
 }
 
-/* Bars */
+/* Bars (มี Hover Effect & Cursor Pointer) */
 .bars-container {
   display: flex; align-items: flex-end; justify-content: space-between;
   height: 200px; padding-top: 20px;
@@ -627,25 +641,63 @@ const logout = () => {
 .bar-wrapper {
   display: flex; flex-direction: column; align-items: center;
   width: 100%; height: 100%; justify-content: flex-end; gap: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
-.bar { width: 40px; background: #e5e7eb; border-radius: 4px 4px 0 0; }
+/* เปลี่ยนสีเมื่อเอาเมาส์ชี้ (เฉพาะแท่งที่ไม่ได้ Active) */
+.bar-wrapper:hover .bar:not(.bar-active) {
+  background: #f9d8e4; 
+}
+.bar-wrapper:hover .bar-day:not(.bar-day-active),
+.bar-wrapper:hover .bar-val:not(.bar-val-active) {
+  color: #ff8cae; 
+}
+.bar { 
+  width: 40px; 
+  background: #e5e7eb; 
+  border-radius: 4px 4px 0 0; 
+  transition: all 0.3s ease; 
+}
 .bar-active { background: linear-gradient(to top, #d72660, #ff8cae); }
 .bar-day {
   font-family: 'Inter', sans-serif;
   font-size: 12px;
   font-weight: 400;
   color: #6b7280;
+  transition: color 0.3s ease;
 }
 .bar-day-active { color: #d72660; font-weight: 600; }
 .bar-val {
   font-family: 'Inter', sans-serif;
   font-size: 10px;
   color: #9ca3af;
+  transition: color 0.3s ease;
 }
 .bar-val-active { color: #d72660; font-weight: 700; }
 
-/* Notifications */
-.noti-list { display: flex; flex-direction: column; gap: 12px; }
+/* Notifications (รองรับการเลื่อนสกอร์ลง) */
+.noti-list { 
+  display: flex; 
+  flex-direction: column; 
+  gap: 12px; 
+  max-height: 230px; 
+  overflow-y: auto; 
+  padding-right: 6px; 
+}
+.noti-list::-webkit-scrollbar {
+  width: 6px;
+}
+.noti-list::-webkit-scrollbar-track {
+  background: #f3f4f6; 
+  border-radius: 10px;
+}
+.noti-list::-webkit-scrollbar-thumb {
+  background: #d1d5db; 
+  border-radius: 10px;
+}
+.noti-list::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af; 
+}
 .noti-item {
   display: flex; gap: 12px; padding: 12px;
   border-radius: 12px;

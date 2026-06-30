@@ -78,7 +78,7 @@
         </div>
 
         <div class="settings-grid top-grid">
-          <!-- ===== STATION THRESHOLDS (ใช้ Station API) ===== -->
+          <!-- ===== STATION THRESHOLDS ===== -->
           <div class="setting-card">
             <div class="card-header">
               <div class="header-title-card">
@@ -98,12 +98,11 @@
                 </div>
                 <div class="progress-section">
                   <div class="progress-bar-bg">
-                    <div class="progress-fill" :class="getProgressColor(station.waitingPassengers, station.capacity)"
+                    <div class="progress-fill" :class="getProgressColor(station.waitingPassengers)"
                       :style="{ width: getPercentage(station.waitingPassengers, station.capacity) + '%' }"></div>
                   </div>
                   <div class="progress-labels">
-                    <span class="current">CURRENT: {{ getPercentage(station.waitingPassengers, station.capacity)
-                      }}%</span>
+                    <span class="current">CURRENT: {{ station.waitingPassengers ?? 0 }} People</span>>
                     <span class="limit-label">CAPACITY: {{ station.capacity ?? '—' }}</span>
                   </div>
                 </div>
@@ -141,25 +140,7 @@
                   <i class='bx bx-x' @click="removeEmail(idx)" style="cursor:pointer; margin-left:4px;"></i>
                 </span>
               </div>
-              <span class="add-link" @click="openNotificationModal('email')">+ Add recipient</span>
-            </div>
-            <div class="channel-section">
-              <div class="channel-row">
-                <strong>SMS / MOBILE</strong>
-                <label class="switch"><input type="checkbox" v-model="notificationChannels.smsEnabled"><span
-                    class="slider"></span></label>
-              </div>
-              <p class="channel-desc" :class="{ empty: notificationChannels.mobiles.length === 0 }">
-                {{ notificationChannels.mobiles.length ? notificationChannels.mobiles.join(', ') : 'No active numbers'
-                }}
-              </p>
-              <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px;">
-                <span v-for="(mobile, idx) in notificationChannels.mobiles" :key="idx" class="tag-item">
-                  {{ mobile }}
-                  <i class='bx bx-x' @click="removeMobile(idx)" style="cursor:pointer; margin-left:4px;"></i>
-                </span>
-              </div>
-              <span class="add-link" @click="openNotificationModal('mobile')"><i class='bx bx-mobile'></i> Register device</span>
+              <span class="add-link" @click="openNotificationModal">+ Add recipient</span>
             </div>
             <div class="queue-threshold-section">
               <strong>Queue Delay Threshold</strong>
@@ -201,12 +182,15 @@
         </div>
       </div>
 
-      <div class="action-bar">
-        <div class="action-right">
-          <button class="btn-outline" @click="discardChanges">Discard Changes</button>
-          <button class="btn-dark-blue" @click="saveSettings">Save Configuration</button>
+      <!-- หุ้มด้วย Transition เพื่อให้เลื่อนขึ้นมาสวยงาม -->
+      <transition name="slide-up">
+        <div class="action-bar" v-if="hasUnsavedChanges">
+          <div class="action-right">
+            <button class="btn-outline" @click="discardChanges">Discard Changes</button>
+            <button class="btn-dark-blue" @click="saveSettings">Save Configuration</button>
+          </div>
         </div>
-      </div>
+      </transition>
     </main>
 
     <!-- ===== STATION MODAL (Add / Edit) ===== -->
@@ -295,20 +279,20 @@
       </div>
     </div>
 
-    <!-- ===== NOTIFICATION CHANNEL MODAL ===== -->
+    <!-- ===== NOTIFICATION CHANNEL MODAL (Email Only) ===== -->
     <div class="modal-overlay" v-if="isNotificationModalOpen" @click.self="closeNotificationModal">
       <div class="modal-content">
         <div class="modal-header">
-          <h3>{{ notificationModalType === 'email' ? 'Add Email Recipient' : 'Add Mobile Number' }}</h3>
+          <h3>Add Email Recipient</h3>
           <i class='bx bx-x close-btn' @click="closeNotificationModal"></i>
         </div>
         <div class="modal-body">
           <div class="form-group">
-            <label>{{ notificationModalType === 'email' ? 'Email Address' : 'Mobile Number' }}</label>
+            <label>Email Address</label>
             <input 
               type="text" 
               v-model="newChannelValue" 
-              :placeholder="notificationModalType === 'email' ? 'e.g. admin@example.com' : 'e.g. +66812345678'"
+              placeholder="e.g. admin@example.com"
               @keyup.enter="addNotificationChannel"
             />
           </div>
@@ -323,7 +307,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, nextTick } from 'vue';
+import { ref, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -335,14 +319,14 @@ const router = useRouter();
 // ── UI state ──────────────────────────────────────────────
 const isDropdownOpen = ref(false);
 const language = ref('English');
+const hasUnsavedChanges = ref(false); // เช็คว่ามีการแก้ไขข้อมูลหรือยัง
+let isFetching = false; // เอาไว้เช็คตอนกำลังดึงข้อมูลจาก API ครั้งแรก
 
 // ── Settings (notification + hardware) ───────────────────
 const delayThreshold = ref(15);
 const notificationChannels = ref({
   emailEnabled: false,
-  smsEnabled: false,
-  emails: [],
-  mobiles: []
+  emails: []
 });
 const hardware = ref([]);
 
@@ -352,16 +336,15 @@ const defaultStationLocation = { lat: 20.04498749707566, lng: 99.89428182346516 
 
 // ── Station Modal ─────────────────────────────────────────
 const isModalOpen = ref(false);
-const modalMode = ref('add');           // 'add' | 'edit'
+const modalMode = ref('add');          // 'add' | 'edit'
 const editStationId = ref(null);
 const modalMap = ref(null);
 let modalMarker = null;
 const selectedLocation = ref({ ...defaultStationLocation });
 const formData = ref({ name: '', desc: '', capacity: 100, waitingPassengers: 0, location: { ...defaultStationLocation } });
 
-// ── Notification Channel Modal ───────────────────────────
+// ── Notification Channel Modal (Email Only) ───────────────
 const isNotificationModalOpen = ref(false);
-const notificationModalType = ref('email');  // 'email' | 'mobile'
 const newChannelValue = ref('');
 
 // ── Hardware Modal ────────────────────────────────────────
@@ -382,34 +365,102 @@ const getPercentage = (current, limit) => {
   return Math.min(100, Math.round(((current ?? 0) / limit) * 100));
 };
 
-const getProgressColor = (current, capacity) => {
-  const pct = getPercentage(current, capacity);
-  if (pct >= 90) return 'red';
-  if (pct >= 70) return 'yellow';
-  return 'blue';
+const getProgressColor = (current) => {
+  const passengers = current ?? 0;
+  if (passengers >= 9) return 'red';
+  if (passengers >= 5) return 'yellow';
+  return 'green'; 
 };
 
-// ─────────────────────────────────────────────────────────
-// Station API
-// ─────────────────────────────────────────────────────────
-const loadStations = async () => {
-  try {
-    const res = await apiFetch('/api/stations');
-    if (!res.ok) throw new Error('Cannot load stations');
-    stations.value = await res.json();
-  } catch (error) {
-    console.error(error);
+// ── Track Changes (เปิด Action Bar เมื่อถูกแก้ไข) ───────────
+const markAsUnsaved = () => {
+  if (!isFetching) {
+    hasUnsavedChanges.value = true;
   }
 };
 
+watch(stations, markAsUnsaved, { deep: true });
+watch(notificationChannels, markAsUnsaved, { deep: true });
+watch(delayThreshold, markAsUnsaved);
+watch(hardware, markAsUnsaved, { deep: true });
+
+
+// ─────────────────────────────────────────────────────────
+// API & Data Loading
+// ─────────────────────────────────────────────────────────
+const loadStations = async () => {
+  const res = await apiFetch('/api/stations');
+  if (!res.ok) throw new Error('Cannot load stations');
+  stations.value = await res.json();
+};
+
+const loadSettings = async () => {
+  const res = await apiFetch('/api/settings');
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Cannot load settings');
+  notificationChannels.value = {
+    emailEnabled: data.notificationChannels?.emailEnabled || false,
+    emails: data.notificationChannels?.emails || []
+  };
+  delayThreshold.value = data.delayThreshold ?? 15;
+  hardware.value = data.hardware || [];
+};
+
+// ฟังก์ชันดึงข้อมูลทั้งหมด และรีเซ็ตสถานะ Action Bar
+const reloadAllData = async () => {
+  isFetching = true;
+  try {
+    await Promise.all([loadStations(), loadSettings()]);
+  } catch (error) {
+    console.error(error);
+  } finally {
+    nextTick(() => {
+      hasUnsavedChanges.value = false;
+      isFetching = false;
+    });
+  }
+};
+
+const saveSettings = async () => {
+  try {
+    const settingsPayload = {
+      notificationChannels: notificationChannels.value,
+      delayThreshold: delayThreshold.value,
+      hardware: hardware.value
+    };
+
+    const settingsRes = await apiFetch('/api/settings', {
+      method: 'PUT',
+      body: JSON.stringify(settingsPayload)
+    });
+    if (!settingsRes.ok) throw new Error('Cannot save settings');
+
+    const stationsRes = await apiFetch('/api/stations-bulk', {
+      method: 'PUT',
+      body: JSON.stringify({ stations: stations.value })
+    });
+    if (!stationsRes.ok) throw new Error('Cannot save stations');
+
+    alert('Settings saved successfully');
+    await reloadAllData(); // โหลดข้อมูลใหม่และซ่อน Action Bar
+  } catch (error) {
+    console.error(error);
+    alert('Unable to save settings');
+  }
+};
+
+const discardChanges = async () => {
+  await reloadAllData(); // ดึงข้อมูลเดิมกลับมา และซ่อน Action Bar
+};
+
+
+// ─────────────────────────────────────────────────────────
+// Station Functions
+// ─────────────────────────────────────────────────────────
 const openAddModal = () => {
   modalMode.value = 'add';
   formData.value = {
-    name: '',
-    desc: '',
-    capacity: 100,
-    waitingPassengers: 0,
-    location: { ...defaultStationLocation }
+    name: '', desc: '', capacity: 100, waitingPassengers: 0, location: { ...defaultStationLocation }
   };
   selectedLocation.value = { ...formData.value.location };
   isModalOpen.value = true;
@@ -466,7 +517,6 @@ const confirmModal = () => {
       };
     }
   }
-
   closeModal();
 };
 
@@ -476,59 +526,9 @@ const deleteStation = (id) => {
 };
 
 // ─────────────────────────────────────────────────────────
-// Settings API (notification + hardware)
-// ─────────────────────────────────────────────────────────
-const loadSettings = async () => {
-  try {
-    const res = await apiFetch('/api/settings');
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.message || 'Cannot load settings');
-    notificationChannels.value = data.notificationChannels || {
-      emailEnabled: false, smsEnabled: false, emails: [], mobiles: []
-    };
-    delayThreshold.value = data.delayThreshold ?? 15;
-    hardware.value = data.hardware || [];
-  } catch (error) {
-    console.error(error);
-  }
-};
-
-const saveSettings = async () => {
-  try {
-    const settingsPayload = {
-      notificationChannels: notificationChannels.value,
-      delayThreshold: delayThreshold.value,
-      hardware: hardware.value
-    };
-
-    const settingsRes = await apiFetch('/api/settings', {
-      method: 'PUT',
-      body: JSON.stringify(settingsPayload)
-    });
-    const settingsData = await settingsRes.json();
-    if (!settingsRes.ok) throw new Error(settingsData.message || 'Cannot save settings');
-
-    const stationsRes = await apiFetch('/api/stations-bulk', {
-      method: 'PUT',
-      body: JSON.stringify({ stations: stations.value })
-    });
-    const stationsData = await stationsRes.json();
-    if (!stationsRes.ok) throw new Error(stationsData.message || 'Cannot save stations');
-
-    alert('Settings saved successfully');
-    await loadSettings();
-    await loadStations();
-  } catch (error) {
-    console.error(error);
-    alert('Unable to save settings');
-  }
-};
-
-// ─────────────────────────────────────────────────────────
 // Notification Channel Functions
 // ─────────────────────────────────────────────────────────
-const openNotificationModal = (type) => {
-  notificationModalType.value = type;
+const openNotificationModal = () => {
   newChannelValue.value = '';
   isNotificationModalOpen.value = true;
 };
@@ -544,21 +544,11 @@ const addNotificationChannel = () => {
     alert('Please enter a value');
     return;
   }
-
-  if (notificationModalType.value === 'email') {
-    if (notificationChannels.value.emails.includes(value)) {
-      alert('This email already exists');
-      return;
-    }
-    notificationChannels.value.emails.push(value);
-  } else if (notificationModalType.value === 'mobile') {
-    if (notificationChannels.value.mobiles.includes(value)) {
-      alert('This mobile number already exists');
-      return;
-    }
-    notificationChannels.value.mobiles.push(value);
+  if (notificationChannels.value.emails.includes(value)) {
+    alert('This email already exists');
+    return;
   }
-
+  notificationChannels.value.emails.push(value);
   closeNotificationModal();
 };
 
@@ -566,14 +556,6 @@ const removeEmail = (index) => {
   notificationChannels.value.emails.splice(index, 1);
 };
 
-const removeMobile = (index) => {
-  notificationChannels.value.mobiles.splice(index, 1);
-};
-
-const discardChanges = () => {
-  loadSettings();
-  loadStations();
-};
 
 // ─────────────────────────────────────────────────────────
 // Hardware Modal
@@ -613,7 +595,6 @@ const confirmHardwareModal = () => {
       ...payload
     };
   }
-
   closeHardwareModal();
 };
 
@@ -623,7 +604,7 @@ const deleteHardware = (index) => {
 };
 
 // ─────────────────────────────────────────────────────────
-// Auth / Dropdown
+// Auth / Dropdown & Map Cleanup
 // ─────────────────────────────────────────────────────────
 const closeDropdown = (e) => {
   if (!e.target.closest('.profile-dropdown-container')) isDropdownOpen.value = false;
@@ -677,8 +658,7 @@ const initModalMap = () => {
 
 onMounted(() => {
   document.addEventListener('click', closeDropdown);
-  loadStations();
-  loadSettings();
+  reloadAllData(); // โหลดข้อมูลครั้งแรก
 });
 
 onUnmounted(() => {
@@ -954,7 +934,7 @@ onUnmounted(() => {
 
 /* ===== SETTINGS CONTENT ===== */
 .settings-page {
-  padding: 0 26px 100px 26px;
+  padding: 0 26px 40px 26px;
 }
 
 .page-title {
@@ -1100,8 +1080,8 @@ onUnmounted(() => {
   background: #dc2626;
 }
 
-.progress-fill.blue {
-  background: #3b82f6;
+.progress-fill.green {
+  background: #10b981;
 }
 
 .progress-fill.yellow {
@@ -1337,15 +1317,30 @@ input:checked+.slider:before {
   margin-left: auto;
 }
 
+/* Action Bar Transition */
+.slide-up-enter-active,
+.slide-up-leave-active {
+  transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+.slide-up-enter-from,
+.slide-up-leave-to {
+  transform: translateY(100%);
+  opacity: 0;
+}
+
 /* Action Bar */
 .action-bar {
   position: sticky;
   bottom: 0;
+  margin-top: auto; 
   background: #fff;
   padding: 16px 26px;
   display: flex;
   justify-content: flex-end;
   border-top: 1px solid #e5e7eb;
+  z-index: 10;
+  box-shadow: 0 -4px 10px rgba(0,0,0,0.05); /* เพิ่มเงาด้านบนนิดๆ ให้ดูแยกลอยจากพื้นหลัง */
 }
 
 .action-right {
@@ -1363,6 +1358,11 @@ input:checked+.slider:before {
   cursor: pointer;
   color: #4b5563;
   font-family: 'Inter', sans-serif;
+  transition: 0.2s;
+}
+
+.btn-outline:hover {
+  background: #f9fafb;
 }
 
 .btn-dark-blue {
@@ -1375,6 +1375,11 @@ input:checked+.slider:before {
   font-weight: 600;
   cursor: pointer;
   font-family: 'Inter', sans-serif;
+  transition: 0.2s;
+}
+
+.btn-dark-blue:hover {
+  background: #1e293b;
 }
 
 /* Modal */
@@ -1450,7 +1455,7 @@ input:checked+.slider:before {
   margin-bottom: 6px;
 }
 
-.form-group input {
+.form-group input, .form-group select {
   width: 100%;
   padding: 10px 12px;
   border: 1px solid #d1d5db;
@@ -1461,7 +1466,7 @@ input:checked+.slider:before {
   transition: border-color 0.2s;
 }
 
-.form-group input:focus {
+.form-group input:focus, .form-group select:focus {
   border-color: #0f172a;
 }
 

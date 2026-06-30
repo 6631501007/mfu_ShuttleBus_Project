@@ -120,7 +120,7 @@
           <label>TERMINAL</label>
 
           <div class="select-box">
-            <select v-model="selectedTerminal">
+            <select v-model="selectedTerminal" @change="loadAnalytics">
               <option v-for="terminal in terminals" :key="terminal.id">{{ terminal.name }}</option>
             </select>
 
@@ -208,27 +208,12 @@
           </div>
 
           <div class="graph-area">
-            <svg viewBox="0 0 600 250" preserveAspectRatio="none">
-              <path d="M0 220 
-                   C80 150, 140 160, 200 190
-                   C260 220, 320 50, 400 90
-                   C470 120, 520 250, 600 70" fill="none" stroke="#d72660" stroke-width="5" stroke-linecap="round" />
-
-              <path d="M0 210
-                   C80 190, 140 170, 200 180
-                   C260 190, 320 130, 400 150
-                   C470 170, 520 200, 600 180" fill="none" stroke="#d8b6c3" stroke-width="3" stroke-dasharray="10"
-                stroke-linecap="round" />
-            </svg>
-
-            <div class="tooltip">14.2</div>
-          </div>
-
-          <div class="weeks">
-            <span>Week 1</span>
-            <span>Week 2</span>
-            <span>Week 3</span>
-            <span>Week 4</span>
+            <apexchart 
+              type="line" 
+              height="260" 
+              :options="flowChartOptions" 
+              :series="flowSeries" 
+            />
           </div>
         </div>
 
@@ -242,9 +227,12 @@
           </div>
 
           <div class="peak-chart">
-            <div class="peak-item" v-for="n in 8" :key="n">
-              <div class="peak-bar" :style="{ height: 40 + n * 12 + 'px' }"></div>
-            </div>
+            <apexchart 
+              type="bar" 
+              height="200" 
+              :options="peakChartOptions" 
+              :series="peakSeries" 
+            />
           </div>
 
           <div class="recommend-box">
@@ -332,32 +320,96 @@ import { ref, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router'
 import TopbarNotification from '../components/TopbarNotification.vue'
 import { apiFetch } from '../lib/api'
+import apexchart from 'vue3-apexcharts'
 
 const router = useRouter()
 const isDropdownOpen = ref(false);
 const language = ref('English');
+
 const overview = ref({
   avgPassengerFlow: 0,
   peakOccupancy: '0%',
   avgWaitTime: '0m',
   totalEntries: 0
 });
-const dateRanges = ref([]);
-const terminals = ref([]);
-const selectedDateRange = ref('');
-const selectedTerminal = ref('');
+const dateRanges = ref(['Last 7 Days', 'Last 30 Days', 'This Month']);
+const terminals = ref([{ id: 1, name: 'All Terminals' }]);
+const selectedDateRange = ref('Last 7 Days');
+const selectedTerminal = ref('All Terminals');
+
+// ── Chart Configurations ──
+const flowSeries = ref([
+  { name: 'Current', data: [1500, 2200, 1800, 3200, 2800, 3500, 3100] },
+  { name: 'Previous', data: [1200, 1900, 1500, 2800, 2400, 3000, 2700] }
+]);
+
+const flowChartOptions = ref({
+  chart: { type: 'line', toolbar: { show: false }, zoom: { enabled: false } },
+  stroke: { 
+    curve: 'smooth', 
+    width: [4, 3], 
+    dashArray: [0, 8]
+  },
+  colors: ['#d72660', '#d8b6c3'],
+  xaxis: { 
+    categories: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+    axisBorder: { show: false },
+    axisTicks: { show: false },
+    labels: { style: { colors: '#999', fontFamily: 'Inter' } }
+  },
+  yaxis: {
+    labels: { style: { colors: '#999', fontFamily: 'Inter' } }
+  },
+  dataLabels: { enabled: false },
+  legend: { show: false },
+  grid: { borderColor: '#f0f0f0', strokeDashArray: 4 }
+});
+
+const peakSeries = ref([{
+  name: 'Passengers',
+  data: [45, 80, 140, 210, 180, 120, 70, 40]
+}]);
+
+const peakChartOptions = ref({
+  chart: { type: 'bar', toolbar: { show: false } },
+  plotOptions: {
+    bar: { borderRadius: 6, columnWidth: '45%' }
+  },
+  fill: {
+    type: 'gradient',
+    gradient: {
+      type: 'vertical',
+      colorStops: [
+        { offset: 0, color: '#d72660', opacity: 1 },
+        { offset: 100, color: '#ff8cae', opacity: 1 }
+      ]
+    }
+  },
+  xaxis: { 
+    categories: ['8AM', '10AM', '12PM', '2PM', '4PM', '6PM', '8PM', '10PM'],
+    axisBorder: { show: false },
+    axisTicks: { show: false },
+    labels: { style: { colors: '#999', fontSize: '11px', fontFamily: 'Inter' } }
+  },
+  yaxis: { show: false },
+  dataLabels: { enabled: false },
+  grid: { show: false }
+});
 
 const loadAnalytics = async () => {
   try {
-    const res = await apiFetch('/api/analytics');
+    const res = await apiFetch(`/api/analytics?terminal=${selectedTerminal.value}`);
     const data = await res.json();
     if (!res.ok) throw new Error(data.message || 'Cannot load analytics');
 
     overview.value = data.overview || overview.value;
-    dateRanges.value = data.dateRanges || [];
-    terminals.value = data.terminals || [];
-    selectedDateRange.value = data.dateRanges?.[0] || '';
-    selectedTerminal.value = data.terminals?.[0]?.name || '';
+    dateRanges.value = data.dateRanges || dateRanges.value;
+    terminals.value = data.terminals || terminals.value;
+
+    if (data.charts) {
+      if (data.charts.flow) flowSeries.value = data.charts.flow;
+      if (data.charts.peak) peakSeries.value = data.charts.peak;
+    }
   } catch (error) {
     console.error(error);
   }
@@ -375,6 +427,7 @@ onMounted(() => {
   document.addEventListener('click', closeDropdown);
   loadAnalytics();
 });
+
 onUnmounted(() => document.removeEventListener('click', closeDropdown));
 
 const logout = () => {
@@ -625,54 +678,6 @@ const logout = () => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-}
-
-.top-title h2 {
-  font-size: 20px;
-  color: #333;
-}
-
-.top-actions {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-
-.search-box {
-  background: white;
-  border-radius: 12px;
-  padding: 10px 14px;
-  display: flex;
-  align-items: center;
-  width: 260px;
-  border: 1px solid #eee;
-}
-
-.search-box input {
-  border: none;
-  outline: none;
-  margin-left: 10px;
-  width: 100%;
-}
-
-.top-actions i {
-  font-size: 22px;
-  color: #777;
-}
-
-.top-avatar {
-  width: 38px;
-  height: 38px;
-  border-radius: 50%;
-  background: #ddd;
-}
-
-/* PAGE TITLE */
-.page-title {
-  margin-top: 34px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
   padding: 15px 0;
 }
 
@@ -868,58 +873,14 @@ const logout = () => {
   background: #d8b6c3;
 }
 
-/* SVG GRAPH */
 .graph-area {
-  position: relative;
   margin-top: 20px;
   height: 260px;
 }
 
-svg {
-  width: 100%;
-  height: 100%;
-}
-
-.tooltip {
-  position: absolute;
-  top: 70px;
-  left: 52%;
-  transform: translateX(-50%);
-  background: #d72660;
-  color: white;
-  padding: 8px 12px;
-  border-radius: 10px;
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.weeks {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 10px;
-  color: #888;
-  font-size: 13px;
-}
-
 /* PEAK */
 .peak-chart {
-  height: 250px;
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
   margin-top: 20px;
-}
-
-.peak-item {
-  width: 32px;
-}
-
-.peak-bar {
-  width: 100%;
-  border-radius: 12px 12px 0 0;
-  background: linear-gradient(to top,
-      #d72660,
-      #ff8cae);
 }
 
 .recommend-box {
@@ -947,6 +908,7 @@ svg {
   display: grid;
   grid-template-columns: 2fr 1fr;
   gap: 18px;
+  margin-bottom: 40px;
 }
 
 /* MAP */

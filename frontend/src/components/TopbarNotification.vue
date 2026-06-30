@@ -1,18 +1,15 @@
 <template>
-  <div
-    class="notification-container"
-    @mouseenter="isOpen = true"
-  >
-    <button class="notification-btn" type="button" @click="isOpen = !isOpen">
+  <div class="notification-container">
+    <button class="notification-btn" type="button" @click="toggleDropdown">
       <i class="bx bx-bell icon-btn"></i>
-      <span v-if="notifications.length" class="notification-badge">{{ notifications.length }}</span>
+      <span v-if="hasUnread && notifications.length" class="notification-badge">
+        {{ notifications.length }}
+      </span>
     </button>
 
     <div
       class="notification-dropdown"
       v-show="isOpen"
-      @mouseenter="isOpen = true"
-      @mouseleave="isOpen = false"
     >
       <div class="notification-header">Notifications</div>
       <div v-if="notifications.length" class="notification-list">
@@ -37,6 +34,7 @@ import { createRedStationNotification, isRedStation } from '../lib/stationAlert'
 
 const isOpen = ref(false)
 const notifications = ref([])
+const hasUnread = ref(false)
 
 const loadNotifications = async () => {
   try {
@@ -47,8 +45,30 @@ const loadNotifications = async () => {
     notifications.value = (data.stations || [])
       .filter(isRedStation)
       .map(createRedStationNotification)
+      
+    // แปลงข้อมูลที่ได้จาก API เป็น String เพื่อเอาไปเปรียบเทียบ
+    const currentDataString = JSON.stringify(notifications.value)
+    // ดึงข้อมูลที่ผู้ใช้เคยอ่านแล้วจาก LocalStorage
+    const readDataString = localStorage.getItem('readNotifications')
+
+    // ถ้ามีข้อมูลแจ้งเตือน และข้อมูลชุดนี้ไม่ตรงกับที่เคยอ่าน (แปลว่ามีข้อมูลใหม่)
+    if (notifications.value.length > 0 && currentDataString !== readDataString) {
+      hasUnread.value = true
+    } else {
+      hasUnread.value = false
+    }
   } catch (error) {
     console.error(error)
+  }
+}
+
+const toggleDropdown = () => {
+  isOpen.value = !isOpen.value
+  
+  if (isOpen.value) {
+    hasUnread.value = false
+    // เมื่อผู้ใช้กดเปิดอ่าน ให้บันทึกข้อมูลชุดปัจจุบันลงใน LocalStorage
+    localStorage.setItem('readNotifications', JSON.stringify(notifications.value))
   }
 }
 
@@ -148,6 +168,21 @@ onUnmounted(() => {
   max-height: 300px;
   overflow-y: auto;
   padding: 12px;
+}
+
+/* Scrollbar Style */
+.notification-list::-webkit-scrollbar {
+  width: 6px;
+}
+.notification-list::-webkit-scrollbar-track {
+  background: #f3f4f6;
+}
+.notification-list::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 10px;
+}
+.notification-list::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
 }
 
 .notification-item {

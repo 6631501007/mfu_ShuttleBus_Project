@@ -13,6 +13,8 @@ const Bus = require('./models/bus');
 const Feedback = require('./models/feedback');
 const Analytics = require('./models/analytics');
 const Setting = require('./models/setting');
+const dns = require('dns');
+dns.setServers(['8.8.8.8', '8.8.4.4'])
 
 const app = express();
 app.use(cors());
