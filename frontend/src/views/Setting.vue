@@ -140,8 +140,9 @@
                   <i class='bx bx-x' @click="removeEmail(idx)" style="cursor:pointer; margin-left:4px;"></i>
                 </span>
               </div>
-              <span class="add-link" @click="openNotificationModal">+ Add recipient</span>
+              <span class="add-link" @click="openNotificationModal('email')">+ Add recipient</span>
             </div>
+
             <div class="queue-threshold-section">
               <strong>Queue Delay Threshold</strong>
               <div class="range-slider-container">
@@ -164,21 +165,93 @@
               <button class="btn-dark" @click="openAddHardwareModal">+ Add Hardware</button>
             </div>
             <div class="hardware-list">
-              <div class="hw-item" v-for="(hw, index) in hardware" :key="index">
+              <div class="hw-item" v-for="(hw, index) in hardware" :key="hw.deviceId || index">
                 <i
                   :class="['bx', 'hw-icon', hw.status === 'online' ? 'bx-check-circle online' : 'bx-error-triangle offline']"></i>
                 <div class="hw-info">
                   <strong :class="hw.status === 'offline' ? 'text-red' : ''">{{ hw.name }}</strong>
                   <span>{{ hw.details }}</span>
+                  <span v-if="hw.type === 'camera' && hw.rtspUrl" class="hw-rtsp">{{ hw.rtspUrl }}</span>
                 </div>
                 <div class="hw-actions">
                   <i class='bx bx-pencil edit-icon' @click="openEditHardwareModal(index)" title="Edit"></i>
-                  <i class='bx bx-trash delete-icon' @click="deleteHardware(index)" title="Delete"></i>
+                  <i class='bx bx-trash delete-icon' @click="deleteHardware(hw, index)" title="Delete"></i>
                 </div>
               </div>
             </div>
           </div>
-          <div></div>
+          <div class="setting-card">
+            <div class="card-header">
+              <div class="header-title-card">
+                <i class='bx bx-selection'></i>
+                <h3>Live Feed Counting Grid</h3>
+              </div>
+            </div>
+            <div class="livefeed-config">
+              <div v-if="cameraHardware.length === 0" class="zone-reference-empty standalone">
+                <i class='bx bx-camera-off'></i>
+                <span>Add a camera hardware device to configure its counting grid</span>
+              </div>
+              <div class="livefeed-toolbar">
+                <div class="form-group compact">
+                  <label>Camera Hardware</label>
+                  <select v-model="selectedLivefeedHardwareId">
+                    <option v-for="camera in cameraHardware" :key="camera.deviceId" :value="camera.deviceId">
+                      {{ camera.name }}
+                    </option>
+                  </select>
+                </div>
+                <div class="form-group compact">
+                  <label>Dwell Time Before Count</label>
+                  <input type="number" min="1" v-model.number="selectedLivefeed.dwellSeconds" :disabled="!selectedLivefeedHardware" @change="saveSelectedLivefeedConfig" />
+                </div>
+                <label class="image-upload-btn">
+                  <i class='bx bx-image-add'></i>
+                  Upload Camera Image
+                  <input type="file" accept="image/*" :disabled="!selectedLivefeedHardware" @change="handleReferenceImageUpload" />
+                </label>
+                <button v-if="selectedLivefeed.referenceImage" class="btn-outline small" type="button" @click="clearReferenceImage">
+                  Clear Image
+                </button>
+              </div>
+
+              <div v-if="selectedLivefeedHardware" class="zone-editor" ref="zoneEditorRef" @pointerdown="startZoneEditorPointer">
+                <img v-if="selectedLivefeed.referenceImage" :src="selectedLivefeed.referenceImage" class="zone-reference-image" alt="" />
+                <div v-else class="zone-reference-empty">
+                  <i class='bx bx-image'></i>
+                  <span>Upload a camera reference image</span>
+                </div>
+                <div
+                  v-for="(zone, index) in selectedLivefeed.zones"
+                  :key="index"
+                  class="zone-editor-box"
+                  :class="{ 'zone-editor-box-disabled': !zone.enabled }"
+                  :data-zone-index="index"
+                  data-action="move"
+                  :style="zonePreviewStyle(zone)"
+                >
+                  <span>{{ selectedLivefeedHardware.name }}</span>
+                  <button
+                    v-for="handle in resizeHandles"
+                    :key="handle"
+                    type="button"
+                    class="zone-resize-handle"
+                    :class="`zone-resize-${handle}`"
+                    :data-zone-index="index"
+                    :data-action="handle"
+                    :aria-label="`Resize ${zone.name}`"
+                  ></button>
+                </div>
+              </div>
+
+              <div v-if="selectedLivefeedHardware" v-for="(zone, index) in selectedLivefeed.zones" :key="index" class="zone-config-row">
+                <div class="zone-config-head">
+                  <strong>{{ selectedLivefeedHardware.name }}</strong>
+                  <label class="zone-enabled"><input type="checkbox" v-model="zone.enabled" @change="saveSelectedLivefeedConfig" /> Enabled</label>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -260,6 +333,10 @@
             <input type="text" v-model="hardwareFormData.ip" placeholder="e.g. 192.168.1.100" />
           </div>
           <div class="form-group">
+            <label>RTSP URL</label>
+            <input type="text" v-model="hardwareFormData.rtspUrl" placeholder="rtsp://user:pass@camera-ip/path" />
+          </div>
+          <div class="form-group">
             <label>Firmware Version</label>
             <input type="text" v-model="hardwareFormData.fw" placeholder="e.g. v2.4.1" />
           </div>
@@ -307,7 +384,7 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted, onUnmounted, nextTick } from 'vue';
+import { computed, ref, onMounted, onUnmounted, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -329,6 +406,18 @@ const notificationChannels = ref({
   emails: []
 });
 const hardware = ref([]);
+const zoneEditorRef = ref(null);
+const resizeHandles = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
+const livefeedGridColor = '#16a34a';
+const selectedLivefeedHardwareId = ref('');
+const livefeed = ref({
+  dwellSeconds: 30,
+  referenceImage: '',
+  zones: [
+    { name: 'Counting Zone', x: 20, y: 20, width: 60, height: 60, color: livefeedGridColor, enabled: true }
+  ]
+});
+let zoneDragState = null;
 
 // ── Stations (Station Thresholds) ─────────────────────────
 const stations = ref([]);
@@ -351,7 +440,7 @@ const newChannelValue = ref('');
 const isHardwareModalOpen = ref(false);
 const hardwareModalMode = ref('add');
 const hardwareEditIndex = ref(-1);
-const hardwareFormData = ref({ name: '', type: 'sensor', ip: '', fw: '', status: 'online' });
+const hardwareFormData = ref({ _id: '', deviceId: '', name: '', type: 'camera', ip: '', rtspUrl: '', fw: '', status: 'offline' });
 
 // ─────────────────────────────────────────────────────────
 // Helpers
@@ -372,10 +461,189 @@ const getProgressColor = (current) => {
   return 'green'; 
 };
 
-// ── Track Changes (เปิด Action Bar เมื่อถูกแก้ไข) ───────────
-const markAsUnsaved = () => {
-  if (!isFetching) {
-    hasUnsavedChanges.value = true;
+const normalizeZone = (zone, index = 0, zoneName = '') => {
+  const width = Math.min(100, Math.max(1, Number(zone?.width) || 1));
+  const height = Math.min(100, Math.max(1, Number(zone?.height) || 1));
+  const x = Math.min(100 - width, Math.max(0, Number(zone?.x) || 0));
+  const y = Math.min(100 - height, Math.max(0, Number(zone?.y) || 0));
+  return {
+    name: zoneName || zone?.name || `Counting Zone ${index + 1}`,
+    x,
+    y,
+    width,
+    height,
+    color: livefeedGridColor,
+    enabled: zone?.enabled !== false
+  };
+};
+
+const normalizeLivefeedConfig = (config = {}, zoneName = '') => ({
+  dwellSeconds: Math.max(1, Number(config?.dwellSeconds) || 30),
+  referenceImage: typeof config?.referenceImage === 'string' ? config.referenceImage : '',
+  zones: (Array.isArray(config?.zones) && config.zones.length
+    ? config.zones.slice(0, 1)
+    : [{ name: zoneName || 'Counting Zone', x: 20, y: 20, width: 60, height: 60, color: livefeedGridColor, enabled: true }]
+  ).map((zone, index) => normalizeZone(zone, index, zoneName))
+});
+
+const cameraHardware = computed(() => hardware.value.filter(item => item.type === 'camera'));
+
+const selectedLivefeedHardware = computed(() => (
+  cameraHardware.value.find(item => item.deviceId === selectedLivefeedHardwareId.value) ||
+  cameraHardware.value[0] ||
+  null
+));
+
+const selectedLivefeed = computed(() => selectedLivefeedHardware.value?.livefeed || livefeed.value);
+
+const ensureHardwareLivefeedConfigs = (fallbackLivefeed = livefeed.value) => {
+  hardware.value = hardware.value.map((item) => {
+    if (item.type !== 'camera') return item;
+    return {
+      ...item,
+      livefeed: normalizeLivefeedConfig(item.livefeed || fallbackLivefeed, item.name)
+    };
+  });
+
+  const selectedStillExists = cameraHardware.value.some(item => item.deviceId === selectedLivefeedHardwareId.value);
+  if (!selectedStillExists) {
+    selectedLivefeedHardwareId.value = cameraHardware.value[0]?.deviceId || '';
+  }
+};
+
+const saveSelectedLivefeedConfig = async () => {
+  const camera = selectedLivefeedHardware.value;
+  if (!camera) return;
+
+  try {
+    const payload = normalizeLivefeedConfig(selectedLivefeed.value, camera.name);
+    Object.assign(selectedLivefeed.value, payload);
+    const res = await apiFetch(`/api/settings/hardware/${getHardwareApiId(camera, 0)}/livefeed`, {
+      method: 'PUT',
+      body: JSON.stringify(payload)
+    });
+    const responseText = await res.text();
+    const data = responseText ? JSON.parse(responseText) : {};
+    if (!res.ok) throw new Error(data.message || 'Cannot save livefeed grid');
+    hardware.value = Array.isArray(data.settings?.hardware) ? data.settings.hardware : hardware.value;
+    ensureHardwareLivefeedConfigs(livefeed.value);
+  } catch (error) {
+    console.error(error);
+    alert(error instanceof SyntaxError
+      ? 'Unable to save livefeed grid. Please use the updated app at http://localhost:5173/ with backend http://localhost:3000/.'
+      : error.message || 'Unable to save livefeed grid');
+  }
+};
+
+const zonePreviewStyle = (zone) => ({
+  left: `${Math.max(0, Number(zone.x) || 0)}%`,
+  top: `${Math.max(0, Number(zone.y) || 0)}%`,
+  width: `${Math.max(1, Number(zone.width) || 1)}%`,
+  height: `${Math.max(1, Number(zone.height) || 1)}%`,
+  borderColor: livefeedGridColor,
+  color: livefeedGridColor,
+  backgroundColor: `${livefeedGridColor}22`
+});
+
+const handleReferenceImageUpload = (event) => {
+  const file = event.target.files?.[0];
+  event.target.value = '';
+  if (!file) return;
+  if (!file.type.startsWith('image/')) {
+    alert('Please choose an image file');
+    return;
+  }
+  if (file.size > 4 * 1024 * 1024) {
+    alert('Please choose an image smaller than 4 MB');
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    selectedLivefeed.value.referenceImage = String(reader.result || '');
+    saveSelectedLivefeedConfig();
+  };
+  reader.readAsDataURL(file);
+};
+
+const clearReferenceImage = () => {
+  selectedLivefeed.value.referenceImage = '';
+  saveSelectedLivefeedConfig();
+};
+
+const startZoneEditorPointer = (event) => {
+  if (!selectedLivefeedHardware.value) return;
+  const target = event.target.closest('[data-zone-index]');
+  if (!target || !zoneEditorRef.value) return;
+
+  const zoneIndex = Number(target.dataset.zoneIndex);
+  const zone = selectedLivefeed.value.zones[zoneIndex];
+  if (!zone) return;
+
+  const rect = zoneEditorRef.value.getBoundingClientRect();
+  zoneDragState = {
+    pointerId: event.pointerId,
+    action: target.dataset.action || 'move',
+    zoneIndex,
+    rect,
+    startX: event.clientX,
+    startY: event.clientY,
+    startZone: { ...zone }
+  };
+
+  target.setPointerCapture?.(event.pointerId);
+  window.addEventListener('pointermove', moveZoneEditorPointer);
+  window.addEventListener('pointerup', stopZoneEditorPointer, { once: true });
+};
+
+const moveZoneEditorPointer = (event) => {
+  if (!zoneDragState || event.pointerId !== zoneDragState.pointerId) return;
+  const zone = selectedLivefeed.value.zones[zoneDragState.zoneIndex];
+  if (!zone) return;
+
+  const dx = ((event.clientX - zoneDragState.startX) / zoneDragState.rect.width) * 100;
+  const dy = ((event.clientY - zoneDragState.startY) / zoneDragState.rect.height) * 100;
+  const start = zoneDragState.startZone;
+  let x = Number(start.x) || 0;
+  let y = Number(start.y) || 0;
+  let width = Number(start.width) || 1;
+  let height = Number(start.height) || 1;
+
+  if (zoneDragState.action === 'move') {
+    x += dx;
+    y += dy;
+  } else {
+    if (zoneDragState.action.includes('w')) {
+      x += dx;
+      width -= dx;
+    }
+    if (zoneDragState.action.includes('e')) width += dx;
+    if (zoneDragState.action.includes('n')) {
+      y += dy;
+      height -= dy;
+    }
+    if (zoneDragState.action.includes('s')) height += dy;
+  }
+
+  Object.assign(zone, normalizeZone({ ...zone, x, y, width, height }, zoneDragState.zoneIndex, selectedLivefeedHardware.value?.name || ''));
+};
+
+const stopZoneEditorPointer = () => {
+  if (zoneDragState) saveSelectedLivefeedConfig();
+  zoneDragState = null;
+  window.removeEventListener('pointermove', moveZoneEditorPointer);
+};
+
+// ─────────────────────────────────────────────────────────
+// Station API
+// ─────────────────────────────────────────────────────────
+const loadStations = async () => {
+  try {
+    const res = await apiFetch('/api/stations');
+    if (!res.ok) throw new Error('Cannot load stations');
+    stations.value = await res.json();
+  } catch (error) {
+    console.error(error);
   }
 };
 
@@ -526,6 +794,92 @@ const deleteStation = (id) => {
 };
 
 // ─────────────────────────────────────────────────────────
+// Settings API (notification + hardware)
+// ─────────────────────────────────────────────────────────
+const loadSettings = async () => {
+  try {
+    const res = await apiFetch('/api/settings');
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Cannot load settings');
+    notificationChannels.value = data.notificationChannels || {
+      emailEnabled: false, smsEnabled: false, emails: [], mobiles: []
+    };
+    delayThreshold.value = data.delayThreshold ?? 15;
+    hardware.value = data.hardware || [];
+    livefeed.value = {
+      dwellSeconds: data.livefeed?.dwellSeconds ?? 30,
+      referenceImage: data.livefeed?.referenceImage || '',
+      zones: (Array.isArray(data.livefeed?.zones) && data.livefeed.zones.length
+        ? data.livefeed.zones
+        : [{ name: 'Counting Zone', x: 20, y: 20, width: 60, height: 60, color: livefeedGridColor, enabled: true }]
+      ).map(normalizeZone)
+    };
+    ensureHardwareLivefeedConfigs(livefeed.value);
+  } catch (error) {
+    console.error(error);
+  }
+};
+
+const saveSettings = async () => {
+  try {
+    const settingsPayload = {
+      notificationChannels: notificationChannels.value,
+      delayThreshold: delayThreshold.value,
+      hardware: hardware.value.map(item => ({
+        ...item,
+        livefeed: item.type === 'camera'
+          ? normalizeLivefeedConfig(item.livefeed || livefeed.value, item.name)
+          : item.livefeed
+      })),
+      livefeed: {
+        dwellSeconds: Math.max(1, Number(livefeed.value.dwellSeconds) || 30),
+        referenceImage: livefeed.value.referenceImage || '',
+        zones: livefeed.value.zones.slice(0, 1).map((zone, index) => normalizeZone(zone, index))
+      }
+    };
+
+    const settingsRes = await apiFetch('/api/settings', {
+      method: 'PUT',
+      body: JSON.stringify(settingsPayload)
+    });
+    const settingsData = await settingsRes.json();
+    if (!settingsRes.ok) throw new Error(settingsData.message || 'Cannot save settings');
+
+    const stationsRes = await apiFetch('/api/stations-bulk', {
+      method: 'PUT',
+      body: JSON.stringify({ stations: stations.value })
+    });
+    const stationsData = await stationsRes.json();
+    if (!stationsRes.ok) throw new Error(stationsData.message || 'Cannot save stations');
+
+    alert('Settings saved successfully');
+    await loadSettings();
+    await loadStations();
+  } catch (error) {
+    console.error(error);
+    alert('Unable to save settings');
+  }
+};
+
+const addLivefeedZone = () => {
+  if (!selectedLivefeedHardware.value) return;
+  selectedLivefeed.value.zones = [normalizeZone({
+    name: selectedLivefeedHardware.value.name,
+    x: 20,
+    y: 20,
+    width: 60,
+    height: 60,
+    color: livefeedGridColor,
+    enabled: true
+  }, 0, selectedLivefeedHardware.value.name)];
+};
+
+const deleteLivefeedZone = (index) => {
+  if (!selectedLivefeedHardware.value || index !== 0) return;
+  selectedLivefeed.value.zones = [normalizeZone({}, 0, selectedLivefeedHardware.value.name)];
+};
+
+// ─────────────────────────────────────────────────────────
 // Notification Channel Functions
 // ─────────────────────────────────────────────────────────
 const openNotificationModal = () => {
@@ -560,9 +914,28 @@ const removeEmail = (index) => {
 // ─────────────────────────────────────────────────────────
 // Hardware Modal
 // ─────────────────────────────────────────────────────────
+const getHardwareApiId = (hw, index) => {
+  const mongoId = typeof hw?._id === 'string' ? hw._id : hw?._id?.$oid;
+  const id = mongoId || hw?.deviceId || index;
+  return encodeURIComponent(String(id));
+};
+
+const toHardwareFormData = (hw = {}) => ({
+  _id: hw._id || '',
+  deviceId: hw.deviceId || '',
+  name: hw.name || '',
+  type: hw.type || 'sensor',
+  ip: hw.ip || '',
+  rtspUrl: hw.rtspUrl || '',
+  fw: hw.fw || '',
+  status: hw.status || 'offline',
+  livefeed: hw.livefeed
+});
+
 const openAddHardwareModal = () => {
   hardwareModalMode.value = 'add';
-  hardwareFormData.value = { name: '', type: 'sensor', ip: '', fw: '', status: 'online' };
+  hardwareEditIndex.value = -1;
+  hardwareFormData.value = { _id: '', deviceId: '', name: '', type: 'camera', ip: '', rtspUrl: '', fw: '', status: 'offline' };
   isHardwareModalOpen.value = true;
 };
 
@@ -570,37 +943,76 @@ const openEditHardwareModal = (index) => {
   hardwareModalMode.value = 'edit';
   hardwareEditIndex.value = index;
   const hw = hardware.value[index];
-  hardwareFormData.value = { name: hw.name, type: hw.type || 'sensor', ip: hw.ip || '', fw: hw.fw || '', status: hw.status };
+  hardwareFormData.value = toHardwareFormData(hw);
   isHardwareModalOpen.value = true;
 };
 
 const closeHardwareModal = () => { isHardwareModalOpen.value = false; };
 
-const confirmHardwareModal = () => {
+const confirmHardwareModal = async () => {
   if (!hardwareFormData.value.name) return;
+  if (hardwareFormData.value.type === 'camera' && hardwareFormData.value.status === 'online' && !hardwareFormData.value.rtspUrl.trim()) {
+    alert('RTSP URL is required before a camera can be set online');
+    return;
+  }
+  const existingHardware = hardware.value[hardwareEditIndex.value] || {};
+  const hardwareLivefeed = hardwareFormData.value.type === 'camera'
+    ? normalizeLivefeedConfig(
+      hardwareFormData.value.livefeed || existingHardware.livefeed || livefeed.value,
+      hardwareFormData.value.name
+    )
+    : undefined;
   const payload = {
+    deviceId: hardwareFormData.value.deviceId || `hw-${Date.now()}`,
     name: hardwareFormData.value.name,
     type: hardwareFormData.value.type,
     ip: hardwareFormData.value.ip,
     status: hardwareFormData.value.status,
+    rtspUrl: hardwareFormData.value.rtspUrl.trim(),
     fw: hardwareFormData.value.fw,
-    details: `FW ${hardwareFormData.value.fw} • ${hardwareFormData.value.ip}`
+    details: [
+      hardwareFormData.value.fw ? `FW ${hardwareFormData.value.fw}` : '',
+      hardwareFormData.value.ip,
+      hardwareFormData.value.type === 'camera' && hardwareFormData.value.rtspUrl.trim() ? 'RTSP configured' : ''
+    ].filter(Boolean).join(' • '),
+    livefeed: hardwareLivefeed
   };
 
-  if (hardwareModalMode.value === 'add') {
-    hardware.value.push(payload);
-  } else if (hardwareEditIndex.value >= 0) {
-    hardware.value[hardwareEditIndex.value] = {
-      ...hardware.value[hardwareEditIndex.value],
-      ...payload
-    };
+  try {
+    const isAdd = hardwareModalMode.value === 'add';
+    const endpoint = isAdd
+      ? '/api/settings/hardware'
+      : `/api/settings/hardware/${getHardwareApiId(hardwareFormData.value, hardwareEditIndex.value)}`;
+    const res = await apiFetch(endpoint, {
+      method: isAdd ? 'POST' : 'PUT',
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Cannot save hardware');
+
+    hardware.value = Array.isArray(data.settings?.hardware) ? data.settings.hardware : hardware.value;
+    ensureHardwareLivefeedConfigs(livefeed.value);
+    closeHardwareModal();
+  } catch (error) {
+    console.error(error);
+    alert('Unable to save hardware');
   }
-  closeHardwareModal();
 };
 
-const deleteHardware = (index) => {
+const deleteHardware = async (hw, index) => {
   if (!confirm('Delete this hardware?')) return;
-  hardware.value.splice(index, 1);
+  try {
+    const res = await apiFetch(`/api/settings/hardware/${getHardwareApiId(hw, index)}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Cannot delete hardware');
+
+    hardware.value = Array.isArray(data.settings?.hardware) ? data.settings.hardware : [];
+    ensureHardwareLivefeedConfigs(livefeed.value);
+    await loadSettings();
+  } catch (error) {
+    console.error(error);
+    alert(error.message || 'Unable to delete hardware');
+  }
 };
 
 // ─────────────────────────────────────────────────────────
@@ -663,6 +1075,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   document.removeEventListener('click', closeDropdown);
+  window.removeEventListener('pointermove', moveZoneEditorPointer);
   destroyModalMap();
 });
 </script>
@@ -1311,6 +1724,13 @@ input:checked+.slider:before {
   color: #6b7280;
 }
 
+.hw-rtsp {
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .hw-actions {
   display: flex;
   gap: 12px;
@@ -1455,7 +1875,8 @@ input:checked+.slider:before {
   margin-bottom: 6px;
 }
 
-.form-group input, .form-group select {
+.form-group input,
+.form-group select {
   width: 100%;
   padding: 10px 12px;
   border: 1px solid #d1d5db;
@@ -1466,8 +1887,253 @@ input:checked+.slider:before {
   transition: border-color 0.2s;
 }
 
-.form-group input:focus, .form-group select:focus {
+.form-group input:focus,
+.form-group select:focus {
   border-color: #0f172a;
+}
+
+.livefeed-config {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.livefeed-toolbar {
+  display: flex;
+  align-items: end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.form-group.compact {
+  max-width: 220px;
+}
+
+.image-upload-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 14px;
+  border: 1px solid #0f172a;
+  border-radius: 8px;
+  background: #0f172a;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.image-upload-btn input {
+  display: none;
+}
+
+.btn-outline.small {
+  height: 40px;
+  padding: 0 12px;
+  font-size: 12px;
+}
+
+.zone-editor {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border: 1px solid #d1d5db;
+  border-radius: 12px;
+  background:
+    linear-gradient(rgba(15, 23, 42, .08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(15, 23, 42, .08) 1px, transparent 1px),
+    #eef2f7;
+  background-size: 10% 10%;
+  overflow: hidden;
+  touch-action: none;
+}
+
+.zone-reference-image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #020617;
+  user-select: none;
+  pointer-events: none;
+}
+
+.zone-reference-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: #6b7280;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.zone-reference-empty i {
+  font-size: 34px;
+  color: #9ca3af;
+}
+
+.zone-reference-empty.standalone {
+  position: static;
+  min-height: 140px;
+  border: 1px dashed #d1d5db;
+  border-radius: 12px;
+  background: #f9fafb;
+}
+
+.zone-editor-box {
+  position: absolute;
+  min-width: 28px;
+  min-height: 28px;
+  border: 2px dashed #16a34a;
+  border-radius: 5px;
+  cursor: move;
+  box-shadow: 0 0 0 1px rgba(15, 23, 42, .45);
+}
+
+.zone-editor-box-disabled {
+  opacity: .42;
+}
+
+.zone-editor-box span {
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  max-width: calc(100% - 16px);
+  padding: 4px 8px;
+  border-radius: 5px;
+  background: rgba(15, 23, 42, .82);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.zone-resize-handle {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border: 2px solid #fff;
+  border-radius: 999px;
+  background: currentColor;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, .4);
+}
+
+.zone-resize-nw,
+.zone-resize-se {
+  cursor: nwse-resize;
+}
+
+.zone-resize-ne,
+.zone-resize-sw {
+  cursor: nesw-resize;
+}
+
+.zone-resize-n,
+.zone-resize-s {
+  cursor: ns-resize;
+}
+
+.zone-resize-e,
+.zone-resize-w {
+  cursor: ew-resize;
+}
+
+.zone-resize-nw { left: -7px; top: -7px; }
+.zone-resize-n { left: calc(50% - 6px); top: -7px; }
+.zone-resize-ne { right: -7px; top: -7px; }
+.zone-resize-e { right: -7px; top: calc(50% - 6px); }
+.zone-resize-se { right: -7px; bottom: -7px; }
+.zone-resize-s { left: calc(50% - 6px); bottom: -7px; }
+.zone-resize-sw { left: -7px; bottom: -7px; }
+.zone-resize-w { left: -7px; top: calc(50% - 6px); }
+
+.zone-config-row {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #f9fafb;
+}
+
+.zone-config-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.zone-config-head input[type="text"],
+.zone-grid-inputs input[type="number"] {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-family: 'Inter', sans-serif;
+}
+
+.zone-enabled {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #4b5563;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.zone-grid-inputs {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(70px, 1fr));
+  gap: 10px;
+}
+
+.zone-grid-inputs label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  color: #6b7280;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.zone-grid-inputs input[type="color"] {
+  width: 100%;
+  height: 36px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.zone-preview {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 6;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  background:
+    linear-gradient(rgba(15, 23, 42, .08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(15, 23, 42, .08) 1px, transparent 1px),
+    #fff;
+  background-size: 10% 25%;
+  overflow: hidden;
+}
+
+.zone-preview-box {
+  position: absolute;
+  border: 2px dashed #16a34a;
+  border-radius: 4px;
 }
 
 .modal-map {

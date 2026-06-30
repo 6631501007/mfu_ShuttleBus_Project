@@ -60,6 +60,20 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # ── YOLO COCO class index for "person" ───────────────────────────────────────
 PERSON_CLASS_ID   = 0
+DEFAULT_LIVEFEED_CONFIG = {
+    "dwellSeconds": 30.0,
+    "zones": [
+        {
+            "name": "Counting Zone",
+            "x": 20.0,
+            "y": 20.0,
+            "width": 60.0,
+            "height": 60.0,
+            "color": "#16a34a",
+            "enabled": True,
+        }
+    ],
+}
 
 # Shared raw camera frame for the current Vue MJPEG page compatibility path.
 _stream_lock = Lock()
@@ -173,6 +187,198 @@ class DetectionPublisher:
             return False
 
 
+class DwellCounter:
+    """Small centroid tracker that counts a person after they dwell in an ROI."""
+
+    def __init__(self, dwell_seconds: float, max_missing_seconds: float = 3.0) -> None:
+        self.dwell_seconds = max(float(dwell_seconds), 0.1)
+        self.max_missing_seconds = max_missing_seconds
+        self.tracks: dict[int, dict[str, Any]] = {}
+        self.next_track_id = 1
+        self.counted_total = 0
+
+    def update(self, detections: list[dict[str, Any]], now: float) -> tuple[list[dict[str, Any]], int, int]:
+        active_ids = set()
+
+        for detection in detections:
+            bbox = detection["bbox"]
+            centroid = (
+                bbox["x"] + bbox["width"] / 2,
+                bbox["y"] + bbox["height"] / 2,
+            )
+            zone_name = detection.get("zoneName")
+            track_id = self._match_track(centroid, zone_name, now)
+
+            if track_id is None:
+                track_id = self.next_track_id
+                self.next_track_id += 1
+                self.tracks[track_id] = {
+                    "centroid": centroid,
+                    "zoneName": zone_name,
+                    "enteredAt": now,
+                    "lastSeenAt": now,
+                    "counted": False,
+                }
+            else:
+                track = self.tracks[track_id]
+                if track.get("zoneName") != zone_name:
+                    track["enteredAt"] = now
+                    track["counted"] = False
+                track["centroid"] = centroid
+                track["zoneName"] = zone_name
+                track["lastSeenAt"] = now
+
+            track = self.tracks[track_id]
+            dwell = now - track["enteredAt"]
+            if not track["counted"] and dwell >= self.dwell_seconds:
+                track["counted"] = True
+                self.counted_total += 1
+
+            detection["trackId"] = track_id
+            detection["dwellSeconds"] = round(dwell, 2)
+            detection["counted"] = bool(track["counted"])
+            active_ids.add(track_id)
+
+        self._expire_tracks(active_ids, now)
+        active_counted = sum(1 for track_id in active_ids if self.tracks.get(track_id, {}).get("counted"))
+        return detections, self.counted_total, active_counted
+
+    def _match_track(self, centroid, zone_name: str | None, now: float) -> int | None:
+        best_id = None
+        best_distance = float("inf")
+        for track_id, track in self.tracks.items():
+            if now - track["lastSeenAt"] > self.max_missing_seconds:
+                continue
+            if track.get("zoneName") != zone_name:
+                continue
+            tx, ty = track["centroid"]
+            distance = ((centroid[0] - tx) ** 2 + (centroid[1] - ty) ** 2) ** 0.5
+            if distance < best_distance and distance <= 120:
+                best_id = track_id
+                best_distance = distance
+        return best_id
+
+    def _expire_tracks(self, active_ids: set[int], now: float) -> None:
+        expired = [
+            track_id
+            for track_id, track in self.tracks.items()
+            if track_id not in active_ids and now - track["lastSeenAt"] > self.max_missing_seconds
+        ]
+        for track_id in expired:
+            del self.tracks[track_id]
+
+
+def normalize_livefeed_config(config: dict[str, Any] | None) -> dict[str, Any]:
+    config = config or DEFAULT_LIVEFEED_CONFIG
+    dwell = config.get("dwellSeconds", DEFAULT_LIVEFEED_CONFIG["dwellSeconds"])
+    try:
+        dwell_seconds = max(float(dwell), 0.1)
+    except (TypeError, ValueError):
+        dwell_seconds = DEFAULT_LIVEFEED_CONFIG["dwellSeconds"]
+
+    zones = config.get("zones") if isinstance(config.get("zones"), list) else DEFAULT_LIVEFEED_CONFIG["zones"]
+    normalized_zones = []
+    for index, zone in enumerate(zones):
+        try:
+            x = min(100.0, max(0.0, float(zone.get("x", 0))))
+            y = min(100.0, max(0.0, float(zone.get("y", 0))))
+            width = min(100.0 - x, max(1.0, float(zone.get("width", 100))))
+            height = min(100.0 - y, max(1.0, float(zone.get("height", 100))))
+        except (TypeError, ValueError):
+            continue
+        if zone.get("enabled", True) is False:
+            continue
+        normalized_zones.append({
+            "name": zone.get("name") or f"Counting Zone {index + 1}",
+            "x": x,
+            "y": y,
+            "width": width,
+            "height": height,
+            "color": zone.get("color") or "#16a34a",
+            "enabled": True,
+        })
+
+    if not normalized_zones:
+        normalized_zones = DEFAULT_LIVEFEED_CONFIG["zones"]
+
+    return {"dwellSeconds": dwell_seconds, "zones": normalized_zones}
+
+
+def fetch_livefeed_config(config_url: str | None, fallback: dict[str, Any]) -> dict[str, Any]:
+    if not config_url:
+        return fallback
+    try:
+        response = requests.get(config_url, timeout=1.5)
+        if 200 <= response.status_code < 300:
+            return normalize_livefeed_config(response.json())
+        print(f"[CONFIG] Server returned {response.status_code}; using previous livefeed config.")
+    except Exception as e:
+        print(f"[CONFIG] Could not fetch {config_url}: {e}; using previous livefeed config.")
+    return fallback
+
+
+def zone_to_pixels(zone: dict[str, Any], frame_width: int, frame_height: int) -> tuple[int, int, int, int]:
+    x1 = int(frame_width * zone["x"] / 100)
+    y1 = int(frame_height * zone["y"] / 100)
+    x2 = int(frame_width * (zone["x"] + zone["width"]) / 100)
+    y2 = int(frame_height * (zone["y"] + zone["height"]) / 100)
+    return (
+        max(0, min(frame_width - 1, x1)),
+        max(0, min(frame_height - 1, y1)),
+        max(1, min(frame_width, x2)),
+        max(1, min(frame_height, y2)),
+    )
+
+
+def detect_people_in_zones(
+    frame,
+    zones: list[dict[str, Any]],
+    model: YOLO,
+    conf_threshold: float,
+    iou_threshold: float,
+    imgsz: int,
+    device: str,
+) -> list[dict[str, Any]]:
+    detections = []
+    frame_height, frame_width = frame.shape[:2]
+
+    for zone in zones:
+        zx1, zy1, zx2, zy2 = zone_to_pixels(zone, frame_width, frame_height)
+        crop = frame[zy1:zy2, zx1:zx2]
+        if crop.size == 0:
+            continue
+
+        results = model.predict(
+            crop,
+            conf=conf_threshold,
+            iou=iou_threshold,
+            classes=[PERSON_CLASS_ID],
+            imgsz=imgsz,
+            device=device,
+            verbose=False,
+        )
+
+        for result in results:
+            if result.boxes is None:
+                continue
+            for box in result.boxes:
+                conf = float(box.conf[0])
+                x1, y1, x2, y2 = map(int, box.xyxy[0])
+                detections.append({
+                    "class": "person",
+                    "confidence": round(conf, 4),
+                    "zoneName": zone["name"],
+                    "bbox": {
+                        "x": max(0, zx1 + x1),
+                        "y": max(0, zy1 + y1),
+                        "width": max(0, x2 - x1),
+                        "height": max(0, y2 - y1),
+                    },
+                })
+
+    return detections
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Current dashboard compatibility MJPEG preview
 # ─────────────────────────────────────────────────────────────────────────────
@@ -267,6 +473,11 @@ def run_live(
     stream_width: int,
     api_url: str = None,
     api_interval: float = 5.0,
+    config_url: str = None,
+    config_refresh_interval: float = 10.0,
+    reconnect_delay: float = 2.0,
+    max_read_failures: int = 20,
+    ffmpeg_capture_options: str | None = None,
 ) -> None:
     """
     Open a live camera source, run person-only YOLO detection, and publish
@@ -280,6 +491,15 @@ def run_live(
 
     # ── Open camera ───────────────────────────────────────────────────────────
     def open_camera(src):
+        if isinstance(src, str) and src.lower().startswith("rtsp://"):
+            capture_options = ffmpeg_capture_options or (
+                "rtsp_transport;tcp|rtsp_flags;prefer_tcp|"
+                "stimeout;5000000|fflags;+nobuffer+discardcorrupt|"
+                "flags;low_delay|err_detect;ignore_err|"
+                "max_delay;500000|reorder_queue_size;0|"
+                "analyzeduration;1000000|probesize;32768"
+            )
+            os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = capture_options
         # RTSP sources usually behave best through FFmpeg; webcams usually
         # prefer V4L2 on Linux.
         is_rtsp = isinstance(src, str) and src.lower().startswith("rtsp://")
@@ -307,8 +527,8 @@ def run_live(
     width  = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     fps    = cap.get(cv2.CAP_PROP_FPS)
-    if fps <= 0:
-        fps = 30.0   # webcams often report 0 — safe fallback
+    if not np.isfinite(fps) or fps <= 0 or fps > 240:
+        fps = 30.0   # webcams and RTSP streams often report unusable FPS values.
 
     print(f"[INFO] Camera source      : {source}")
     print(f"[INFO] Camera ID          : {camera_id}")
@@ -319,13 +539,22 @@ def run_live(
     print(f"[INFO] Inference size     : {imgsz}")
     print(f"[INFO] Device             : {device}")
     print(f"[INFO] Drop frames/read   : {drop_frames}")
+    print(f"[INFO] Read fail reconnect: {max_read_failures} failures | delay {reconnect_delay:.1f}s")
+    if isinstance(source, str) and source.lower().startswith("rtsp://"):
+        print(f"[INFO] FFmpeg RTSP options: {os.environ.get('OPENCV_FFMPEG_CAPTURE_OPTIONS', 'default')}")
     if api_url:
         print(f"[INFO] API endpoint       : {api_url} (every {api_interval}s)")
+    if config_url:
+        print(f"[INFO] Config endpoint    : {config_url} (every {config_refresh_interval}s)")
     print("[INFO] Press Ctrl+C in this terminal to stop.\n")
 
     # ── Timing ────────────────────────────────────────────────────────────────
     start_time    = time.time()
     frame_num     = 0
+    read_failures = 0
+    config = fetch_livefeed_config(config_url, normalize_livefeed_config(DEFAULT_LIVEFEED_CONFIG))
+    last_config_fetch = time.time()
+    dwell_counter = DwellCounter(config["dwellSeconds"])
 
     publisher.connect()
     start_mjpeg_preview_server(mjpeg_port, stream_fps, jpeg_quality)
@@ -339,8 +568,23 @@ def run_live(
 
             ret, frame = cap.read()
             if not ret:
-                print("[WARNING] Camera feed lost or stream ended.")
-                break
+                read_failures += 1
+                if read_failures < max_read_failures:
+                    time.sleep(0.05)
+                    continue
+
+                print("[WARNING] Camera read failures reached threshold; reconnecting.")
+                cap.release()
+                time.sleep(max(reconnect_delay, 0.1))
+                cap = open_camera(source)
+                if cap is None or not cap.isOpened():
+                    print("[WARNING] Reconnect failed; trying again shortly.")
+                    time.sleep(max(reconnect_delay, 0.1))
+                    continue
+                read_failures = 0
+                continue
+
+            read_failures = 0
 
             with _stream_lock:
                 _last_stream_frame = prepare_stream_frame(frame, stream_width)
@@ -352,42 +596,34 @@ def run_live(
             if skip_frames > 1 and frame_num % skip_frames != 0:
                 continue
 
-            results = model.predict(
-                frame,
-                conf=conf_threshold,
-                iou=iou_threshold,
-                classes=[PERSON_CLASS_ID],
+            if config_url and time.time() - last_config_fetch >= max(config_refresh_interval, 1.0):
+                previous_dwell = config["dwellSeconds"]
+                config = fetch_livefeed_config(config_url, config)
+                if config["dwellSeconds"] != previous_dwell:
+                    dwell_counter.dwell_seconds = config["dwellSeconds"]
+                last_config_fetch = time.time()
+
+            detections = detect_people_in_zones(
+                frame=frame,
+                zones=config["zones"],
+                model=model,
+                conf_threshold=conf_threshold,
+                iou_threshold=iou_threshold,
                 imgsz=imgsz,
                 device=device,
-                verbose=False,
             )
-
-            detections = []
-
-            for result in results:
-                if result.boxes is None:
-                    continue
-                for box in result.boxes:
-                    conf = float(box.conf[0])
-                    x1, y1, x2, y2 = map(int, box.xyxy[0])
-                    detections.append({
-                        "class": "person",
-                        "confidence": round(conf, 4),
-                        "bbox": {
-                            "x": max(0, x1),
-                            "y": max(0, y1),
-                            "width": max(0, x2 - x1),
-                            "height": max(0, y2 - y1),
-                        },
-                    })
+            detections, counted_total, active_counted = dwell_counter.update(detections, time.time())
 
             message = {
                 "cameraId": camera_id,
                 "timestamp": int(time.time() * 1000),
                 "frameWidth": int(frame.shape[1]),
                 "frameHeight": int(frame.shape[0]),
-                "peopleCount": len(detections),
+                "peopleCount": counted_total,
+                "activeCount": active_counted,
                 "detections": detections,
+                "zones": config["zones"],
+                "dwellSeconds": config["dwellSeconds"],
             }
 
             publisher.publish(message, elapsed)
@@ -426,7 +662,7 @@ def main():
     )
     parser.add_argument(
         "--conf",
-        type=float, default=0.25,
+        type=float, default=0.60,
         help="Confidence threshold (0.0 – 1.0)"
     )
     parser.add_argument(
@@ -505,6 +741,34 @@ def main():
         help="Send HTTP fallback update every N seconds (default: 0.25)"
     )
     parser.add_argument(
+        "--config-url",
+        default="http://localhost:3000/api/livefeed/config",
+        help="URL for admin-edited livefeed zones/dwell settings. Empty string uses defaults."
+    )
+    parser.add_argument(
+        "--config-refresh-interval",
+        type=float, default=10.0,
+        help="Reload livefeed zone config every N seconds (default: 10)"
+    )
+    parser.add_argument(
+        "--reconnect-delay",
+        type=float, default=2.0,
+        help="Seconds to wait before reopening a failed camera stream (default: 2)"
+    )
+    parser.add_argument(
+        "--max-read-failures",
+        type=int, default=20,
+        help="Reconnect after this many consecutive failed frame reads (default: 20)"
+    )
+    parser.add_argument(
+        "--ffmpeg-capture-options",
+        default="",
+        help=(
+            "Override OpenCV FFmpeg capture options for RTSP. "
+            "Use OpenCV's key;value|key;value format. Empty string uses the safer default."
+        )
+    )
+    parser.add_argument(
         "--no-stop-notify",
         action="store_true",
         help="Do not POST /api/livefeed/stop when the AI process exits"
@@ -538,6 +802,9 @@ def main():
         print(f"[INFO] API Interval     : {args.api_interval}s\n")
     else:
         print()
+    if args.config_url:
+        print(f"[INFO] Config URL       : {args.config_url}")
+        print(f"[INFO] Config Interval  : {args.config_refresh_interval}s")
 
     # ── Load model ────────────────────────────────────────────────────────────
     print(f"[INFO] Loading YOLO model : {args.model}.pt")
@@ -571,6 +838,11 @@ def main():
         stream_width   = args.stream_width,
         api_url        = args.api_url,
         api_interval   = args.api_interval,
+        config_url     = args.config_url or None,
+        config_refresh_interval = args.config_refresh_interval,
+        reconnect_delay = args.reconnect_delay,
+        max_read_failures = args.max_read_failures,
+        ffmpeg_capture_options = args.ffmpeg_capture_options or None,
     )
 
 

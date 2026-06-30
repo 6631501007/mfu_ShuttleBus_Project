@@ -4,6 +4,9 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const path = require('path');
+const fs = require('fs');
+const { spawn } = require('child_process');
 const { Readable } = require('stream');
 const { Server } = require('socket.io');
 require('dotenv').config();
@@ -12,13 +15,14 @@ const Station = require('./models/station');
 const Bus = require('./models/bus');
 const Feedback = require('./models/feedback');
 const Analytics = require('./models/analytics');
+const HourlyAnalytics = require('./models/hourlyAnalytics');
 const Setting = require('./models/setting');
 const dns = require('dns');
 dns.setServers(['8.8.8.8', '8.8.4.4'])
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 
 const server = http.createServer(app);
 const io = new Server(server, {
@@ -40,17 +44,68 @@ const LIVEFEED_SOURCE_STREAM_URL =
   process.env.LIVEFEED_STREAM_URL ||
   'http://localhost:8090/stream';
 const LIVEFEED_PUBLIC_STREAM_URL = process.env.LIVEFEED_PUBLIC_STREAM_URL || '/api/livefeed/stream';
+const DETECTOR_SCRIPT_PATH = process.env.DETECTOR_SCRIPT_PATH
+  ? path.resolve(__dirname, process.env.DETECTOR_SCRIPT_PATH)
+  : path.join(__dirname, '..', 'AI', 'detect_humans_live-api.py');
+const resolveDetectorPythonBin = () => {
+  if (process.env.DETECTOR_PYTHON_BIN) {
+    const configuredBin = process.env.DETECTOR_PYTHON_BIN;
+    const looksLikePath =
+      path.isAbsolute(configuredBin) ||
+      configuredBin.startsWith(`.${path.sep}`) ||
+      configuredBin.startsWith(`..${path.sep}`) ||
+      configuredBin.includes(path.sep);
+    return looksLikePath ? path.resolve(__dirname, configuredBin) : configuredBin;
+  }
+
+  const candidates = [
+    path.join(__dirname, '..', 'AI', '.venv', 'bin', 'python'),
+    path.join(__dirname, '..', '.venv', 'bin', 'python'),
+  ];
+  return candidates.find(candidate => fs.existsSync(candidate)) || 'python3';
+};
+const DETECTOR_PYTHON_BIN = resolveDetectorPythonBin();
+const DETECTOR_BASE_PORT = Number(process.env.DETECTOR_BASE_PORT) || 8090;
+const DETECTOR_MODEL = process.env.DETECTOR_MODEL || 'yolov8s';
+const DETECTOR_IMGSZ = Number(process.env.DETECTOR_IMGSZ) || 640;
+const DETECTOR_SKIP_FRAMES = Number(process.env.DETECTOR_SKIP_FRAMES) || 2;
+const DETECTOR_STREAM_FPS = Number(process.env.DETECTOR_STREAM_FPS) || 6;
+const DETECTOR_STREAM_WIDTH = Number(process.env.DETECTOR_STREAM_WIDTH) || 640;
+const DETECTOR_JPEG_QUALITY = Number(process.env.DETECTOR_JPEG_QUALITY) || 65;
+const DETECTOR_SOCKET_EMIT_INTERVAL = Number(process.env.DETECTOR_SOCKET_EMIT_INTERVAL) || 0.5;
+const ANALYTICS_TIMEZONE = process.env.ANALYTICS_TIMEZONE || 'Asia/Bangkok';
+const detectorProcesses = new Map();
 
 const livefeedDetection = {
   count: 0,
+  activeCount: 0,
   elapsed: 0,
   timestamp: null,
   updatedAt: null,
   cameraId: null,
   frameWidth: 0,
   frameHeight: 0,
-  detections: []
+  detections: [],
+  zones: []
 };
+const cameraDetections = new Map();
+
+const DEFAULT_LIVEFEED_CONFIG = {
+  dwellSeconds: 30,
+  referenceImage: '',
+  zones: [
+    {
+      name: 'Counting Zone',
+      x: 20,
+      y: 20,
+      width: 60,
+      height: 60,
+      color: '#16a34a',
+      enabled: true
+    }
+  ]
+};
+const LIVEFEED_GRID_COLOR = '#16a34a';
 
 if (missingEnv.length > 0) {
   console.error(`Missing required environment variables: ${missingEnv.join(', ')}`);
@@ -77,31 +132,412 @@ const adminMiddleware = (req, res, next) => {
   next();
 };
 
+const createDeviceId = (hardware = {}, index = 0) => {
+  if (hardware.deviceId) return String(hardware.deviceId);
+  const name = String(hardware.name || `camera-${index + 1}`)
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return `${name || 'camera'}-${Date.now()}-${index}`;
+};
+
+const clampPercent = (value, fallback) => {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return fallback;
+  return Math.min(100, Math.max(0, number));
+};
+
+const getDisplayName = (value, fallback = '') => {
+  if (Array.isArray(value)) {
+    return getDisplayName(value[0], fallback);
+  }
+
+  if (value && typeof value === 'object') {
+    return getDisplayName(value.name, fallback);
+  }
+
+  const text = String(value || '').trim();
+  if (!text) return fallback;
+
+  if (text.startsWith('{') || text.startsWith('[')) {
+    try {
+      return getDisplayName(JSON.parse(text), fallback);
+    } catch {
+      return fallback || text;
+    }
+  }
+
+  return text;
+};
+
+const normalizeLivefeedZone = (zone = {}, index = 0, zoneName = '') => {
+  const x = clampPercent(zone.x, DEFAULT_LIVEFEED_CONFIG.zones[0].x);
+  const y = clampPercent(zone.y, DEFAULT_LIVEFEED_CONFIG.zones[0].y);
+  const maxWidth = Math.max(1, 100 - x);
+  const maxHeight = Math.max(1, 100 - y);
+
+  return {
+    name: zoneName || zone.name || `Counting Zone ${index + 1}`,
+    x,
+    y,
+    width: Math.min(maxWidth, Math.max(1, clampPercent(zone.width, DEFAULT_LIVEFEED_CONFIG.zones[0].width))),
+    height: Math.min(maxHeight, Math.max(1, clampPercent(zone.height, DEFAULT_LIVEFEED_CONFIG.zones[0].height))),
+    color: LIVEFEED_GRID_COLOR,
+    enabled: zone.enabled !== false
+  };
+};
+
+const normalizeLivefeedConfig = (livefeed = {}, zoneName = '') => {
+  const dwellSeconds = Number(livefeed.dwellSeconds);
+  const zones = Array.isArray(livefeed.zones) && livefeed.zones.length
+    ? livefeed.zones
+    : DEFAULT_LIVEFEED_CONFIG.zones;
+
+  return {
+    dwellSeconds: Number.isFinite(dwellSeconds) && dwellSeconds > 0 ? dwellSeconds : DEFAULT_LIVEFEED_CONFIG.dwellSeconds,
+    referenceImage: typeof livefeed.referenceImage === 'string' ? livefeed.referenceImage : '',
+    zones: zones.slice(0, 1).map((zone, index) => normalizeLivefeedZone(zone, index, zoneName))
+  };
+};
+
+const normalizeHardware = (hardware = {}, index = 0) => {
+  const type = ['sensor', 'camera', 'other'].includes(hardware.type) ? hardware.type : 'sensor';
+  const status = hardware.status === 'online' ? 'online' : 'offline';
+  const rtspUrl = String(hardware.rtspUrl || '').trim();
+  const ip = String(hardware.ip || '').trim();
+  const fw = String(hardware.fw || '').trim();
+  const name = getDisplayName(hardware.name, `Hardware ${index + 1}`);
+
+  const normalized = {
+    deviceId: createDeviceId(hardware, index),
+    name,
+    type,
+    ip,
+    rtspUrl,
+    fw,
+    status,
+    details: hardware.details || [
+      fw ? `FW ${fw}` : '',
+      ip,
+      type === 'camera' && rtspUrl ? 'RTSP configured' : ''
+    ].filter(Boolean).join(' • '),
+    livefeed: normalizeLivefeedConfig(hardware.livefeed || DEFAULT_LIVEFEED_CONFIG, name)
+  };
+
+  if (hardware._id) normalized._id = hardware._id;
+  return normalized;
+};
+
+const normalizeSettingsPayload = (payload = {}) => ({
+  ...payload,
+  hardware: Array.isArray(payload.hardware) ? payload.hardware.map(normalizeHardware) : [],
+});
+
+const normalizeHardwareIdentifier = (hardwareId) => {
+  if (!hardwareId) return '';
+  if (typeof hardwareId === 'object') {
+    return String(hardwareId.$oid || hardwareId._id || hardwareId.deviceId || '');
+  }
+  try {
+    return decodeURIComponent(String(hardwareId));
+  } catch {
+    return String(hardwareId);
+  }
+};
+
+const getHardwareIndex = (settings, hardwareId) => {
+  if (!settings || !Array.isArray(settings.hardware)) return -1;
+  const normalizedHardwareId = normalizeHardwareIdentifier(hardwareId);
+  const index = settings.hardware.findIndex((item) => (
+    normalizeHardwareIdentifier(item._id) === normalizedHardwareId ||
+    normalizeHardwareIdentifier(item.deviceId) === normalizedHardwareId
+  ));
+  if (index !== -1) return index;
+
+  if (!/^\d+$/.test(normalizedHardwareId)) return -1;
+  const numericIndex = Number(normalizedHardwareId);
+  return Number.isInteger(numericIndex) ? numericIndex : -1;
+};
+
+const getDetectorPort = (hardware, index = 0) => {
+  const existing = detectorProcesses.get(hardware.deviceId);
+  return existing?.port || DETECTOR_BASE_PORT + index + 1;
+};
+
+const getHourlyBucket = (value = new Date()) => {
+  const sourceDate = value instanceof Date ? value : new Date(value);
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: ANALYTICS_TIMEZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    hour12: false
+  });
+  const parts = Object.fromEntries(
+    formatter.formatToParts(sourceDate).map(part => [part.type, part.value])
+  );
+  const hour = Number(parts.hour === '24' ? 0 : parts.hour);
+  const date = new Date(`${parts.year}-${parts.month}-${parts.day}T00:00:00.000Z`);
+  const timestamp = new Date(`${parts.year}-${parts.month}-${parts.day}T${String(hour).padStart(2, '0')}:00:00.000Z`);
+
+  return { date, hour, timestamp };
+};
+
+const getLocalTimeLabel = (value = new Date()) => (
+  new Intl.DateTimeFormat('en-GB', {
+    timeZone: ANALYTICS_TIMEZONE,
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  }).format(value)
+);
+
+const getMedian = (values = []) => {
+  if (!values.length) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2
+    ? sorted[mid]
+    : (sorted[mid - 1] + sorted[mid]) / 2;
+};
+
+const resolveStationIdForCamera = async (cameraId) => {
+  const settings = await Setting.findOne().lean();
+  const hardware = Array.isArray(settings?.hardware) ? settings.hardware : [];
+  const camera = hardware.find(item => (
+    normalizeHardwareIdentifier(item._id) === normalizeHardwareIdentifier(cameraId) ||
+    normalizeHardwareIdentifier(item.deviceId) === normalizeHardwareIdentifier(cameraId)
+  ));
+
+  return String(
+    camera?.stationId ||
+    camera?.station_id ||
+    camera?.station ||
+    camera?.name ||
+    cameraId ||
+    'UNKNOWN_STATION'
+  ).trim().replace(/\s+/g, '_').toUpperCase();
+};
+
+const updateHourlyAnalytics = async (payload = {}, detectionState = {}) => {
+  const currentQueueCount = Number(detectionState.activeCount ?? payload.activeCount ?? payload.peopleCount ?? payload.count);
+  if (!Number.isFinite(currentQueueCount) || currentQueueCount < 0) return;
+
+  const cameraId = detectionState.cameraId || payload.cameraId || 'AI-001';
+  const stationId = await resolveStationIdForCamera(cameraId);
+  const now = new Date(Number(payload.timestamp) || Date.now());
+  const bucket = getHourlyBucket(now);
+  const dwellSamples = (detectionState.detections || [])
+    .map(item => Number(item.dwellSeconds))
+    .filter(value => Number.isFinite(value) && value >= 0);
+
+  const existing = await HourlyAnalytics
+    .findOne({ station_id: stationId, timestamp: bucket.timestamp })
+    .select('+queue_time_samples_seconds +last_total_persons_seen');
+
+  const queueTimeSamples = [
+    ...(existing?.queue_time_samples_seconds || []),
+    ...dwellSamples
+  ].slice(-1000);
+  const sampleCount = (existing?.sample_count || 0) + 1;
+  const previousTotalSeen = existing?.last_total_persons_seen || 0;
+  const totalSeen = Number(detectionState.count ?? payload.peopleCount ?? payload.count);
+  const processedDelta = Number.isFinite(totalSeen)
+    ? Math.max(0, Math.round(totalSeen) - previousTotalSeen)
+    : 0;
+  const peakQueueCount = Math.max(existing?.peak_queue_count || 0, Math.round(currentQueueCount));
+  const shouldUpdatePeak = !existing || Math.round(currentQueueCount) >= (existing.peak_queue_count || 0);
+
+  const previousAverage = existing?.avg_queue_time_seconds || 0;
+  const currentAverage = dwellSamples.length
+    ? dwellSamples.reduce((sum, value) => sum + value, 0) / dwellSamples.length
+    : currentQueueCount > 0 ? previousAverage : 0;
+  const nextAverage = sampleCount > 1
+    ? (((previousAverage * (sampleCount - 1)) + currentAverage) / sampleCount)
+    : currentAverage;
+
+  const roundedQueueCount = Math.round(currentQueueCount);
+  const analytics = existing || new HourlyAnalytics({
+    station_id: stationId,
+    timestamp: bucket.timestamp,
+    min_queue_count: roundedQueueCount
+  });
+
+  analytics.station_id = stationId;
+  analytics.camera_id = cameraId;
+  analytics.date = bucket.date;
+  analytics.hour = bucket.hour;
+  analytics.timestamp = bucket.timestamp;
+  analytics.timezone = ANALYTICS_TIMEZONE;
+  analytics.current_queue_count = roundedQueueCount;
+  analytics.max_queue_count = Math.max(existing?.max_queue_count || roundedQueueCount, roundedQueueCount);
+  analytics.min_queue_count = existing && Number.isFinite(existing.min_queue_count)
+    ? Math.min(existing.min_queue_count, roundedQueueCount)
+    : roundedQueueCount;
+  analytics.avg_queue_time_seconds = Number(nextAverage.toFixed(1));
+  analytics.median_queue_time_seconds = Number(getMedian(queueTimeSamples).toFixed(1));
+  analytics.peak_time = shouldUpdatePeak ? getLocalTimeLabel(now) : existing.peak_time;
+  analytics.peak_queue_count = peakQueueCount;
+  analytics.total_persons_processed = (existing?.total_persons_processed || 0) + processedDelta;
+  analytics.sample_count = sampleCount;
+  analytics.queue_time_samples_seconds = queueTimeSamples;
+  analytics.last_total_persons_seen = Number.isFinite(totalSeen) ? Math.round(totalSeen) : previousTotalSeen;
+
+  await analytics.save();
+};
+
+const stopDetector = (deviceId) => {
+  const running = detectorProcesses.get(deviceId);
+  if (!running) return;
+
+  console.log(`[DETECTOR] Stopping ${deviceId}`);
+  running.process.kill('SIGTERM');
+  setTimeout(() => {
+    if (!running.process.killed) running.process.kill('SIGKILL');
+  }, 3000);
+  detectorProcesses.delete(deviceId);
+};
+
+const startDetector = (hardware, index = 0) => {
+  if (hardware.type !== 'camera' || hardware.status !== 'online' || !hardware.rtspUrl) return;
+
+  const running = detectorProcesses.get(hardware.deviceId);
+  if (running && running.rtspUrl === hardware.rtspUrl) return;
+  if (running) stopDetector(hardware.deviceId);
+
+  const port = getDetectorPort(hardware, index);
+  const args = [
+    DETECTOR_SCRIPT_PATH,
+    '--source', hardware.rtspUrl,
+    '--camera-id', hardware.deviceId,
+    '--mjpeg-port', String(port),
+    '--model', DETECTOR_MODEL,
+    '--imgsz', String(DETECTOR_IMGSZ),
+    '--skip-frames', String(DETECTOR_SKIP_FRAMES),
+    '--stream-fps', String(DETECTOR_STREAM_FPS),
+    '--stream-width', String(DETECTOR_STREAM_WIDTH),
+    '--jpeg-quality', String(DETECTOR_JPEG_QUALITY),
+    '--emit-interval', String(DETECTOR_SOCKET_EMIT_INTERVAL),
+    '--api-url', '',
+    '--socketio-url', `http://localhost:${PORT}`,
+    '--config-url', `http://localhost:${PORT}/api/livefeed/config?cameraId=${encodeURIComponent(hardware.deviceId)}`,
+    '--no-stop-notify',
+  ];
+
+  const child = spawn(DETECTOR_PYTHON_BIN, args, {
+    cwd: path.dirname(DETECTOR_SCRIPT_PATH),
+    stdio: ['ignore', 'pipe', 'pipe'],
+    env: { ...process.env },
+  });
+
+  detectorProcesses.set(hardware.deviceId, {
+    process: child,
+    port,
+    rtspUrl: hardware.rtspUrl,
+    startedAt: Date.now(),
+  });
+
+  console.log(`[DETECTOR] Started ${hardware.deviceId} on MJPEG port ${port}`);
+
+  child.stdout.on('data', data => writeDetectorOutput(hardware.deviceId, data, process.stdout));
+  child.stderr.on('data', data => writeDetectorOutput(hardware.deviceId, data, process.stderr, true));
+  child.on('error', error => {
+    detectorProcesses.delete(hardware.deviceId);
+    console.error(`[DETECTOR] Could not start ${hardware.deviceId}:`, error);
+  });
+  child.on('exit', (code, signal) => {
+    const current = detectorProcesses.get(hardware.deviceId);
+    if (current?.process === child) detectorProcesses.delete(hardware.deviceId);
+    console.log(`[DETECTOR] ${hardware.deviceId} exited code=${code} signal=${signal}`);
+  });
+};
+
+const isNoisyDecoderWarning = (line) => (
+  /^\[hevc @ .*\] Could not find ref with POC \d+/.test(line) ||
+  /^\[hevc @ .*\] Error constructing the frame RPS\./.test(line)
+);
+
+const writeDetectorOutput = (deviceId, data, stream, filterDecoderNoise = false) => {
+  String(data)
+    .split(/\r?\n/)
+    .filter(line => line.trim())
+    .filter(line => !filterDecoderNoise || !isNoisyDecoderWarning(line))
+    .forEach(line => stream.write(`[DETECTOR:${deviceId}] ${line}\n`));
+};
+
+const syncHardwareDetectors = async (nextSettings) => {
+  const hardware = Array.isArray(nextSettings?.hardware)
+    ? nextSettings.hardware.map((item, index) => normalizeHardware(item, index))
+    : [];
+  const desiredIds = new Set();
+
+  hardware.forEach((item, index) => {
+    desiredIds.add(item.deviceId);
+    if (item.type === 'camera' && item.status === 'online' && item.rtspUrl) {
+      startDetector(item, index);
+    } else {
+      stopDetector(item.deviceId);
+    }
+  });
+
+  for (const deviceId of detectorProcesses.keys()) {
+    if (!desiredIds.has(deviceId)) stopDetector(deviceId);
+  }
+};
+
+const stopAllDetectors = () => {
+  for (const deviceId of [...detectorProcesses.keys()]) {
+    stopDetector(deviceId);
+  }
+};
+
+process.on('SIGINT', () => {
+  stopAllDetectors();
+  process.exit(0);
+});
+
+process.on('SIGTERM', () => {
+  stopAllDetectors();
+  process.exit(0);
+});
+
 mongoose
   .connect(MONGO_URI)
-  .then(() => console.log('MongoDB Connected'))
+  .then(async () => {
+    console.log('MongoDB Connected');
+    await syncHardwareDetectors(await Setting.findOne().lean());
+  })
   .catch(err => console.error('MongoDB connection error:', err));
 
 const getLivefeedDetectionStatus = () => {
-  const lastSeenAt = livefeedDetection.updatedAt;
-  const isRunning = Boolean(lastSeenAt && Date.now() - lastSeenAt < LIVEFEED_STALE_MS);
+  const latest = [...cameraDetections.values()]
+    .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0] || livefeedDetection;
+  return formatDetectionStatus(latest, latest.streamUrl || LIVEFEED_PUBLIC_STREAM_URL);
+};
 
-  return {
-    running: isRunning,
-    count: isRunning ? livefeedDetection.count : 0,
-    elapsed: isRunning ? livefeedDetection.elapsed : 0,
-    timestamp: livefeedDetection.timestamp,
-    lastSeenAt,
-    streamUrl: LIVEFEED_PUBLIC_STREAM_URL,
-    cameraId: livefeedDetection.cameraId,
-    frameWidth: livefeedDetection.frameWidth,
-    frameHeight: livefeedDetection.frameHeight,
-    detections: isRunning ? livefeedDetection.detections : []
-  };
+const getLivefeedConfig = async (cameraId = '') => {
+  const settings = await Setting.findOne().lean();
+  const hardware = Array.isArray(settings?.hardware) ? settings.hardware : [];
+  const camera = hardware.find(item => (
+    normalizeHardwareIdentifier(item._id) === normalizeHardwareIdentifier(cameraId) ||
+    normalizeHardwareIdentifier(item.deviceId) === normalizeHardwareIdentifier(cameraId)
+  ));
+
+  if (camera) {
+    return normalizeLivefeedConfig(
+      camera.livefeed || settings?.livefeed || DEFAULT_LIVEFEED_CONFIG,
+      camera.name
+    );
+  }
+
+  return normalizeLivefeedConfig(settings?.livefeed || DEFAULT_LIVEFEED_CONFIG);
 };
 
 const updateLivefeedDetection = (payload) => {
   const count = Number(payload?.peopleCount ?? payload?.count);
+  const activeCount = Number(payload?.activeCount);
   const elapsed = Number(payload?.elapsed);
   const detections = Array.isArray(payload?.detections) ? payload.detections : [];
   const frameWidth = Number(payload?.frameWidth);
@@ -111,31 +547,66 @@ const updateLivefeedDetection = (payload) => {
     return false;
   }
 
-  livefeedDetection.count = Math.round(count);
-  livefeedDetection.elapsed = Number.isFinite(elapsed) && elapsed >= 0 ? elapsed : 0;
-  livefeedDetection.timestamp = Number(payload?.timestamp) || Date.now();
-  livefeedDetection.updatedAt = Date.now();
-  livefeedDetection.cameraId = payload?.cameraId || livefeedDetection.cameraId;
-  livefeedDetection.frameWidth = Number.isFinite(frameWidth) && frameWidth > 0 ? frameWidth : livefeedDetection.frameWidth;
-  livefeedDetection.frameHeight = Number.isFinite(frameHeight) && frameHeight > 0 ? frameHeight : livefeedDetection.frameHeight;
-  livefeedDetection.detections = detections
-    .filter(item => item?.bbox)
-    .map(item => ({
-      class: item.class || 'person',
-      confidence: Number(item.confidence) || 0,
-      bbox: {
-        x: Number(item.bbox.x) || 0,
-        y: Number(item.bbox.y) || 0,
-        width: Number(item.bbox.width) || 0,
-        height: Number(item.bbox.height) || 0
-      }
-    }));
+  const cameraId = payload?.cameraId || livefeedDetection.cameraId || 'AI-001';
+  const previous = cameraDetections.get(cameraId) || {};
+  const detectionState = {
+    count: Math.round(count),
+    activeCount: Number.isFinite(activeCount) && activeCount >= 0 ? Math.round(activeCount) : detections.length,
+    elapsed: Number.isFinite(elapsed) && elapsed >= 0 ? elapsed : 0,
+    timestamp: Number(payload?.timestamp) || Date.now(),
+    updatedAt: Date.now(),
+    cameraId,
+    frameWidth: Number.isFinite(frameWidth) && frameWidth > 0 ? frameWidth : previous.frameWidth || livefeedDetection.frameWidth,
+    frameHeight: Number.isFinite(frameHeight) && frameHeight > 0 ? frameHeight : previous.frameHeight || livefeedDetection.frameHeight,
+    detections: detections
+      .filter(item => item?.bbox)
+      .map(item => ({
+        class: item.class || 'person',
+        confidence: Number(item.confidence) || 0,
+        trackId: item.trackId || null,
+        dwellSeconds: Number(item.dwellSeconds) || 0,
+        counted: Boolean(item.counted),
+        zoneName: item.zoneName || null,
+        bbox: {
+          x: Number(item.bbox.x) || 0,
+          y: Number(item.bbox.y) || 0,
+          width: Number(item.bbox.width) || 0,
+          height: Number(item.bbox.height) || 0
+        }
+      })),
+    zones: Array.isArray(payload?.zones)
+      ? payload.zones.map(normalizeLivefeedZone)
+      : previous.zones || livefeedDetection.zones,
+  };
 
-  return true;
+  Object.assign(livefeedDetection, detectionState);
+  cameraDetections.set(cameraId, detectionState);
+
+  return detectionState;
+};
+
+const formatDetectionStatus = (detectionState = {}, streamUrl = '') => {
+  const lastSeenAt = detectionState.updatedAt;
+  const isRunning = Boolean(lastSeenAt && Date.now() - lastSeenAt < LIVEFEED_STALE_MS);
+
+  return {
+    running: isRunning,
+    count: isRunning ? detectionState.count || 0 : 0,
+    activeCount: isRunning ? detectionState.activeCount || 0 : 0,
+    elapsed: isRunning ? detectionState.elapsed || 0 : 0,
+    timestamp: detectionState.timestamp || null,
+    lastSeenAt,
+    streamUrl,
+    cameraId: detectionState.cameraId || null,
+    frameWidth: detectionState.frameWidth || 0,
+    frameHeight: detectionState.frameHeight || 0,
+    detections: isRunning ? detectionState.detections || [] : [],
+    zones: detectionState.zones || []
+  };
 };
 
 /////////////////// Live Feed AI ingest ///////////////////
-app.post('/api/livefeed/update', (req, res) => {
+app.post('/api/livefeed/update', async (req, res) => {
   const count = Number(req.body?.peopleCount ?? req.body?.count);
   const elapsed = Number(req.body?.elapsed);
   const detections = Array.isArray(req.body?.detections) ? req.body.detections : [];
@@ -146,14 +617,27 @@ app.post('/api/livefeed/update', (req, res) => {
     return res.status(400).json({ message: 'count must be a non-negative number' });
   }
 
-  if (!updateLivefeedDetection(req.body)) {
+  const detectionState = updateLivefeedDetection(req.body);
+  if (!detectionState) {
     return res.status(400).json({ message: 'count must be a non-negative number' });
+  }
+
+  try {
+    await updateHourlyAnalytics(req.body, detectionState);
+  } catch (error) {
+    console.error('[HOURLY_ANALYTICS] Could not update hourly analytics:', error);
   }
 
   res.json({ message: 'Live feed updated', detection: getLivefeedDetectionStatus() });
 });
 
 app.post('/api/livefeed/stop', (req, res) => {
+  const cameraId = req.body?.cameraId;
+  if (cameraId) {
+    cameraDetections.delete(cameraId);
+  } else {
+    cameraDetections.clear();
+  }
   livefeedDetection.count = 0;
   livefeedDetection.elapsed = 0;
   livefeedDetection.timestamp = Date.now() / 1000;
@@ -163,15 +647,24 @@ app.post('/api/livefeed/stop', (req, res) => {
   res.json({ message: 'Live feed stopped', detection: getLivefeedDetectionStatus() });
 });
 
-app.get('/api/livefeed/stream', async (req, res) => {
+const proxyDetectorStream = async (req, res, streamUrl, unavailableMessage) => {
   const controller = new AbortController();
-  req.on('close', () => controller.abort());
+  req.once('close', () => {
+    if (!controller.signal.aborted) controller.abort();
+  });
+  const isExpectedStreamClose = error => (
+    error?.name === 'AbortError' ||
+    error?.message === 'terminated' ||
+    error?.cause?.code === 'UND_ERR_SOCKET' ||
+    controller.signal.aborted ||
+    res.destroyed
+  );
 
   try {
-    const detectorStream = await fetch(LIVEFEED_SOURCE_STREAM_URL, { signal: controller.signal });
+    const detectorStream = await fetch(streamUrl, { signal: controller.signal });
 
     if (!detectorStream.ok || !detectorStream.body) {
-      return res.status(502).send('Live feed stream is unavailable');
+      return res.status(502).send(unavailableMessage);
     }
 
     res.setHeader(
@@ -181,10 +674,41 @@ app.get('/api/livefeed/stream', async (req, res) => {
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
     res.setHeader('Connection', 'close');
 
-    Readable.fromWeb(detectorStream.body).pipe(res);
+    const nodeStream = Readable.fromWeb(detectorStream.body);
+    nodeStream.on('error', error => {
+      if (isExpectedStreamClose(error)) return;
+      console.error('[LIVEFEED] Stream proxy error:', error);
+      if (!res.headersSent) {
+        res.status(502).send(unavailableMessage);
+      } else {
+        res.destroy(error);
+      }
+    });
+    nodeStream.pipe(res);
   } catch (error) {
-    if (error.name === 'AbortError') return;
-    res.status(502).send('Live feed stream is unavailable');
+    if (isExpectedStreamClose(error)) return;
+    if (!res.headersSent) res.status(502).send(unavailableMessage);
+  }
+};
+
+app.get('/api/livefeed/stream', async (req, res) => {
+  proxyDetectorStream(req, res, LIVEFEED_SOURCE_STREAM_URL, 'Live feed stream is unavailable');
+});
+
+app.get('/api/livefeed/stream/:cameraId', async (req, res) => {
+  const running = detectorProcesses.get(req.params.cameraId);
+  if (!running) {
+    return res.status(404).send('Camera stream is offline');
+  }
+
+  proxyDetectorStream(req, res, `http://localhost:${running.port}/stream`, 'Camera stream is unavailable');
+});
+
+app.get('/api/livefeed/config', async (req, res) => {
+  try {
+    res.json(await getLivefeedConfig(req.query.cameraId));
+  } catch (error) {
+    res.status(500).json(error);
   }
 });
 
@@ -227,6 +751,11 @@ app.get('/api/dashboard', adminMiddleware, async (req, res) => {
     const stations = await Station.find().lean();
     const buses = await Bus.find().lean();
     const analytics = await Analytics.findOne().sort({ createdAt: -1 }).lean();
+    const hourlyAnalytics = await HourlyAnalytics
+      .find()
+      .sort({ timestamp: -1, station_id: 1 })
+      .limit(12)
+      .lean();
 
     const passengerChart = analytics
       ? { weekly: analytics.weeklyData, monthly: analytics.monthlyData }
@@ -254,7 +783,7 @@ app.get('/api/dashboard', adminMiddleware, async (req, res) => {
         severity: s.status === 'critical' ? 'high' : 'medium'
       }));
 
-    res.json({ kpis, passengerChart, notifications, stations, buses });
+    res.json({ kpis, passengerChart, notifications, stations, buses, hourlyAnalytics });
   } catch (error) {
     res.status(500).json(error);
   }
@@ -272,6 +801,24 @@ app.get('/api/analytics', adminMiddleware, async (req, res) => {
       dateRanges: analytics?.dateRanges || [],
       terminals: analytics?.terminals || []
     });
+  } catch (error) {
+    res.status(500).json(error);
+  }
+});
+
+app.get('/api/hourly-analytics', adminMiddleware, async (req, res) => {
+  try {
+    const limit = Math.min(Math.max(Number(req.query.limit) || 24, 1), 168);
+    const query = {};
+    if (req.query.station_id) query.station_id = String(req.query.station_id);
+
+    const hourlyAnalytics = await HourlyAnalytics
+      .find(query)
+      .sort({ timestamp: -1, station_id: 1 })
+      .limit(limit)
+      .lean();
+
+    res.json({ hourlyAnalytics });
   } catch (error) {
     res.status(500).json(error);
   }
@@ -328,14 +875,52 @@ app.get('/api/livefeed/detection', adminMiddleware, (req, res) => {
   res.json(getLivefeedDetectionStatus());
 });
 
+app.get('/api/livefeed/cameras', adminMiddleware, async (req, res) => {
+  try {
+    const settings = await Setting.findOne().lean();
+    const cameras = (settings?.hardware || [])
+      .map(normalizeHardware)
+      .filter(item => item.type === 'camera')
+      .map((item, index) => {
+        const running = detectorProcesses.get(item.deviceId);
+        const detection = formatDetectionStatus(
+          cameraDetections.get(item.deviceId) || {},
+          running ? `/api/livefeed/stream/${item.deviceId}` : ''
+        );
+        return {
+          deviceId: item.deviceId,
+          name: item.name,
+          ip: item.ip,
+          rtspUrl: item.rtspUrl,
+          status: item.status,
+          running: Boolean(running),
+          streamUrl: running ? `/api/livefeed/stream/${item.deviceId}` : '',
+          port: running?.port || DETECTOR_BASE_PORT + index + 1,
+          detection,
+        };
+      });
+
+    res.json({ cameras });
+  } catch (error) {
+    res.status(500).json(error);
+  }
+});
+
 io.on('connection', (socket) => {
   console.log(`[SOCKET.IO] Client connected: ${socket.id}`);
 
-  socket.on('detection:update', (payload) => {
-    if (!updateLivefeedDetection(payload)) {
+  socket.on('detection:update', async (payload) => {
+    const detectionState = updateLivefeedDetection(payload);
+    if (!detectionState) {
       console.warn('[SOCKET.IO] Invalid detection payload received');
       socket.emit('detection:error', { message: 'Invalid detection payload' });
       return;
+    }
+
+    try {
+      await updateHourlyAnalytics(payload, detectionState);
+    } catch (error) {
+      console.error('[HOURLY_ANALYTICS] Could not update hourly analytics:', error);
     }
 
     // console.log(
@@ -395,12 +980,15 @@ app.get('/api/settings', adminMiddleware, async (req, res) => {
 
 app.put('/api/settings', adminMiddleware, async (req, res) => {
   try {
-    const settings = await Setting.findOneAndUpdate({}, req.body, { new: true, upsert: true });
+    const payload = normalizeSettingsPayload(req.body);
+    const settings = await Setting.findOneAndUpdate({}, payload, { new: true, upsert: true });
     if (settings) {
       settings.markModified('notificationChannels');
       settings.markModified('hardware');
+      settings.markModified('livefeed');
       await settings.save();
     }
+    await syncHardwareDetectors(settings?.toObject ? settings.toObject() : settings);
     res.json({ message: 'Settings saved', settings });
   } catch (error) {
     res.status(500).json(error);
@@ -452,43 +1040,90 @@ app.delete('/api/settings/zones/:index', adminMiddleware, async (req, res) => {
 });
 
 /////////////////// Settings - Hardware ///////////////////
+app.get('/api/settings/hardware', adminMiddleware, async (req, res) => {
+  try {
+    const settings = await Setting.findOne().lean();
+    res.json(settings?.hardware || []);
+  } catch (error) {
+    res.status(500).json(error);
+  }
+});
+
 app.post('/api/settings/hardware', adminMiddleware, async (req, res) => {
   try {
+    const currentSettings = await Setting.findOne().lean();
+    const hardware = normalizeHardware(req.body, currentSettings?.hardware?.length || 0);
     const settings = await Setting.findOneAndUpdate(
       {},
-      { $push: { hardware: req.body } },
+      { $push: { hardware } },
       { new: true, upsert: true }
     );
+    await syncHardwareDetectors(settings?.toObject ? settings.toObject() : settings);
     res.json({ message: 'Hardware added', settings });
   } catch (error) {
     res.status(500).json(error);
   }
 });
 
-app.put('/api/settings/hardware/:index', adminMiddleware, async (req, res) => {
+app.put('/api/settings/hardware/:hardwareId', adminMiddleware, async (req, res) => {
   try {
-    const index = parseInt(req.params.index);
     const settings = await Setting.findOne();
     if (!settings) return res.status(404).json({ message: 'Settings not found' });
 
-    settings.hardware[index] = { ...settings.hardware[index].toObject(), ...req.body };
+    const index = getHardwareIndex(settings, req.params.hardwareId);
+    if (!Number.isInteger(index) || index < 0 || index >= settings.hardware.length) {
+      return res.status(404).json({ message: 'Hardware not found' });
+    }
+
+    settings.hardware[index] = normalizeHardware({ ...settings.hardware[index].toObject(), ...req.body }, index);
     settings.markModified('hardware');
     await settings.save();
+    await syncHardwareDetectors(settings.toObject());
     res.json({ message: 'Hardware updated', settings });
   } catch (error) {
     res.status(500).json(error);
   }
 });
 
-app.delete('/api/settings/hardware/:index', adminMiddleware, async (req, res) => {
+app.put('/api/settings/hardware/:hardwareId/livefeed', adminMiddleware, async (req, res) => {
   try {
-    const index = parseInt(req.params.index);
     const settings = await Setting.findOne();
     if (!settings) return res.status(404).json({ message: 'Settings not found' });
+
+    const index = getHardwareIndex(settings, req.params.hardwareId);
+    if (!Number.isInteger(index) || index < 0 || index >= settings.hardware.length) {
+      return res.status(404).json({ message: 'Hardware not found' });
+    }
+
+    const hardware = settings.hardware[index];
+    if (hardware.type !== 'camera') {
+      return res.status(400).json({ message: 'Livefeed grid can only be saved for camera hardware' });
+    }
+
+    hardware.livefeed = normalizeLivefeedConfig(req.body, hardware.name);
+    settings.markModified('hardware');
+    await settings.save();
+    await syncHardwareDetectors(settings.toObject());
+    res.json({ message: 'Hardware livefeed saved', settings });
+  } catch (error) {
+    res.status(500).json(error);
+  }
+});
+
+app.delete('/api/settings/hardware/:hardwareId', adminMiddleware, async (req, res) => {
+  try {
+    const settings = await Setting.findOne();
+    if (!settings) return res.status(404).json({ message: 'Settings not found' });
+
+    const index = getHardwareIndex(settings, req.params.hardwareId);
+    if (!Number.isInteger(index) || index < 0 || index >= settings.hardware.length) {
+      return res.status(404).json({ message: 'Hardware not found' });
+    }
 
     settings.hardware.splice(index, 1);
     settings.markModified('hardware');
     await settings.save();
+    await syncHardwareDetectors(settings.toObject());
     res.json({ message: 'Hardware deleted', settings });
   } catch (error) {
     res.status(500).json(error);

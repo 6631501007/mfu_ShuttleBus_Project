@@ -95,6 +95,32 @@
         </div>
       </div>
 
+      <div class="hourly-card">
+        <div class="table-header">
+          <div>
+            <h3 class="chart-title">Hourly Queue Analytics</h3>
+            <p class="chart-sub">Latest AI hourly records from live human detection</p>
+          </div>
+        </div>
+        <div class="hourly-grid" v-if="hourlyAnalytics.length">
+          <div class="hourly-item" v-for="item in hourlyAnalyticsDisplay" :key="`${item.station_id}-${item.timestamp}`">
+            <div class="hourly-item-head">
+              <strong>{{ item.station_id }}</strong>
+              <span>{{ formatHour(item.timestamp) }}</span>
+            </div>
+            <div class="hourly-stats">
+              <span><b>{{ item.current_queue_count }}</b> now</span>
+              <span><b>{{ item.peak_queue_count }}</b> peak</span>
+              <span><b>{{ item.total_persons_processed }}</b> processed</span>
+            </div>
+            <div class="hourly-foot">
+              Avg wait {{ formatSeconds(item.avg_queue_time_seconds) }} · Peak {{ item.peak_time || '-' }}
+            </div>
+          </div>
+        </div>
+        <div class="noti-empty" v-else>No hourly analytics available yet.</div>
+      </div>
+
       <div class="charts-grid">
         <div class="chart-card">
           <div class="chart-header">
@@ -208,6 +234,7 @@ const stations = ref([]);
 const buses = ref([]);
 const weeklyChartData = ref([]);
 const monthlyChartData = ref([]);
+const hourlyAnalytics = ref([]);
 
 // อัปเดตฟังก์ชันเพื่อให้รองรับการคลิกเลือก (Select) แท่งกราฟ
 const normalizeChartData = (items, selectedIdx) => {
@@ -229,10 +256,24 @@ const passengerChartData = computed(() => {
     : normalizeChartData(monthlyChartData.value, selectedChartIndex.value);
 });
 
-// ฟังก์ชันสลับดูกราฟ Weekly / Monthly พร้อมเคลียร์สถานะที่เคยคลิก
-const setPassengerView = (view) => {
-  activePassengerView.value = view;
-  selectedChartIndex.value = null; 
+const hourlyAnalyticsDisplay = computed(() => hourlyAnalytics.value.slice(0, 6));
+
+const formatHour = (value) => {
+  if (!value) return '-';
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: 'UTC',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  }).format(new Date(value));
+};
+
+const formatSeconds = (value) => {
+  const seconds = Number(value);
+  if (!Number.isFinite(seconds) || seconds <= 0) return '0s';
+  if (seconds < 60) return `${Math.round(seconds)}s`;
+  return `${Math.floor(seconds / 60)}m ${Math.round(seconds % 60)}s`;
 };
 
 const mergeNotifications = (apiNotifications, stationItems) => {
@@ -260,6 +301,7 @@ const loadDashboard = async () => {
     buses.value = data.buses || [];
     weeklyChartData.value = data.passengerChart?.weekly || [];
     monthlyChartData.value = data.passengerChart?.monthly || [];
+    hourlyAnalytics.value = data.hourlyAnalytics || [];
   } catch (error) {
     console.error(error);
   }
@@ -567,6 +609,75 @@ const logout = () => {
 .kpi-icon-white { background: rgba(255,255,255,.2); color: #fff; }
 .kpi-value-white { color: #fff; }
 .kpi-trend-white { color: #fff; }
+
+.hourly-card {
+  background: #fff;
+  padding: 22px;
+  border-radius: 18px;
+  border: 1px solid #f0f0f0;
+  margin-bottom: 24px;
+}
+
+.hourly-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.hourly-item {
+  border: 1px solid #eceff3;
+  border-radius: 8px;
+  padding: 14px;
+  background: #fbfcfd;
+  min-width: 0;
+}
+
+.hourly-item-head,
+.hourly-stats {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.hourly-item-head strong {
+  font-size: 13px;
+  color: #1f2937;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hourly-item-head span,
+.hourly-foot {
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.hourly-stats {
+  margin-top: 14px;
+}
+
+.hourly-stats span {
+  color: #6b7280;
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.hourly-stats b {
+  color: #d72660;
+  display: block;
+  font-size: 18px;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+.hourly-foot {
+  border-top: 1px solid #eceff3;
+  margin-top: 12px;
+  padding-top: 10px;
+}
 
 /* Charts */
 .charts-grid {

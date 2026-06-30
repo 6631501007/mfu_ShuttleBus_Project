@@ -110,103 +110,62 @@
             <div class="panel">
               <div class="panel-head">
                 <div class="panel-label">Monitoring Zones</div>
-                <span class="ai-status" :class="{ 'ai-status-live': detection.running }">
+                <span class="ai-status" :class="{ 'ai-status-live': aiRunning }">
                   <span class="ai-status-dot"></span>
-                  {{ detection.running ? 'AI Live' : 'AI Offline' }}
+                  {{ aiRunning ? 'AI Live' : 'AI Offline' }}
                 </span>
               </div>
               <div class="zones-list">
                 <div v-for="(zone, idx) in zones" :key="zone.name" class="zone-row"
-                  :class="{ 'zone-row-active': idx === 0 && detection.running }">
+                  :class="{ 'zone-row-active': zone.pax > 0 }">
                   <div class="zone-left">
                     <span class="zone-dot" :style="`background:${zone.color}`"></span>
                     <span class="zone-name">{{ zone.name }}</span>
                   </div>
-                  <span class="zone-pax">{{ zone.pax }} pax</span>
+                  
                 </div>
               </div>
               <div class="ai-meta">
-                <span>{{ detection.running ? `Runtime ${detectionElapsed}` : 'Waiting for detector updates' }}</span>
-                <span v-if="detection.lastSeenAt">Last signal {{ detectionLastSeen }}</span>
+                <span>{{ aiRunning ? `${activeCameraCount} camera AI active` : 'Waiting for detector updates' }}</span>
+                <span v-if="detectionLastSeen">Last signal {{ detectionLastSeen }}</span>
               </div>
             </div>
 
-            <!-- Alert card -->
-            <div class="alert-card">
-              <div class="alert-label">Real-Time Alert</div>
-              <div class="alert-title">Crowd Density High</div>
-              <p class="alert-desc">Sector 4C is exceeding threshold. Automated dispatch suggested.</p>
-              <button class="alert-btn">View Sector</button>
-            </div>
+
 
           </div>
 
           <!-- CAMERA GRID -->
           <div class="camera-col">
-            <button type="button" class="cam-card ai-stream-card" :class="{ 'ai-stream-card-live': detection.running }"
-              :disabled="!canOpenAiStream" @click="openAiStream">
+            <button
+              v-for="cam in cameras"
+              :key="cam.deviceId"
+              type="button"
+              class="cam-card ai-stream-card hardware-stream-card"
+              :class="{ 'ai-stream-card-live': cam.running }"
+              :disabled="!cam.running"
+              @click="openHardwareStream(cam)"
+            >
               <div class="ai-stream-placeholder">
-                <div class="ai-blur-scene">
-                  <div class="ai-blur-person ai-blur-person-1"></div>
-                  <div class="ai-blur-person ai-blur-person-2"></div>
-                  <div class="ai-blur-person ai-blur-person-3"></div>
-                </div>
+                <div class="ai-blur-scene"></div>
                 <div class="ai-stream-veil"></div>
                 <div class="ai-stream-prompt">
-                  <i :class="detection.running ? 'bx bx-show' : 'bx bx-video-off'"></i>
-                  <span>{{ detection.running ? 'Click to view live feed' : 'AI camera stream offline' }}</span>
+                  <i :class="cam.running ? 'bx bx-show' : 'bx bx-video-off'"></i>
+                  <span>{{ cam.running ? 'Click to view camera' : 'Camera offline' }}</span>
                 </div>
               </div>
 
               <div class="cam-top-bar">
                 <div class="cam-top-left">
-                  <span class="cam-status-badge" :class="detection.running ? 'badge-live' : 'badge-standby'">
-                    <span v-if="detection.running" class="rec-dot"></span>
-                    {{ detection.running ? 'AI ACTIVE' : 'OFFLINE' }}
+                  <span class="cam-status-badge" :class="cam.running ? 'badge-live' : 'badge-standby'">
+                    <span v-if="cam.running" class="rec-dot"></span>
+                    {{ cam.running ? 'AI ACTIVE' : 'OFFLINE' }}
                   </span>
-                  <span class="cam-id-label">AI-001 | HUMAN DETECTOR</span>
+                  <span class="cam-id-label">{{ cam.deviceId }} | {{ cameraDisplayName(cam) }}</span>
                 </div>
                 <span class="cam-time">{{ liveTime }}</span>
               </div>
             </button>
-
-            <div v-for="cam in cameras" :key="cam.id" class="cam-card">
-              <div class="cam-bg" :style="`background:${cam.bg}`"></div>
-              <div class="cam-grid-overlay"></div>
-              <div class="cam-noise"></div>
-
-              <!-- Silhouettes -->
-              <div class="cam-people">
-                <div v-for="(p, i) in cam.people" :key="i" :style="`width:${p.w}px; opacity:0.4`">
-                  <svg :width="p.w" :height="p.w * 2.8" viewBox="0 0 10 28" fill="rgba(255,255,255,0.35)">
-                    <ellipse cx="5" cy="4" rx="3.5" ry="3.5" />
-                    <path d="M1 10 Q5 8 9 10 L8.5 22 H6.5 L5 16 L3.5 22 H1.5 Z" />
-                  </svg>
-                </div>
-              </div>
-
-              <!-- Bounding boxes -->
-              <div v-if="cam.boxes" class="cam-boxes">
-                <div v-for="box in cam.boxes" :key="box.id" class="bbox"
-                  :style="`left:${box.x}%;top:${box.y}%;width:${box.w}%;height:${box.h}%;border-color:${box.color}`">
-                  <span class="bbox-label" :style="`background:${box.color}`">{{ box.id }}</span>
-                </div>
-              </div>
-
-              <!-- Top bar -->
-              <div class="cam-top-bar">
-                <div class="cam-top-left">
-                  <span class="cam-status-badge" :class="cam.status === 'REC' ? 'badge-rec' : 'badge-standby'">
-                    <span v-if="cam.status === 'REC'" class="rec-dot"></span>
-                    {{ cam.status }}
-                  </span>
-                  <span class="cam-id-label">{{ cam.id }} | {{ cam.name }}</span>
-                </div>
-                <span class="cam-time">{{ liveTime }}</span>
-              </div>
-
-              <div class="cam-scan-line"></div>
-            </div>
           </div>
 
         </div>
@@ -217,8 +176,8 @@
       <section class="stream-modal" role="dialog" aria-modal="true" aria-label="AI camera live feed">
         <header class="stream-modal-head">
           <div>
-            <p class="stream-modal-kicker">AI-001 | HUMAN DETECTOR</p>
-            <h3 class="stream-modal-title">Live Camera Feed</h3>
+            <p class="stream-modal-kicker">{{ selectedCamera?.deviceId }} | HUMAN DETECTOR</p>
+            <h3 class="stream-modal-title">{{ cameraDisplayName(selectedCamera) || 'Live Camera Feed' }}</h3>
           </div>
           <button type="button" class="stream-close-btn" aria-label="Close live feed" @click="closeAiStream">
             <i class='bx bx-x'></i>
@@ -226,17 +185,26 @@
         </header>
 
         <div class="stream-modal-body">
-          <div v-if="resolvedStreamUrl" class="stream-video-wrap">
-            <img :src="resolvedStreamUrl" class="stream-modal-img" alt="Live AI stream" />
+          <div v-if="activeStreamUrl" class="stream-video-wrap">
+            <img :src="activeStreamUrl" class="stream-modal-img" alt="Live AI stream" />
             <div class="stream-overlay" aria-hidden="true">
+              <div
+                v-for="zone in overlayZones"
+                :key="zone.name"
+                class="stream-zone-box"
+                :style="zoneStyle(zone)"
+              >
+                <span>{{ zoneDisplayName(zone, selectedCamera) }}</span>
+              </div>
               <div
                 v-for="(person, idx) in overlayDetections"
                 :key="`${person.bbox.x}-${person.bbox.y}-${idx}`"
                 class="stream-detection-box"
+                :class="{ 'stream-detection-box-counted': person.counted }"
                 :style="boxStyle(person.bbox)"
               >
                 <span class="stream-detection-label">
-                  Person {{ formatConfidence(person.confidence) }}
+                  Person {{ formatConfidence(person.confidence) }} {{ person.dwellSeconds ? `${Math.floor(person.dwellSeconds)}s` : '' }}
                 </span>
               </div>
             </div>
@@ -249,8 +217,8 @@
 
         <footer class="stream-modal-foot">
           <span class="cam-status-badge badge-live"><span class="rec-dot"></span> LIVE</span>
-          <span>{{ detection.count }} pax detected</span>
-          <span>Runtime {{ detectionElapsed }}</span>
+          <span>{{ selectedDetection.count }} pax counted</span>
+          <span>Runtime {{ selectedDetectionElapsed }}</span>
         </footer>
       </section>
     </div>
@@ -258,7 +226,7 @@
 </template>
 
 <script setup>
-import { computed, reactive, ref, onMounted, onUnmounted } from 'vue'
+import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import TopbarNotification from '../components/TopbarNotification.vue'
 import { apiFetch, apiUrl } from '../lib/api'
@@ -269,16 +237,8 @@ const liveTime = ref('')
 const isDropdownOpen = ref(false)
 const language = ref('English')
 const isAiStreamOpen = ref(false)
-const detection = reactive({
-  running: false,
-  count: 0,
-  elapsed: 0,
-  lastSeenAt: null,
-  streamUrl: '',
-  frameWidth: 0,
-  frameHeight: 0,
-  detections: []
-})
+const cameras = ref([])
+const selectedCamera = ref(null)
 
 const toggleLanguage = () => {
   language.value = language.value === 'English' ? 'Thai' : 'English'
@@ -300,20 +260,41 @@ const viewButtons = [
 ]
 
 const staticZones = [
-  { name: 'Main Entry', pax: 142, color: '#4caf50' },
-  { name: 'Security L1', pax: 89, color: '#ff9800' },
-  { name: 'Duty Free B', pax: 312, color: '#d72660' },
-  { name: 'Gate 14-16', pax: 42, color: '#00897b' }
+
 ]
 
+const displayNameFrom = (value, fallback = '') => {
+  if (Array.isArray(value)) return displayNameFrom(value[0], fallback)
+  if (value && typeof value === 'object') return displayNameFrom(value.name, fallback)
+
+  const text = String(value || '').trim()
+  if (!text) return fallback
+
+  if (text.startsWith('{') || text.startsWith('[')) {
+    try {
+      return displayNameFrom(JSON.parse(text), fallback)
+    } catch {
+      return fallback || text
+    }
+  }
+
+  return text
+}
+
+const cameraDisplayName = (camera) => displayNameFrom(camera?.name, camera?.deviceId || '')
+const zoneDisplayName = (zone, camera) => displayNameFrom(zone?.name, cameraDisplayName(camera) || 'Counting Zone')
+
 const zones = computed(() => [
-  {
-    name: 'Detect Human AI',
-    pax: detection.running ? detection.count : 0,
-    color: detection.running ? '#16a34a' : '#9ca3af'
-  },
+  ...cameras.value.map(camera => ({
+    name: cameraDisplayName(camera),
+    pax: camera.detection?.running ? Number(camera.detection.count) || 0 : 0,
+    color: camera.detection?.running ? '#16a34a' : '#9ca3af'
+  })),
   ...staticZones
 ])
+
+const aiRunning = computed(() => cameras.value.some(camera => camera.detection?.running))
+const activeCameraCount = computed(() => cameras.value.filter(camera => camera.detection?.running).length)
 
 const formatDuration = (seconds) => {
   const safeSeconds = Number.isFinite(seconds) ? Math.max(0, seconds) : 0
@@ -323,33 +304,58 @@ const formatDuration = (seconds) => {
   return [h, m, s].map(value => String(value).padStart(2, '0')).join(':')
 }
 
-const detectionElapsed = computed(() => formatDuration(detection.elapsed))
+const selectedDetection = computed(() => selectedCamera.value?.detection || {
+  running: false,
+  count: 0,
+  elapsed: 0,
+  lastSeenAt: null,
+  streamUrl: '',
+  frameWidth: 0,
+  frameHeight: 0,
+  detections: [],
+  zones: []
+})
 
 const detectionLastSeen = computed(() => {
-  if (!detection.lastSeenAt) return ''
-  return new Date(detection.lastSeenAt).toLocaleTimeString('en-GB', {
+  const latestSeen = cameras.value
+    .map(camera => camera.detection?.lastSeenAt)
+    .filter(Boolean)
+    .sort((a, b) => new Date(b) - new Date(a))[0]
+  if (!latestSeen) return ''
+  return new Date(latestSeen).toLocaleTimeString('en-GB', {
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit'
   })
 })
 
-const resolvedStreamUrl = computed(() => {
-  if (!detection.streamUrl) return ''
-  if (/^https?:\/\//i.test(detection.streamUrl)) return detection.streamUrl
-  return apiUrl(detection.streamUrl)
+const selectedDetectionElapsed = computed(() => formatDuration(Number(selectedDetection.value.elapsed) || 0))
+
+const activeStreamUrl = computed(() => {
+  if (selectedCamera.value?.streamUrl) {
+    return /^https?:\/\//i.test(selectedCamera.value.streamUrl)
+      ? selectedCamera.value.streamUrl
+      : apiUrl(selectedCamera.value.streamUrl)
+  }
+  return ''
 })
 
-const canOpenAiStream = computed(() => detection.running && Boolean(resolvedStreamUrl.value))
-
 const overlayDetections = computed(() => {
-  if (!detection.running || !detection.frameWidth || !detection.frameHeight) return []
-  return detection.detections.filter(item => item?.bbox)
+  const current = selectedDetection.value
+  if (!current.running || !current.frameWidth || !current.frameHeight) return []
+  return Array.isArray(current.detections) ? current.detections.filter(item => item?.bbox) : []
+})
+
+const overlayZones = computed(() => {
+  const current = selectedDetection.value
+  if (!current.running) return []
+  return Array.isArray(current.zones) ? current.zones.filter(zone => zone?.enabled !== false) : []
 })
 
 const boxStyle = (bbox) => {
-  const frameWidth = Math.max(Number(detection.frameWidth) || 1, 1)
-  const frameHeight = Math.max(Number(detection.frameHeight) || 1, 1)
+  const current = selectedDetection.value
+  const frameWidth = Math.max(Number(current.frameWidth) || 1, 1)
+  const frameHeight = Math.max(Number(current.frameHeight) || 1, 1)
   const x = Math.max(0, Number(bbox.x) || 0)
   const y = Math.max(0, Number(bbox.y) || 0)
   const width = Math.max(0, Number(bbox.width) || 0)
@@ -363,89 +369,71 @@ const boxStyle = (bbox) => {
   }
 }
 
+const zoneStyle = (zone) => ({
+  left: `${Math.max(0, Number(zone.x) || 0)}%`,
+  top: `${Math.max(0, Number(zone.y) || 0)}%`,
+  width: `${Math.max(1, Number(zone.width) || 1)}%`,
+  height: `${Math.max(1, Number(zone.height) || 1)}%`,
+  borderColor: zone.color || '#16a34a',
+  color: zone.color || '#16a34a'
+})
+
 const formatConfidence = (confidence) => {
   const value = Number(confidence)
   if (!Number.isFinite(value) || value <= 0) return ''
   return `${Math.round(value * 100)}%`
 }
 
-const openAiStream = () => {
-  if (canOpenAiStream.value) isAiStreamOpen.value = true
+const openHardwareStream = (camera) => {
+  if (!camera?.running || !camera.streamUrl) return
+  selectedCamera.value = camera
+  isAiStreamOpen.value = true
 }
 
 const closeAiStream = () => {
   isAiStreamOpen.value = false
+  selectedCamera.value = null
 }
 
-const cameras = [
-  {
-    id: 'CAM-001', name: 'SOUTH ENTRY', status: 'REC',
-    bg: 'linear-gradient(135deg,#1a2030 0%,#0d1520 100%)',
-    people: [{ w: 8 }, { w: 10 }, { w: 7 }, { w: 9 }],
-    boxes: [
-      { id: 'ID:4022', x: 55, y: 18, w: 16, h: 42, color: '#d72660' },
-      { id: 'ID:4023', x: 74, y: 30, w: 14, h: 38, color: '#d72660' }
-    ]
-  },
-  {
-    id: 'CAM-014', name: 'SECURITY L1', status: 'REC',
-    bg: 'linear-gradient(135deg,#1a2520 0%,#0d1a18 100%)',
-    people: [{ w: 9 }, { w: 8 }, { w: 11 }, { w: 7 }, { w: 9 }],
-    boxes: null
-  },
-  {
-    id: 'CAM-022', name: 'DUTY FREE B', status: 'STANDBY',
-    bg: 'linear-gradient(135deg,#1e1e28 0%,#141420 100%)',
-    people: [{ w: 7 }, { w: 8 }, { w: 10 }, { w: 7 }, { w: 9 }, { w: 8 }],
-    boxes: null
-  },
-  {
-    id: 'CAM-008', name: 'GATE 14-16', status: 'REC',
-    bg: 'linear-gradient(135deg,#1a1e20 0%,#10141a 100%)',
-    people: [{ w: 9 }, { w: 7 }],
-    boxes: null
-  }
-]
-
 let timer = null
-let detectionTimer = null
+let cameraTimer = null
+let isLoadingCameras = false
 function updateTime() {
   const now = new Date()
   liveTime.value = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
 }
 
-const loadDetectionStatus = async () => {
+const loadCameras = async () => {
+  if (isLoadingCameras) return
+  isLoadingCameras = true
   try {
-    const res = await apiFetch('/api/livefeed/detection')
+    const res = await apiFetch('/api/livefeed/cameras')
     if (!res.ok) return
 
     const data = await res.json()
-    detection.running = Boolean(data.running)
-    detection.count = Number(data.count) || 0
-    detection.elapsed = Number(data.elapsed) || 0
-    detection.lastSeenAt = data.lastSeenAt || null
-    detection.streamUrl = data.streamUrl || ''
-    detection.frameWidth = Number(data.frameWidth) || 0
-    detection.frameHeight = Number(data.frameHeight) || 0
-    detection.detections = Array.isArray(data.detections) ? data.detections : []
-    if (!detection.running) closeAiStream()
+    cameras.value = Array.isArray(data.cameras) ? data.cameras : []
+    if (selectedCamera.value) {
+      const freshCamera = cameras.value.find(camera => camera.deviceId === selectedCamera.value.deviceId)
+      if (!freshCamera?.running) closeAiStream()
+      else selectedCamera.value = freshCamera
+    }
   } catch (error) {
-    detection.running = false
-    detection.detections = []
-    closeAiStream()
+    cameras.value = []
+  } finally {
+    isLoadingCameras = false
   }
 }
 
 onMounted(() => {
   updateTime()
-  loadDetectionStatus()
+  loadCameras()
   timer = setInterval(updateTime, 1000)
-  detectionTimer = setInterval(loadDetectionStatus, 250)
+  cameraTimer = setInterval(loadCameras, 2000)
   document.addEventListener('click', closeDropdown)
 })
 onUnmounted(() => {
   clearInterval(timer)
-  clearInterval(detectionTimer)
+  clearInterval(cameraTimer)
   document.removeEventListener('click', closeDropdown)
 })
 
@@ -1375,6 +1363,13 @@ const logout = () => {
     0 0 18px rgba(34, 197, 94, .32);
 }
 
+.stream-detection-box-counted {
+  border-color: #f59e0b;
+  box-shadow:
+    0 0 0 1px rgba(2, 6, 23, .75),
+    0 0 18px rgba(245, 158, 11, .38);
+}
+
 .stream-detection-label {
   position: absolute;
   left: -2px;
@@ -1387,6 +1382,27 @@ const logout = () => {
   font-size: 11px;
   font-weight: 800;
   line-height: 1.2;
+  white-space: nowrap;
+}
+
+.stream-zone-box {
+  position: absolute;
+  border: 2px dashed currentColor;
+  background: color-mix(in srgb, currentColor 12%, transparent);
+  border-radius: 4px;
+  pointer-events: none;
+}
+
+.stream-zone-box span {
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: rgba(15, 23, 42, .82);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
   white-space: nowrap;
 }
 
