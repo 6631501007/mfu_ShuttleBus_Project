@@ -78,7 +78,6 @@
         </div>
 
         <div class="settings-grid top-grid">
-          <!-- ===== STATION THRESHOLDS ===== -->
           <div class="setting-card">
             <div class="card-header">
               <div class="header-title-card">
@@ -102,7 +101,7 @@
                       :style="{ width: getPercentage(station.waitingPassengers, station.capacity) + '%' }"></div>
                   </div>
                   <div class="progress-labels">
-                    <span class="current">CURRENT: {{ station.waitingPassengers ?? 0 }} People</span>>
+                    <span class="current">CURRENT: {{ station.waitingPassengers ?? 0 }} People</span>
                     <span class="limit-label">CAPACITY: {{ station.capacity ?? '—' }}</span>
                   </div>
                 </div>
@@ -118,7 +117,6 @@
             </div>
           </div>
 
-          <!-- ===== NOTIFICATION CHANNELS ===== -->
           <div class="setting-card">
             <div class="card-header">
               <div class="header-title-card">
@@ -155,7 +153,6 @@
         </div>
 
         <div class="settings-grid bottom-grid">
-          <!-- ===== CONNECTED HARDWARE ===== -->
           <div class="setting-card">
             <div class="card-header">
               <div class="header-title-card">
@@ -180,6 +177,7 @@
               </div>
             </div>
           </div>
+          
           <div class="setting-card">
             <div class="card-header">
               <div class="header-title-card">
@@ -192,7 +190,7 @@
                 <i class='bx bx-camera-off'></i>
                 <span>Add a camera hardware device to configure its counting grid</span>
               </div>
-              <div class="livefeed-toolbar">
+              <div class="livefeed-toolbar" v-if="cameraHardware.length > 0">
                 <div class="form-group compact">
                   <label>Camera Hardware</label>
                   <select v-model="selectedLivefeedHardwareId">
@@ -255,7 +253,6 @@
         </div>
       </div>
 
-      <!-- หุ้มด้วย Transition เพื่อให้เลื่อนขึ้นมาสวยงาม -->
       <transition name="slide-up">
         <div class="action-bar" v-if="hasUnsavedChanges">
           <div class="action-right">
@@ -266,7 +263,6 @@
       </transition>
     </main>
 
-    <!-- ===== STATION MODAL (Add / Edit) ===== -->
     <div class="modal-overlay" v-if="isModalOpen" @click.self="closeModal">
       <div class="modal-content">
         <div class="modal-header">
@@ -307,7 +303,6 @@
       </div>
     </div>
 
-    <!-- ===== HARDWARE MODAL ===== -->
     <div class="modal-overlay" v-if="isHardwareModalOpen" @click.self="closeHardwareModal">
       <div class="modal-content">
         <div class="modal-header">
@@ -356,7 +351,6 @@
       </div>
     </div>
 
-    <!-- ===== NOTIFICATION CHANNEL MODAL (Email Only) ===== -->
     <div class="modal-overlay" v-if="isNotificationModalOpen" @click.self="closeNotificationModal">
       <div class="modal-content">
         <div class="modal-header">
@@ -384,7 +378,7 @@
 </template>
 
 <script setup>
-import { computed, ref, onMounted, onUnmounted, nextTick } from 'vue';
+import { computed, ref, onMounted, onUnmounted, nextTick, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -396,8 +390,8 @@ const router = useRouter();
 // ── UI state ──────────────────────────────────────────────
 const isDropdownOpen = ref(false);
 const language = ref('English');
-const hasUnsavedChanges = ref(false); // เช็คว่ามีการแก้ไขข้อมูลหรือยัง
-let isFetching = false; // เอาไว้เช็คตอนกำลังดึงข้อมูลจาก API ครั้งแรก
+const hasUnsavedChanges = ref(false); 
+let isFetching = false; 
 
 // ── Settings (notification + hardware) ───────────────────
 const delayThreshold = ref(15);
@@ -440,7 +434,7 @@ const newChannelValue = ref('');
 const isHardwareModalOpen = ref(false);
 const hardwareModalMode = ref('add');
 const hardwareEditIndex = ref(-1);
-const hardwareFormData = ref({ _id: '', deviceId: '', name: '', type: 'camera', ip: '', rtspUrl: '', fw: '', status: 'offline' });
+const hardwareFormData = ref({ _id: '', deviceId: '', name: '', type: 'camera', ip: '', rtspUrl: '', fw: '', status: 'offline', livefeed: undefined });
 
 // ─────────────────────────────────────────────────────────
 // Helpers
@@ -530,7 +524,7 @@ const saveSelectedLivefeedConfig = async () => {
   } catch (error) {
     console.error(error);
     alert(error instanceof SyntaxError
-      ? 'Unable to save livefeed grid. Please use the updated app at http://localhost:5173/ with backend http://localhost:3000/.'
+      ? 'Unable to save livefeed grid. API Error.'
       : error.message || 'Unable to save livefeed grid');
   }
 };
@@ -634,8 +628,9 @@ const stopZoneEditorPointer = () => {
   window.removeEventListener('pointermove', moveZoneEditorPointer);
 };
 
+
 // ─────────────────────────────────────────────────────────
-// Station API
+// API & Data Loading (Merged and Fixed)
 // ─────────────────────────────────────────────────────────
 const loadStations = async () => {
   try {
@@ -647,34 +642,30 @@ const loadStations = async () => {
   }
 };
 
-watch(stations, markAsUnsaved, { deep: true });
-watch(notificationChannels, markAsUnsaved, { deep: true });
-watch(delayThreshold, markAsUnsaved);
-watch(hardware, markAsUnsaved, { deep: true });
-
-
-// ─────────────────────────────────────────────────────────
-// API & Data Loading
-// ─────────────────────────────────────────────────────────
-const loadStations = async () => {
-  const res = await apiFetch('/api/stations');
-  if (!res.ok) throw new Error('Cannot load stations');
-  stations.value = await res.json();
-};
-
 const loadSettings = async () => {
-  const res = await apiFetch('/api/settings');
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.message || 'Cannot load settings');
-  notificationChannels.value = {
-    emailEnabled: data.notificationChannels?.emailEnabled || false,
-    emails: data.notificationChannels?.emails || []
-  };
-  delayThreshold.value = data.delayThreshold ?? 15;
-  hardware.value = data.hardware || [];
+  try {
+    const res = await apiFetch('/api/settings');
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Cannot load settings');
+    notificationChannels.value = data.notificationChannels || {
+      emailEnabled: false, smsEnabled: false, emails: [], mobiles: []
+    };
+    delayThreshold.value = data.delayThreshold ?? 15;
+    hardware.value = data.hardware || [];
+    livefeed.value = {
+      dwellSeconds: data.livefeed?.dwellSeconds ?? 30,
+      referenceImage: data.livefeed?.referenceImage || '',
+      zones: (Array.isArray(data.livefeed?.zones) && data.livefeed.zones.length
+        ? data.livefeed.zones
+        : [{ name: 'Counting Zone', x: 20, y: 20, width: 60, height: 60, color: livefeedGridColor, enabled: true }]
+      ).map(normalizeZone)
+    };
+    ensureHardwareLivefeedConfigs(livefeed.value);
+  } catch (error) {
+    console.error(error);
+  }
 };
 
-// ฟังก์ชันดึงข้อมูลทั้งหมด และรีเซ็ตสถานะ Action Bar
 const reloadAllData = async () => {
   isFetching = true;
   try {
@@ -694,23 +685,35 @@ const saveSettings = async () => {
     const settingsPayload = {
       notificationChannels: notificationChannels.value,
       delayThreshold: delayThreshold.value,
-      hardware: hardware.value
+      hardware: hardware.value.map(item => ({
+        ...item,
+        livefeed: item.type === 'camera'
+          ? normalizeLivefeedConfig(item.livefeed || livefeed.value, item.name)
+          : item.livefeed
+      })),
+      livefeed: {
+        dwellSeconds: Math.max(1, Number(livefeed.value.dwellSeconds) || 30),
+        referenceImage: livefeed.value.referenceImage || '',
+        zones: livefeed.value.zones.slice(0, 1).map((zone, index) => normalizeZone(zone, index))
+      }
     };
 
     const settingsRes = await apiFetch('/api/settings', {
       method: 'PUT',
       body: JSON.stringify(settingsPayload)
     });
-    if (!settingsRes.ok) throw new Error('Cannot save settings');
+    const settingsData = await settingsRes.json();
+    if (!settingsRes.ok) throw new Error(settingsData.message || 'Cannot save settings');
 
     const stationsRes = await apiFetch('/api/stations-bulk', {
       method: 'PUT',
       body: JSON.stringify({ stations: stations.value })
     });
-    if (!stationsRes.ok) throw new Error('Cannot save stations');
+    const stationsData = await stationsRes.json();
+    if (!stationsRes.ok) throw new Error(stationsData.message || 'Cannot save stations');
 
     alert('Settings saved successfully');
-    await reloadAllData(); // โหลดข้อมูลใหม่และซ่อน Action Bar
+    await reloadAllData();
   } catch (error) {
     console.error(error);
     alert('Unable to save settings');
@@ -718,8 +721,19 @@ const saveSettings = async () => {
 };
 
 const discardChanges = async () => {
-  await reloadAllData(); // ดึงข้อมูลเดิมกลับมา และซ่อน Action Bar
+  await reloadAllData(); 
 };
+
+// State Change Tracking
+const markAsUnsaved = () => {
+  if (!isFetching) {
+    hasUnsavedChanges.value = true;
+  }
+};
+watch(stations, markAsUnsaved, { deep: true });
+watch(notificationChannels, markAsUnsaved, { deep: true });
+watch(delayThreshold, markAsUnsaved);
+watch(hardware, markAsUnsaved, { deep: true });
 
 
 // ─────────────────────────────────────────────────────────
@@ -793,91 +807,6 @@ const deleteStation = (id) => {
   stations.value = stations.value.filter((station) => station._id !== id);
 };
 
-// ─────────────────────────────────────────────────────────
-// Settings API (notification + hardware)
-// ─────────────────────────────────────────────────────────
-const loadSettings = async () => {
-  try {
-    const res = await apiFetch('/api/settings');
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.message || 'Cannot load settings');
-    notificationChannels.value = data.notificationChannels || {
-      emailEnabled: false, smsEnabled: false, emails: [], mobiles: []
-    };
-    delayThreshold.value = data.delayThreshold ?? 15;
-    hardware.value = data.hardware || [];
-    livefeed.value = {
-      dwellSeconds: data.livefeed?.dwellSeconds ?? 30,
-      referenceImage: data.livefeed?.referenceImage || '',
-      zones: (Array.isArray(data.livefeed?.zones) && data.livefeed.zones.length
-        ? data.livefeed.zones
-        : [{ name: 'Counting Zone', x: 20, y: 20, width: 60, height: 60, color: livefeedGridColor, enabled: true }]
-      ).map(normalizeZone)
-    };
-    ensureHardwareLivefeedConfigs(livefeed.value);
-  } catch (error) {
-    console.error(error);
-  }
-};
-
-const saveSettings = async () => {
-  try {
-    const settingsPayload = {
-      notificationChannels: notificationChannels.value,
-      delayThreshold: delayThreshold.value,
-      hardware: hardware.value.map(item => ({
-        ...item,
-        livefeed: item.type === 'camera'
-          ? normalizeLivefeedConfig(item.livefeed || livefeed.value, item.name)
-          : item.livefeed
-      })),
-      livefeed: {
-        dwellSeconds: Math.max(1, Number(livefeed.value.dwellSeconds) || 30),
-        referenceImage: livefeed.value.referenceImage || '',
-        zones: livefeed.value.zones.slice(0, 1).map((zone, index) => normalizeZone(zone, index))
-      }
-    };
-
-    const settingsRes = await apiFetch('/api/settings', {
-      method: 'PUT',
-      body: JSON.stringify(settingsPayload)
-    });
-    const settingsData = await settingsRes.json();
-    if (!settingsRes.ok) throw new Error(settingsData.message || 'Cannot save settings');
-
-    const stationsRes = await apiFetch('/api/stations-bulk', {
-      method: 'PUT',
-      body: JSON.stringify({ stations: stations.value })
-    });
-    const stationsData = await stationsRes.json();
-    if (!stationsRes.ok) throw new Error(stationsData.message || 'Cannot save stations');
-
-    alert('Settings saved successfully');
-    await loadSettings();
-    await loadStations();
-  } catch (error) {
-    console.error(error);
-    alert('Unable to save settings');
-  }
-};
-
-const addLivefeedZone = () => {
-  if (!selectedLivefeedHardware.value) return;
-  selectedLivefeed.value.zones = [normalizeZone({
-    name: selectedLivefeedHardware.value.name,
-    x: 20,
-    y: 20,
-    width: 60,
-    height: 60,
-    color: livefeedGridColor,
-    enabled: true
-  }, 0, selectedLivefeedHardware.value.name)];
-};
-
-const deleteLivefeedZone = (index) => {
-  if (!selectedLivefeedHardware.value || index !== 0) return;
-  selectedLivefeed.value.zones = [normalizeZone({}, 0, selectedLivefeedHardware.value.name)];
-};
 
 // ─────────────────────────────────────────────────────────
 // Notification Channel Functions
@@ -935,7 +864,7 @@ const toHardwareFormData = (hw = {}) => ({
 const openAddHardwareModal = () => {
   hardwareModalMode.value = 'add';
   hardwareEditIndex.value = -1;
-  hardwareFormData.value = { _id: '', deviceId: '', name: '', type: 'camera', ip: '', rtspUrl: '', fw: '', status: 'offline' };
+  hardwareFormData.value = { _id: '', deviceId: '', name: '', type: 'camera', ip: '', rtspUrl: '', fw: '', status: 'offline', livefeed: undefined };
   isHardwareModalOpen.value = true;
 };
 
@@ -1008,7 +937,6 @@ const deleteHardware = async (hw, index) => {
 
     hardware.value = Array.isArray(data.settings?.hardware) ? data.settings.hardware : [];
     ensureHardwareLivefeedConfigs(livefeed.value);
-    await loadSettings();
   } catch (error) {
     console.error(error);
     alert(error.message || 'Unable to delete hardware');
@@ -1070,7 +998,7 @@ const initModalMap = () => {
 
 onMounted(() => {
   document.addEventListener('click', closeDropdown);
-  reloadAllData(); // โหลดข้อมูลครั้งแรก
+  reloadAllData(); 
 });
 
 onUnmounted(() => {
@@ -1760,7 +1688,7 @@ input:checked+.slider:before {
   justify-content: flex-end;
   border-top: 1px solid #e5e7eb;
   z-index: 10;
-  box-shadow: 0 -4px 10px rgba(0,0,0,0.05); /* เพิ่มเงาด้านบนนิดๆ ให้ดูแยกลอยจากพื้นหลัง */
+  box-shadow: 0 -4px 10px rgba(0,0,0,0.05);
 }
 
 .action-right {
