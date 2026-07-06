@@ -1201,7 +1201,35 @@ app.post('/api/buses', adminMiddleware, async (req, res) => {
     res.status(500).json(error);
   }
 });
+/////////////////// API สำหรับ User ธรรมดา (Home) ///////////////////
 
+// 1. เพิ่ม API ดึงแผนที่สำหรับ User ธรรมดา (ไม่มี adminMiddleware)
+app.get('/api/user-map', async (req, res) => {
+  try {
+    const stations = await Station.find({}, { stationId: 1, name: 1, location: 1, waitingPassengers: 1, incomingBuses: 1, status: 1 }).lean();
+    res.json({ stations });
+  } catch (error) {
+    res.status(500).json(error);
+  }
+});
+
+// 2. เพิ่ม API ดึงข้อมูล User Profile ปัจจุบัน
+app.get('/api/user/me', async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).select('-password').lean();
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    
+    res.json({
+      id: user._id,
+      name: user.username,
+      email: user.email || '', 
+      role: user.role,
+      avatar: user.avatar || 'https://i.pravatar.cc/150?img=11' 
+    });
+  } catch (error) {
+    res.status(500).json(error);
+  }
+});
 
 /////////////////// Start server ///////////////////
 server.listen(PORT, () => console.log(`Server is running on port ${PORT}`));

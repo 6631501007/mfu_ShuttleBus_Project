@@ -1,6 +1,6 @@
 <template>
   <div class="app-container">
-    <aside class="sidebar">
+    <aside class="sidebar hide-on-print">
       <div class="sidebar-top">
         <div class="logo">
           <h1 class="logo-title">Bus<span class="logo-span">Stop</span></h1>
@@ -45,7 +45,7 @@
     </aside>
 
     <main class="main-content">
-      <header class="top-header">
+      <header class="top-header hide-on-print">
         <div class="header-left">
           <h2 class="header-title">Analytics</h2>
           <div class="search-bar">
@@ -82,12 +82,12 @@
             <p>Analyze trends and spatial occupancy patterns from AI cameras</p>
           </div>
           <button class="export-btn hide-on-print" @click="exportToPDF">
-            <i class='bx bx-download'></i>
-            Export Report
+            <i class='bx bx-printer'></i>
+            Print / Export Report
           </button>
         </section>
 
-        <section class="filters">
+        <section class="filters hide-on-print">
           <div class="filter-group">
             <label>DATE RANGE</label>
             <div class="date-filter-wrapper">
@@ -135,7 +135,7 @@
         </section>
 
         <section class="graph-section">
-          <div class="graph-card large avoid-page-break">
+          <div class="graph-card large">
             <div class="card-header">
               <div>
                 <h3>Passenger Flow Trends</h3>
@@ -146,11 +146,11 @@
               </div>
             </div>
             <div class="graph-area">
-              <apexchart type="area" height="260" :options="flowChartOptions" :series="flowSeries" />
+              <apexchart type="area" height="100%" :options="flowChartOptions" :series="flowSeries" />
             </div>
           </div>
 
-          <div class="graph-card peak-card avoid-page-break">
+          <div class="graph-card peak-card">
             <div class="card-header">
               <div>
                 <h3>Wait Time Analysis</h3>
@@ -158,9 +158,9 @@
               </div>
             </div>
             <div class="peak-chart">
-              <apexchart type="bar" height="200" :options="peakChartOptions" :series="peakSeries" />
+              <apexchart type="bar" height="100%" :options="peakChartOptions" :series="peakSeries" />
             </div>
-            <div class="recommend-box">
+            <div class="recommend-box hide-on-print">
               <div class="circle"></div>
               Shuttle frequency increase recommended during peak hours
             </div>
@@ -168,7 +168,7 @@
         </section>
 
         <section class="bottom-section">
-          <div class="graph-card map-card avoid-page-break">
+          <div class="graph-card map-card">
             <div class="card-header">
               <div>
                 <h3>Congestion Heat Map</h3>
@@ -178,7 +178,7 @@
             <div id="analytics-map" class="map"></div>
           </div>
 
-          <div class="graph-card rank-card avoid-page-break">
+          <div class="graph-card rank-card">
             <div class="density">
               Top Congested Stations
               <div class="density-bar"></div>
@@ -202,19 +202,20 @@
             </button>
           </div>
         </section>
-      </div> </main>
+      </div> 
+    </main>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, computed } from 'vue';
+import { ref, onMounted, onUnmounted, computed, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
+// ตรวจสอบพาร์ทคอมโพเนนต์ให้ตรงกับโปรเจกต์ของคุณ
 import TopbarNotification from '../components/TopbarNotification.vue';
 import { apiFetch } from '../lib/api';
 import apexchart from 'vue3-apexcharts';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import html2pdf from 'html2pdf.js';
 
 const router = useRouter();
 const isDropdownOpen = ref(false);
@@ -243,31 +244,20 @@ const endDate = ref('');
 let mapInstance = null;
 let markersGroup = null;
 
-// ── PDF Export Function (ปรับปรุงใหม่เพื่อความสวยงาม) ──
+// ── Print / PDF Export Function ──
 const exportToPDF = () => {
-  const element = document.getElementById('pdf-content');
+  // บังคับให้แผนที่คำนวณขนาดใหม่เพื่อป้องกันจอดำ/ขาวตอนพิมพ์
+  if (mapInstance) {
+    mapInstance.invalidateSize();
+  }
   
-  // ใส่ Class เพื่อบังคับ Layout ให้สวยงามตอนถ่ายรูป
-  element.classList.add('pdf-export-mode');
+  // จำลองอีเวนต์ย่อขยายหน้าจอ เพื่อให้ ApexCharts วาดกราฟใหม่ให้พอดี
+  window.dispatchEvent(new Event('resize'));
 
-  const opt = {
-    margin:       0.3,
-    filename:     `BusStop_Report_${selectedDateRange.value}.pdf`,
-    image:        { type: 'jpeg', quality: 1 },
-    html2canvas:  { 
-      scale: 2, 
-      useCORS: true, 
-      letterRendering: true,
-      windowWidth: 1200 // ล็อกความกว้างไว้ที่ 1200px เพื่อไม่ให้กราฟเบี้ยว
-    },
-    jsPDF:        { unit: 'in', format: 'a4', orientation: 'landscape' },
-    pagebreak:    { mode: ['avoid-all', 'css', 'legacy'] } // ป้องกันการหั่นครึ่งกราฟ
-  };
-
-  html2pdf().set(opt).from(element).save().then(() => {
-    // ลบ Class ออกเมื่อโหลดเสร็จ
-    element.classList.remove('pdf-export-mode');
-  });
+  // หน่วงเวลา 800ms ให้ตัวแปรทั้งหมดเรนเดอร์ลง DOM เสร็จสมบูรณ์
+  setTimeout(() => {
+    window.print();
+  }, 800);
 };
 
 // ── Data Processing ──
@@ -426,7 +416,9 @@ const loadData = async () => {
     peakChartOptions.value = { ...peakChartOptions.value, xaxis: { ...peakChartOptions.value.xaxis, categories: chartCategories } };
     peakSeries.value = [{ name: 'Avg Wait (s)', data: waitTimeData }];
 
-    renderMap();
+    nextTick(() => {
+      renderMap();
+    });
   } catch (error) {
     console.error('Data Load Error:', error);
   }
@@ -545,7 +537,7 @@ const logout = () => {
 .dropdown-item:hover { background: #f3f4f6; color: #d72660; }
 .logout-item { color: #d72660; }
 
-.page-title { margin-top: 34px; display: flex; justify-content: space-between; align-items: center; padding: 15px 0; }
+.page-title { margin-top: 20px; display: flex; justify-content: space-between; align-items: center; padding: 15px 0; }
 .page-title h1 { color: #d72660; font-size: 36px; }
 .page-title p { margin-top: 8px; color: #888; }
 .export-btn {
@@ -592,17 +584,17 @@ const logout = () => {
 
 /* GRAPH SECTION */
 .graph-section { margin-top: 22px; display: grid; grid-template-columns: 2fr 1fr; gap: 18px; }
-.graph-card { background: white; border-radius: 22px; padding: 22px; border: 1px solid #f0f0f0; }
-.card-header { display: flex; justify-content: space-between; }
+.graph-card { background: white; border-radius: 22px; padding: 22px; border: 1px solid #f0f0f0; display: flex; flex-direction: column; }
+.card-header { display: flex; justify-content: space-between; flex-shrink: 0; }
 .card-header h3 { font-size: 16px; color: #333; }
 .card-header p { margin-top: 4px; font-size: 12px; color: #999; }
 .legend { display: flex; gap: 14px; }
 .legend span { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #888; }
 .dot { width: 10px; height: 10px; border-radius: 50%; }
 .pink { background: #d72660; }
-.graph-area { margin-top: 20px; height: 260px; }
+.graph-area { margin-top: 20px; height: 260px; flex-grow: 1; }
+.peak-chart { margin-top: 20px; height: 200px; flex-grow: 1; }
 
-.peak-chart { margin-top: 20px; }
 .recommend-box {
   margin-top: 20px; background: #fff1f5; border-radius: 14px; padding: 14px;
   color: #d72660; font-size: 13px; display: flex; gap: 10px; align-items: center;
@@ -615,7 +607,7 @@ const logout = () => {
 /* MAP */
 .map {
   margin-top: 20px; height: 320px; border-radius: 18px; position: relative;
-  overflow: hidden; border: 1px solid #f0f0f0; z-index: 1;
+  overflow: hidden; border: 1px solid #f0f0f0; z-index: 1; width: 100%;
 }
 
 .rank-card { display: flex; flex-direction: column; }
@@ -636,24 +628,6 @@ const logout = () => {
 .audit-btn { margin-top: auto; border: none; background: #fff1f5; color: #d72660; border-radius: 14px; padding: 14px; font-weight: 600; cursor: pointer; transition: 0.2s;}
 .audit-btn:hover { background: #ffdce6; }
 
-/* คลาสป้องกันการโดนตัดหน้ากระดาษ */
-.avoid-page-break {
-  page-break-inside: avoid;
-  break-inside: avoid;
-}
-
-/* CSS สำหรับการพิมพ์และการจัด Layout PDF */
-.pdf-export-mode {
-  background: #f7f7fa !important;
-  padding: 20px !important;
-  width: 1200px !important; /* บังคับความกว้างให้เหมือนหน้าจอคอม */
-  max-width: none !important;
-}
-
-.pdf-export-mode .hide-on-print {
-  display: none !important;
-}
-
 @media (max-width: 1200px) {
   .stats { grid-template-columns: repeat(2, 1fr); }
   .graph-section, .bottom-section { grid-template-columns: 1fr; }
@@ -663,46 +637,85 @@ const logout = () => {
   .stats { grid-template-columns: 1fr; }
   .page-title { flex-direction: column; align-items: flex-start; gap: 20px; }
 }
+
+/* ========================================================
+   === CSS PRINT (สำหรับ Export เป็น PDF ให้ได้ 1 หน้าพอดีเป๊ะ) ===
+   ======================================================== */
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 10mm 15mm; /* ขอบกระดาษ */
+  }
+
+  /* 1. ซ่อนเมนูและปุ่มที่ไม่จำเป็นใน PDF */
+  .hide-on-print, .sidebar, .top-header, .filters, .recommend-box {
+    display: none !important;
+  }
+
+  /* 2. บังคับ Body และ Layout ให้เหมาะกับการพิมพ์ */
+  body, html, .app-container {
+    background: white !important;
+    width: 100% !important;
+    height: 100% !important;
+    overflow: hidden !important; /* ป้องกันการล้นไปหน้า 2 */
+    display: block !important;
+  }
+  
+  .main-content {
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+
+  /* บังคับพิมพ์สีพื้นหลัง */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* 3. ย่อส่วนคอนเทนต์ทั้งหมดให้พอดีหน้าเดียว (Zoom) */
+  #pdf-content {
+    width: 100% !important;
+    margin: 0 !important;
+    zoom: 0.85; /* เลขนี้ทำให้ยัดลง A4 พอดี สามารถปรับขึ้นลงได้ เช่น 0.8 หรือ 0.9 */
+    page-break-inside: avoid !important;
+  }
+
+  /* บังคับ ApexCharts ให้กว้างเต็มพื้นที่ตอนสั่งพิมพ์ */
+  .apexcharts-canvas, .apexcharts-svg {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+  .apexcharts-toolbar { display: none !important; }
+
+  /* 4. จัดช่องว่าง (Margin/Gap) ใหม่ให้กระชับขึ้นสำหรับหน้ากระดาษ */
+  .page-title { margin-top: 0 !important; padding: 0 0 10px 0 !important; }
+  .page-title h1 { font-size: 32px !important; }
+  
+  .stats { margin-top: 10px !important; gap: 12px !important; }
+  .stat-card { padding: 12px 16px !important; border: 1px solid #ddd !important; box-shadow: none !important;}
+  .stat-card h2 { margin-top: 6px !important; font-size: 32px !important; }
+  
+  .graph-section { margin-top: 15px !important; gap: 15px !important; }
+  .bottom-section { margin-top: 15px !important; gap: 15px !important; margin-bottom: 0 !important; }
+  
+  .graph-card { border: 1px solid #ddd !important; box-shadow: none !important; padding: 16px !important; }
+  
+  /* 5. จำกัดความสูงกราฟและแผนที่ เพื่อไม่ให้ดันไปหน้าถัดไป */
+  .graph-area { height: 180px !important; margin-top: 10px !important; }
+  .peak-chart { height: 160px !important; margin-top: 10px !important; }
+  .map { height: 210px !important; margin-top: 10px !important; }
+  
+  .rank-list { margin-top: 15px !important; }
+  .rank-item { margin-bottom: 12px !important; }
+}
 </style>
 
 <style>
-.custom-heat-icon {
-  background: transparent;
-  border: none;
-}
-.heat-spot {
-  position: absolute;
-  transform: translate(-50%, -50%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-/* แก้จากการใช้ filter: blur() เป็น radial-gradient เพื่อให้ PDF แคปรูปได้สมบูรณ์แบบ */
-.heat-glow {
-  position: absolute;
-  border-radius: 50%;
-  z-index: 1;
-}
-.glow-red {
-  width: 180px;
-  height: 180px;
-  background: radial-gradient(circle, rgba(215, 38, 96, 0.7) 0%, rgba(215, 38, 96, 0) 70%);
-}
-.glow-yellow {
-  width: 150px;
-  height: 150px;
-  background: radial-gradient(circle, rgba(255, 215, 0, 0.6) 0%, rgba(255, 215, 0, 0) 70%);
-}
-.heat-label {
-  position: relative;
-  z-index: 2;
-  background: #d72660;
-  color: white;
-  padding: 8px 14px;
-  border-radius: 8px;
-  font-size: 12px;
-  font-weight: 700;
-  white-space: nowrap;
-  box-shadow: 0 4px 10px rgba(215, 38, 96, 0.3);
-}
+/* Unscoped Styles สำหรับองค์ประกอบที่ถูกสร้างโดย Leaflet (ห้ามใส่ scoped) */
+.custom-heat-icon { background: transparent; border: none; }
+.heat-spot { position: absolute; transform: translate(-50%, -50%); display: flex; align-items: center; justify-content: center; }
+.heat-glow { position: absolute; border-radius: 50%; z-index: 1; }
+.glow-red { width: 180px; height: 180px; background: radial-gradient(circle, rgba(215, 38, 96, 0.7) 0%, rgba(215, 38, 96, 0) 70%); }
+.glow-yellow { width: 150px; height: 150px; background: radial-gradient(circle, rgba(255, 215, 0, 0.6) 0%, rgba(255, 215, 0, 0) 70%); }
+.heat-label { position: relative; z-index: 2; background: #d72660; color: white; padding: 8px 14px; border-radius: 8px; font-size: 12px; font-weight: 700; white-space: nowrap; box-shadow: 0 4px 10px rgba(215, 38, 96, 0.3); }
 </style>
