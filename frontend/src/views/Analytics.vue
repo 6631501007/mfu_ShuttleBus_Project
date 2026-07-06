@@ -163,8 +163,7 @@
             <p>Analyze trends and spatial occupancy patterns from AI cameras</p>
 
           </div>
-
-         <button class="export-btn" @click="exportReport">
+<button class="export-btn" @click="exportReport">
   <i class='bx bx-download'></i>
   Export Report
 </button>
@@ -291,7 +290,7 @@
 
             <div class="graph-area">
 
-              <apexchart type="area" height="170" :options="flowChartOptions" :series="flowSeries" />
+              <apexchart type="area" height="260" :options="flowChartOptions" :series="flowSeries" />
 
             </div>
 
@@ -315,7 +314,7 @@
 
             <div class="peak-chart">
 
-              <apexchart type="bar" height="140" :options="peakChartOptions" :series="peakSeries" />
+              <apexchart type="bar" height="200" :options="peakChartOptions" :series="peakSeries" />
 
             </div>
 
@@ -489,6 +488,7 @@ const exportReport = () => {
   // สั่งเปิดหน้าต่าง Print ของบราว์เซอร์ (สามารถเลือก Save as PDF ได้)
   window.print();
 };
+
 
 
 // ── Data Processing ──
@@ -1111,15 +1111,15 @@ const logout = () => {
 
 /* STATS */
 
-.stats { margin-top: 10px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
+.stats { margin-top: 24px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
 
-.stat-card { background: white; border-radius: 18px; padding: 12px; border: 1px solid #f0f0f0; }
+.stat-card { background: white; border-radius: 18px; padding: 20px; border: 1px solid #f0f0f0; }
 
 .stat-top { display: flex; justify-content: space-between; color: #888; font-size: 11px; font-weight: 600; }
 
 .stat-top i { font-size: 18px; }
 
-.stat-card h2 { margin-top: 16px; font-size: 24px; color: #222; }
+.stat-card h2 { margin-top: 16px; font-size: 36px; color: #222; }
 
 .stat-bottom { margin-top: 10px; }
 
@@ -1133,9 +1133,9 @@ const logout = () => {
 
 /* GRAPH SECTION */
 
-.graph-section { margin-top: 10px; display: grid; grid-template-columns: 2fr 1fr; gap: 18px; }
+.graph-section { margin-top: 22px; display: grid; grid-template-columns: 2fr 1fr; gap: 18px; }
 
-.graph-card { background: white; border-radius: 22px; padding: 14px; border: 1px solid #f0f0f0; }
+.graph-card { background: white; border-radius: 22px; padding: 22px; border: 1px solid #f0f0f0; }
 
 .card-header { display: flex; justify-content: space-between; }
 
@@ -1171,7 +1171,7 @@ const logout = () => {
 
 /* BOTTOM */
 
-.bottom-section { margin-top: 10px; display: grid; grid-template-columns: 2fr 1fr; gap: 18px; margin-bottom: 40px; }
+.bottom-section { margin-top: 20px; display: grid; grid-template-columns: 2fr 1fr; gap: 18px; margin-bottom: 40px; }
 
 
 
@@ -1179,7 +1179,7 @@ const logout = () => {
 
 .map {
 
-  margin-top: 20px; height: 180px; border-radius: 18px; position: relative;
+  margin-top: 20px; height: 320px; border-radius: 18px; position: relative;
 
   overflow: hidden; border: 1px solid #f0f0f0; z-index: 1;
 
@@ -1239,64 +1239,61 @@ const logout = () => {
    PRINT / EXPORT STYLES (ทำงานเฉพาะตอนกด Print/PDF)
 ========================================= */
 @media print {
-  /* 1. ซ่อนส่วนประกอบ UI ที่ไม่จำเป็น */
-  .sidebar, .top-header, .filters, .export-btn {
+  /* 1. ซ่อนเมนูด้านข้าง แถบบน และส่วนที่ไม่จำเป็นในรายงาน */
+  .sidebar, 
+  .top-header, 
+  .filters, 
+  .export-btn {
     display: none !important;
   }
 
-  /* 2. บังคับให้หน้าเว็บขยายให้พอดีกับกระดาษ A4 (รวมหน้าเดียว) */
-  @page {
-    size: A4 portrait;
-    margin: 15mm;
-  }
-
-  body, .app-container, .main-content {
+  /* 2. ปรับพื้นหลังให้ขาวสะอาด เอา Scrollbar ออก */
+  .app-container, 
+  .main-content {
     background: white !important;
-    width: 100% !important;
     padding: 0 !important;
+    height: auto !important;
     overflow: visible !important;
   }
 
-  /* 3. ลดขนาด Font และ Padding เพื่ออัดข้อมูลให้ลงหน้าเดียว */
-  .main-content {
-    font-size: 10pt !important;
+  /* 3. ปรับระยะห่างหัวข้อให้พอดีกระดาษ */
+  .page-title {
+    margin-top: 0;
+    padding-top: 0;
+    border-bottom: 2px solid #d72660;
+    margin-bottom: 20px;
   }
 
-  .page-title { margin-top: 0 !important; margin-bottom: 15px !important; }
-
-  /* 4. จัด Layout ใหม่ให้เป็น Grid ที่แน่นขึ้น */
-  .stats {
-    display: grid !important;
-    grid-template-columns: repeat(4, 1fr) !important;
-    gap: 10px !important;
+  /* 4. ปรับการ์ดสถิติและกราฟให้ขอบชัด ไม่มีเงา และไม่โดนตัดครึ่งหน้า */
+  .stat-card, 
+  .graph-card {
+    border: 1px solid #ddd !important;
+    box-shadow: none !important;
+    break-inside: avoid; /* ป้องกันการ์ดโดนหั่นครึ่งระหว่างหน้ากระดาษ */
+    margin-bottom: 20px;
   }
 
-  .graph-section, .bottom-section {
-    display: grid !important;
-    grid-template-columns: 1fr 1fr !important; /* บีบให้กราฟอยู่ข้างกันจะได้ไม่ยาวเกิน */
-    gap: 10px !important;
-  }
-
-  /* 5. ปรับการ์ดให้มีขนาดเล็กลง */
-  .stat-card, .graph-card {
-    padding: 10px !important;
-    margin-bottom: 10px !important;
-    border: 1px solid #eee !important;
-  }
-
-  .stat-card h2 { font-size: 20px !important; margin-top: 5px !important; }
-  
-  /* 6. ปรับขนาดกราฟ ApexCharts ให้เล็กลงเพื่อประหยัดพื้นที่ */
-  .graph-area, .peak-chart {
-    height: 150px !important;
-  }
-
-  /* 7. บังคับสีพื้นหลังและสีของกราฟให้ติดออกมาด้วย */
+  /* 5. บังคับให้หน้ากระดาษพิมพ์สีพื้นหลัง (กราฟและ Heatmap จะได้สีไม่หาย) */
   * {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
+
+  /* 6. ปรับ Layout ให้เรียงเป็น 1 คอลัมน์บนกระดาษแนวตั้ง เพื่อให้อ่านง่าย */
+  .graph-section, 
+  .bottom-section {
+    display: block !important;
+  }
+  
+  /* ขยายกราฟให้เต็มความกว้างหน้ากระดาษ */
+  .graph-card.large, 
+  .graph-card.peak-card,
+  .graph-card.map-card,
+  .graph-card.rank-card {
+    width: 100% !important;
+  }
 }
+
 
 
 @media (max-width: 1200px) {
