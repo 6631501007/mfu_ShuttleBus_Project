@@ -238,16 +238,21 @@ const hourlyAnalytics = ref([]);
 
 // อัปเดตฟังก์ชันเพื่อให้รองรับการคลิกเลือก (Select) แท่งกราฟ
 const normalizeChartData = (items, selectedIdx) => {
-  const max = Math.max(...items.map(item => item.value), 1);
-  
-  // ถ้าไม่ได้เลือกอะไร ให้ค่าเริ่มต้นเป็นแท่งสุดท้าย (ขวาสุด)
+  if (!Array.isArray(items) || items.length === 0) return [];
+
+  const max = Math.max(...items.map(item => Number(item.value) || 0), 1);
   const activeIdx = selectedIdx !== null ? selectedIdx : items.length - 1;
 
   return items.map((item, index) => ({
     ...item,
-    height: Math.round((item.value / max) * 100),
+    height: Math.round(((Number(item.value) || 0) / max) * 100),
     active: index === activeIdx
   }));
+};
+
+const setPassengerView = (view) => {
+  activePassengerView.value = view;
+  selectedChartIndex.value = null;
 };
 
 const passengerChartData = computed(() => {
