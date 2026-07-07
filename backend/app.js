@@ -939,7 +939,7 @@ app.get('/api/feedback', adminMiddleware, async (req, res) => {
   try {
     const feedbacks = await Feedback.find().sort({ createdAt: -1 }).lean();
     const summary = {
-      newFeedback: feedbacks.filter(f => f.status === 'new').length,
+      unresolved: feedbacks.filter(f => f.status !== 'resolved').length,
       resolved: feedbacks.filter(f => f.status === 'resolved').length
     };
     res.json({ summary, feedbacks });
@@ -948,10 +948,29 @@ app.get('/api/feedback', adminMiddleware, async (req, res) => {
   }
 });
 
-app.post('/api/feedback', adminMiddleware, async (req, res) => {
+app.post('/api/feedback', async (req, res) => {
   try {
-    const { userName, message, rating } = req.body;
-    const feedback = await Feedback.create({ userName, message, rating });
+    const { message, rating } = req.body;
+    const normalizedMessage = String(message || '').trim();
+    const normalizedRating = Number(rating);
+
+    if (!normalizedMessage) {
+      return res.status(400).json({ message: 'Feedback message is required' });
+    }
+
+    if (!Number.isInteger(normalizedRating) || normalizedRating < 1 || normalizedRating > 5) {
+      return res.status(400).json({ message: 'Rating must be a number from 1 to 5' });
+    }
+
+    const user = await User.findById(req.user.id).select('username').lean();
+    const feedback = await Feedback.create({
+      userName: user?.username || 'Unknown user',
+      message: normalizedMessage,
+      rating: normalizedRating,
+      status: 'unresolved',
+      response: ''
+    });
+
     res.status(201).json({ message: 'Feedback created', feedback });
   } catch (error) {
     res.status(500).json(error);
@@ -960,7 +979,28 @@ app.post('/api/feedback', adminMiddleware, async (req, res) => {
 
 app.patch('/api/feedback/:id', adminMiddleware, async (req, res) => {
   try {
-    const feedback = await Feedback.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    const { status, response } = req.body;
+    const update = {};
+
+    if (status !== undefined) {
+      if (!['unresolved', 'resolved'].includes(status)) {
+        return res.status(400).json({ message: 'Invalid feedback status' });
+      }
+      update.status = status;
+    }
+
+    if (response !== undefined) {
+      update.response = String(response).trim();
+    }
+
+    if (Object.keys(update).length === 0) {
+      return res.status(400).json({ message: 'No feedback changes provided' });
+    }
+
+    const feedback = await Feedback.findByIdAndUpdate(req.params.id, update, {
+      new: true,
+      runValidators: true
+    });
     if (!feedback) return res.status(404).json({ message: 'Feedback not found' });
     res.json({ message: 'Feedback updated', feedback });
   } catch (error) {

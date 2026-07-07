@@ -87,8 +87,8 @@
         <!-- SUMMARY -->
         <div class="feedback-summary">
           <div class="summary-item">
-            <span class="summary-label">New feedback</span>
-            <span class="summary-value">{{ summary.newFeedback }}</span>
+            <span class="summary-label">Unresolved</span>
+            <span class="summary-value">{{ summary.unresolved }}</span>
           </div>
           <div class="summary-item">
             <span class="summary-label">Resolved</span>
@@ -103,7 +103,7 @@
             <div class="select-box">
               <select v-model="statusFilter">
                 <option value="">All statuses</option>
-                <option value="new">New</option>
+                <option value="unresolved">Unresolved</option>
                 <option value="resolved">Resolved</option>
               </select>
               <i class='bx bx-chevron-down arrow'></i>
@@ -138,7 +138,9 @@
                   <p class="feedback-date">{{ formatDate(item.createdAt) }}</p>
                 </div>
               </div>
-              <div class="feedback-status" :class="item.status === 'resolved' ? 'resolved' : 'new'">{{ item.status }}</div>
+              <div class="feedback-status" :class="item.status === 'resolved' ? 'resolved' : 'unresolved'">
+                {{ getStatusLabel(item) }}
+              </div>
             </div>
             <div class="feedback-message">
               <p class="feedback-text">{{ item.message }}</p>
@@ -148,11 +150,24 @@
               <p class="response-label">Response:</p>
               <p class="response-text">{{ item.response }}</p>
             </div>
-            <div class="feedback-actions" v-if="item.status !== 'resolved'">
-              <button class="btn-action btn-reply">
-                <i class='bx bx-message-dots'></i> Reply
+            <div class="response-editor">
+              <label :for="`response-${item._id}`">Admin response</label>
+              <textarea
+                :id="`response-${item._id}`"
+                v-model="responseDrafts[item._id]"
+                rows="3"
+                placeholder="Write a response, or leave it blank before resolving."
+              ></textarea>
+            </div>
+            <div class="feedback-actions">
+              <button class="btn-action btn-reply" @click="saveResponse(item._id)" :disabled="savingFeedbackId === item._id">
+                <i class='bx bx-message-dots'></i> Save response
               </button>
-              <button class="btn-action btn-resolve" @click="resolveFeedback(item._id)">
+              <button
+                class="btn-action btn-resolve"
+                @click="resolveFeedback(item._id)"
+                :disabled="savingFeedbackId === item._id || item.status === 'resolved'"
+              >
                 <i class='bx bx-check'></i> Resolve
               </button>
             </div>
@@ -164,7 +179,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { reactive, ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import TopbarNotification from '../components/TopbarNotification.vue'
 import { apiFetch } from '../lib/api'
@@ -173,17 +188,20 @@ const router = useRouter()
 const isDropdownOpen = ref(false)
 const language = ref('English')
 const feedbacks = ref([])
-const summary = ref({ newFeedback: 0, resolved: 0 })
+const summary = ref({ unresolved: 0, resolved: 0 })
 const statusFilter = ref('')
 const ratingFilter = ref('')
 const searchQuery = ref('')
+const responseDrafts = reactive({})
+const savingFeedbackId = ref('')
 
 const filteredFeedbacks = computed(() => {
   const normalizedQuery = searchQuery.value.toLowerCase().trim()
   const ratingValue = ratingFilter.value ? Number(ratingFilter.value) : null
 
   return feedbacks.value.filter((item) => {
-    const matchesStatus = !statusFilter.value || item.status === statusFilter.value
+    const itemStatus = item.status === 'resolved' ? 'resolved' : 'unresolved'
+    const matchesStatus = !statusFilter.value || itemStatus === statusFilter.value
     const matchesRating = !ratingValue || Number(item.rating) === ratingValue
     const matchesSearch =
       !normalizedQuery ||
@@ -211,25 +229,48 @@ const loadFeedbacks = async () => {
     if (!res.ok) throw new Error(data.message || 'Unable to load feedback')
 
     feedbacks.value = data.feedbacks || []
-    summary.value = data.summary || { newFeedback: 0, resolved: 0 }
+    summary.value = data.summary || { unresolved: 0, resolved: 0 }
+    feedbacks.value.forEach((item) => {
+      responseDrafts[item._id] = item.response || ''
+    })
   } catch (error) {
     console.error(error)
   }
 }
 
-const resolveFeedback = async (id) => {
+const updateFeedback = async (id, payload) => {
   try {
+    savingFeedbackId.value = id
     const res = await apiFetch(`/api/feedback/${id}`, {
       method: 'PATCH',
-      body: JSON.stringify({ status: 'resolved' })
+      body: JSON.stringify(payload)
     })
     const data = await res.json()
-    if (!res.ok) throw new Error(data.message || 'Cannot resolve feedback')
+    if (!res.ok) throw new Error(data.message || 'Cannot update feedback')
     await loadFeedbacks()
   } catch (error) {
     console.error(error)
-    alert('Unable to resolve feedback')
+    alert('Unable to update feedback')
+  } finally {
+    savingFeedbackId.value = ''
   }
+}
+
+const saveResponse = async (id) => {
+  await updateFeedback(id, {
+    response: responseDrafts[id] || ''
+  })
+}
+
+const resolveFeedback = async (id) => {
+  await updateFeedback(id, {
+    status: 'resolved',
+    response: responseDrafts[id] || ''
+  })
+}
+
+const getStatusLabel = (item) => {
+  return item.status === 'resolved' ? 'resolved' : 'unresolved'
 }
 
 const formatDate = (value) => {
@@ -733,7 +774,7 @@ onUnmounted(() => {
   font-weight: 600;
 }
 
-.feedback-status.new {
+.feedback-status.unresolved {
   background: #fecaca;
   color: #dc2626;
 }
@@ -786,6 +827,36 @@ onUnmounted(() => {
   line-height: 1.5;
 }
 
+.response-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.response-editor label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #4b5563;
+}
+
+.response-editor textarea {
+  width: 100%;
+  resize: vertical;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  color: #374151;
+  outline: none;
+}
+
+.response-editor textarea:focus {
+  border-color: #d72660;
+  box-shadow: 0 0 0 3px rgba(215, 38, 96, 0.12);
+}
+
 .feedback-actions {
   display: flex;
   gap: 10px;
@@ -810,6 +881,11 @@ onUnmounted(() => {
   border-color: #d72660;
   color: #d72660;
   background: #fff0f5;
+}
+
+.btn-action:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .btn-reply {

@@ -35,7 +35,7 @@
           </div>
           
           <!-- ปุ่ม Feedback -->
-          <div class="menu-card action-card feedback-card shadow-sm">
+          <div class="menu-card action-card feedback-card shadow-sm" @click="openFeedbackModal">
             <i class='bx bxs-message-alt-error icon-dark-red'></i>
             <span class="card-label">Feedback</span>
           </div>
@@ -54,6 +54,54 @@
           
         </div>
       </transition>
+    </div>
+
+    <div class="modal-backdrop" v-if="isFeedbackOpen" @click.self="closeFeedbackModal">
+      <form class="feedback-modal shadow" @submit.prevent="submitFeedback">
+        <div class="feedback-modal-header">
+          <div>
+            <h2>Send Feedback</h2>
+            <p>Tell the admin about your waiting experience.</p>
+          </div>
+          <button class="modal-close" type="button" @click="closeFeedbackModal">
+            <i class='bx bx-x'></i>
+          </button>
+        </div>
+
+        <label class="feedback-field">
+          <span>Message</span>
+          <textarea
+            v-model="feedbackMessage"
+            rows="4"
+            maxlength="500"
+            placeholder="Example: The waiting system is too slow"
+            required
+          ></textarea>
+        </label>
+
+        <div class="feedback-field">
+          <span>Rating</span>
+          <div class="rating-options">
+            <button
+              v-for="rating in 5"
+              :key="rating"
+              class="rating-btn"
+              :class="{ active: feedbackRating === rating }"
+              type="button"
+              @click="feedbackRating = rating"
+            >
+              {{ rating }}
+            </button>
+          </div>
+        </div>
+
+        <p class="feedback-error" v-if="feedbackError">{{ feedbackError }}</p>
+        <p class="feedback-success" v-if="feedbackSuccess">{{ feedbackSuccess }}</p>
+
+        <button class="feedback-submit" type="submit" :disabled="isSubmittingFeedback">
+          {{ isSubmittingFeedback ? 'Sending...' : 'Submit Feedback' }}
+        </button>
+      </form>
     </div>
 
     <!-- 3. มุมขวาล่าง: ปุ่มระบุตำแหน่ง (Location) -->
@@ -80,6 +128,12 @@ const isProfileMenuOpen = ref(false)
 const language = ref('English')
 const stations = ref([])
 const activeLine = ref(1)
+const isFeedbackOpen = ref(false)
+const feedbackMessage = ref('')
+const feedbackRating = ref(5)
+const feedbackError = ref('')
+const feedbackSuccess = ref('')
+const isSubmittingFeedback = ref(false)
 
 // ตัวแปรเก็บข้อมูล User (ดึงจาก Database)
 const userName = ref('Loading...')
@@ -111,6 +165,59 @@ const closeMenuOutside = (e) => {
 
 const toggleLanguage = () => {
   language.value = language.value === 'English' ? 'Thai' : 'English'
+}
+
+const openFeedbackModal = () => {
+  isFeedbackOpen.value = true
+  isProfileMenuOpen.value = false
+  feedbackError.value = ''
+  feedbackSuccess.value = ''
+}
+
+const closeFeedbackModal = () => {
+  if (isSubmittingFeedback.value) return
+  isFeedbackOpen.value = false
+}
+
+const resetFeedbackForm = () => {
+  feedbackMessage.value = ''
+  feedbackRating.value = 5
+}
+
+const submitFeedback = async () => {
+  const message = feedbackMessage.value.trim()
+
+  if (!message) {
+    feedbackError.value = 'Please write your feedback message.'
+    return
+  }
+
+  try {
+    isSubmittingFeedback.value = true
+    feedbackError.value = ''
+    feedbackSuccess.value = ''
+
+    const res = await apiFetch('/api/feedback', {
+      method: 'POST',
+      body: JSON.stringify({
+        message,
+        rating: feedbackRating.value
+      })
+    })
+    const data = await res.json()
+
+    if (!res.ok) {
+      throw new Error(data.message || 'Unable to send feedback')
+    }
+
+    resetFeedbackForm()
+    feedbackSuccess.value = 'Thank you. Your feedback was sent to the admin.'
+  } catch (error) {
+    console.error(error)
+    feedbackError.value = error.message || 'Unable to send feedback'
+  } finally {
+    isSubmittingFeedback.value = false
+  }
 }
 
 const logout = () => {
@@ -507,6 +614,138 @@ onUnmounted(() => {
 .dropdown-fade-enter-active, .dropdown-fade-leave-active { transition: all 0.3s ease; }
 .dropdown-fade-enter-from, .dropdown-fade-leave-to { opacity: 0; transform: translateY(-10px); }
 
+/* ================== FEEDBACK MODAL ================== */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(17, 24, 39, 0.42);
+}
+
+.feedback-modal {
+  width: min(460px, 100%);
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 22px;
+}
+
+.feedback-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.feedback-modal-header h2 {
+  margin: 0 0 4px;
+  color: #111827;
+  font-size: 22px;
+}
+
+.feedback-modal-header p {
+  margin: 0;
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.modal-close {
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 8px;
+  background: #f3f4f6;
+  color: #374151;
+  cursor: pointer;
+  font-size: 22px;
+}
+
+.feedback-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.feedback-field span {
+  color: #374151;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.feedback-field textarea {
+  width: 100%;
+  resize: vertical;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  padding: 12px;
+  color: #111827;
+  font: inherit;
+  outline: none;
+}
+
+.feedback-field textarea:focus {
+  border-color: #a30000;
+  box-shadow: 0 0 0 3px rgba(163, 0, 0, 0.12);
+}
+
+.rating-options {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+}
+
+.rating-btn {
+  height: 42px;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #374151;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.rating-btn.active {
+  border-color: #a30000;
+  background: #fff0f0;
+  color: #a30000;
+}
+
+.feedback-error,
+.feedback-success {
+  margin: 0 0 14px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.feedback-error {
+  color: #dc2626;
+}
+
+.feedback-success {
+  color: #059669;
+}
+
+.feedback-submit {
+  width: 100%;
+  border: none;
+  border-radius: 10px;
+  padding: 12px 16px;
+  background: #a30000;
+  color: #ffffff;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.feedback-submit:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
 /* ================== 3. มุมขวาล่าง (Location Button) ================== */
 .floating-btn {
   position: absolute;
@@ -555,6 +794,10 @@ onUnmounted(() => {
   
   /* ปรับลูกศรให้ตรงกับรูปโปรไฟล์บนจอเล็ก */
   .user-info-card::before { right: 12px; }
+
+  .feedback-modal {
+    padding: 18px;
+  }
 }
 
 /* ==================================================

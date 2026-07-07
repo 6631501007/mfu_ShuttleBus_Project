@@ -6,8 +6,8 @@ const feedbackSchema = new mongoose.Schema({
   rating: { type: Number, min: 1, max: 5 },
   status: {
     type: String,
-    enum: ['new', 'resolved'],
-    default: 'new'
+    enum: ['unresolved', 'resolved'],
+    default: 'unresolved'
   },
   response: { type: String, default: '' }
 }, { timestamps: true });
