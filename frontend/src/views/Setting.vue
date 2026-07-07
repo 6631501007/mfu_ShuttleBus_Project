@@ -201,7 +201,7 @@
                 </div>
                 <div class="form-group compact">
                   <label>Dwell Time Before Count</label>
-                  <input type="number" min="1" v-model.number="selectedLivefeed.dwellSeconds" :disabled="!selectedLivefeedHardware" @change="saveSelectedLivefeedConfig" />
+                  <input type="number" min="1" v-model.number="selectedLivefeed.dwellSeconds" :disabled="!selectedLivefeedHardware" />
                 </div>
                 <label class="image-upload-btn">
                   <i class='bx bx-image-add'></i>
@@ -245,7 +245,7 @@
               <div v-if="selectedLivefeedHardware" v-for="(zone, index) in selectedLivefeed.zones" :key="index" class="zone-config-row">
                 <div class="zone-config-head">
                   <strong>{{ selectedLivefeedHardware.name }}</strong>
-                  <label class="zone-enabled"><input type="checkbox" v-model="zone.enabled" @change="saveSelectedLivefeedConfig" /> Enabled</label>
+                  <label class="zone-enabled"><input type="checkbox" v-model="zone.enabled" /> Enabled</label>
                 </div>
               </div>
             </div>
@@ -392,6 +392,9 @@ const isDropdownOpen = ref(false);
 const language = ref('English');
 const hasUnsavedChanges = ref(false); 
 let isFetching = false; 
+const dirtyGeneralSettings = ref(false);
+const dirtyHardwareSettings = ref(false);
+const dirtyStationSettings = ref(false);
 
 // ── Settings (notification + hardware) ───────────────────
 const delayThreshold = ref(15);
@@ -480,6 +483,22 @@ const normalizeLivefeedConfig = (config = {}, zoneName = '') => ({
   ).map((zone, index) => normalizeZone(zone, index, zoneName))
 });
 
+const numbersMatch = (left, right, tolerance = 0.001) => (
+  Math.abs((Number(left) || 0) - (Number(right) || 0)) <= tolerance
+);
+
+const livefeedZonesMatch = (leftZones = [], rightZones = []) => {
+  const left = leftZones[0];
+  const right = rightZones[0];
+  if (!left || !right) return !left && !right;
+
+  return numbersMatch(left.x, right.x) &&
+    numbersMatch(left.y, right.y) &&
+    numbersMatch(left.width, right.width) &&
+    numbersMatch(left.height, right.height) &&
+    (left.enabled !== false) === (right.enabled !== false);
+};
+
 const cameraHardware = computed(() => hardware.value.filter(item => item.type === 'camera'));
 
 const selectedLivefeedHardware = computed(() => (
@@ -489,6 +508,77 @@ const selectedLivefeedHardware = computed(() => (
 ));
 
 const selectedLivefeed = computed(() => selectedLivefeedHardware.value?.livefeed || livefeed.value);
+
+const getHardwareStateKey = (hw = {}, index = 0) => {
+  const mongoId = typeof hw?._id === 'string' ? hw._id : hw?._id?.$oid;
+  return String(hw?.deviceId || mongoId || index);
+};
+
+const findMatchingHardware = (items = [], target = {}, targetIndex = 0) => (
+  items.find((item, index) => (
+    item.deviceId === target.deviceId ||
+    getHardwareStateKey(item, index) === getHardwareStateKey(target, targetIndex)
+  ))
+);
+
+const readApiJson = async (res, actionLabel = 'API request') => {
+  const text = await res.text();
+  if (!text) return {};
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    const snippet = text.trim().slice(0, 80);
+    const looksLikeHtml = snippet.startsWith('<!DOCTYPE') || snippet.startsWith('<html') || snippet.startsWith('<');
+    throw new Error(looksLikeHtml
+      ? `${actionLabel} returned the website HTML instead of API JSON. Please restart the backend/frontend dev servers and check VITE_API_BASE_URL.`
+      : `${actionLabel} returned invalid JSON.`);
+  }
+};
+
+const updateReferenceImagePreview = (value = '') => {
+  const wasFetching = isFetching;
+  isFetching = true;
+  selectedLivefeed.value.referenceImage = value;
+  nextTick(() => {
+    isFetching = wasFetching;
+  });
+};
+
+const hydrateHardwareReferenceImages = async () => {
+  const wasFetching = isFetching;
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), 20000);
+  isFetching = true;
+
+  try {
+    const res = await apiFetch('/api/settings/hardware?includeReferenceImages=true', {
+      signal: controller.signal
+    });
+    const fullHardware = await res.json();
+    if (!res.ok || !Array.isArray(fullHardware)) return;
+
+    hardware.value = hardware.value.map((item, index) => {
+      const fullItem = fullHardware.find(candidate => (
+        candidate.deviceId === item.deviceId ||
+        getHardwareApiId(candidate, index) === getHardwareApiId(item, index)
+      ));
+      if (!fullItem?.livefeed) return item;
+
+      return {
+        ...item,
+        livefeed: normalizeLivefeedConfig(fullItem.livefeed, item.name)
+      };
+    });
+  } catch (error) {
+    if (error.name !== 'AbortError') console.error(error);
+  } finally {
+    window.clearTimeout(timeoutId);
+    nextTick(() => {
+      isFetching = wasFetching;
+    });
+  }
+};
 
 const ensureHardwareLivefeedConfigs = (fallbackLivefeed = livefeed.value) => {
   hardware.value = hardware.value.map((item) => {
@@ -502,30 +592,6 @@ const ensureHardwareLivefeedConfigs = (fallbackLivefeed = livefeed.value) => {
   const selectedStillExists = cameraHardware.value.some(item => item.deviceId === selectedLivefeedHardwareId.value);
   if (!selectedStillExists) {
     selectedLivefeedHardwareId.value = cameraHardware.value[0]?.deviceId || '';
-  }
-};
-
-const saveSelectedLivefeedConfig = async () => {
-  const camera = selectedLivefeedHardware.value;
-  if (!camera) return;
-
-  try {
-    const payload = normalizeLivefeedConfig(selectedLivefeed.value, camera.name);
-    Object.assign(selectedLivefeed.value, payload);
-    const res = await apiFetch(`/api/settings/hardware/${getHardwareApiId(camera, 0)}/livefeed`, {
-      method: 'PUT',
-      body: JSON.stringify(payload)
-    });
-    const responseText = await res.text();
-    const data = responseText ? JSON.parse(responseText) : {};
-    if (!res.ok) throw new Error(data.message || 'Cannot save livefeed grid');
-    hardware.value = Array.isArray(data.settings?.hardware) ? data.settings.hardware : hardware.value;
-    ensureHardwareLivefeedConfigs(livefeed.value);
-  } catch (error) {
-    console.error(error);
-    alert(error instanceof SyntaxError
-      ? 'Unable to save livefeed grid. API Error.'
-      : error.message || 'Unable to save livefeed grid');
   }
 };
 
@@ -554,15 +620,13 @@ const handleReferenceImageUpload = (event) => {
 
   const reader = new FileReader();
   reader.onload = () => {
-    selectedLivefeed.value.referenceImage = String(reader.result || '');
-    saveSelectedLivefeedConfig();
+    updateReferenceImagePreview(String(reader.result || ''));
   };
   reader.readAsDataURL(file);
 };
 
 const clearReferenceImage = () => {
-  selectedLivefeed.value.referenceImage = '';
-  saveSelectedLivefeedConfig();
+  updateReferenceImagePreview('');
 };
 
 const startZoneEditorPointer = (event) => {
@@ -623,7 +687,6 @@ const moveZoneEditorPointer = (event) => {
 };
 
 const stopZoneEditorPointer = () => {
-  if (zoneDragState) saveSelectedLivefeedConfig();
   zoneDragState = null;
   window.removeEventListener('pointermove', moveZoneEditorPointer);
 };
@@ -644,14 +707,19 @@ const loadStations = async () => {
 
 const loadSettings = async () => {
   try {
-    const res = await apiFetch('/api/settings');
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.message || 'Cannot load settings');
+    const [settingsRes, hardwareRes] = await Promise.all([
+      apiFetch('/api/settings'),
+      apiFetch('/api/settings/hardware')
+    ]);
+    const data = await settingsRes.json();
+    const hardwareData = await hardwareRes.json();
+    if (!settingsRes.ok) throw new Error(data.message || 'Cannot load settings');
+    if (!hardwareRes.ok) throw new Error(hardwareData.message || 'Cannot load hardware settings');
     notificationChannels.value = data.notificationChannels || {
       emailEnabled: false, smsEnabled: false, emails: [], mobiles: []
     };
     delayThreshold.value = data.delayThreshold ?? 15;
-    hardware.value = data.hardware || [];
+    hardware.value = Array.isArray(hardwareData) ? hardwareData : [];
     livefeed.value = {
       dwellSeconds: data.livefeed?.dwellSeconds ?? 30,
       referenceImage: data.livefeed?.referenceImage || '',
@@ -661,6 +729,7 @@ const loadSettings = async () => {
       ).map(normalizeZone)
     };
     ensureHardwareLivefeedConfigs(livefeed.value);
+    hydrateHardwareReferenceImages();
   } catch (error) {
     console.error(error);
   }
@@ -674,49 +743,153 @@ const reloadAllData = async () => {
     console.error(error);
   } finally {
     nextTick(() => {
+      dirtyGeneralSettings.value = false;
+      dirtyHardwareSettings.value = false;
+      dirtyStationSettings.value = false;
       hasUnsavedChanges.value = false;
       isFetching = false;
     });
   }
 };
 
+const verifySavedHardwareConfigs = async (saveTargets = []) => {
+  if (!saveTargets.length) return;
+
+  await Promise.all(saveTargets.map(async ({ item, index, livefeedConfig }) => {
+    let savedLivefeedStatus = null;
+
+    try {
+      const statusRes = await apiFetch(`/api/settings/hardware/${getHardwareApiId(item, index)}/livefeed/status`);
+      const statusData = await readApiJson(statusRes, `Verifying ${item.name}`);
+      if (statusRes.ok && statusData.livefeed) {
+        savedLivefeedStatus = statusData.livefeed;
+      }
+    } catch (error) {
+      console.warn(error);
+    }
+
+    if (!savedLivefeedStatus) {
+      const hardwareRes = await apiFetch('/api/settings/hardware?includeReferenceImages=true');
+      const savedHardware = await readApiJson(hardwareRes, 'Verifying saved camera settings');
+      if (!hardwareRes.ok || !Array.isArray(savedHardware)) {
+        throw new Error(savedHardware.message || `Could not verify saved settings for ${item.name}`);
+      }
+
+      const savedItem = findMatchingHardware(savedHardware, item, index);
+      if (!savedItem?.livefeed) {
+        throw new Error(`Could not verify saved settings for ${item.name}`);
+      }
+
+      savedLivefeedStatus = {
+        ...savedItem.livefeed
+      };
+    }
+
+    const savedLivefeed = normalizeLivefeedConfig(savedLivefeedStatus, item.name);
+    if (!numbersMatch(savedLivefeed.dwellSeconds, livefeedConfig.dwellSeconds) ||
+      !livefeedZonesMatch(savedLivefeed.zones, livefeedConfig.zones)) {
+      throw new Error(`Camera grid settings were not saved for ${item.name}`);
+    }
+  }));
+};
+
+const verifySavedGeneralSettings = async () => {
+  const res = await apiFetch('/api/settings');
+  const savedSettings = await readApiJson(res, 'Verifying general settings');
+  if (!res.ok) throw new Error(savedSettings.message || 'Could not verify saved general settings');
+
+  const savedEmails = savedSettings.notificationChannels?.emails || [];
+  const currentEmails = notificationChannels.value.emails || [];
+  const emailsMatch = savedEmails.length === currentEmails.length &&
+    savedEmails.every((email, index) => email === currentEmails[index]);
+
+  if ((savedSettings.notificationChannels?.emailEnabled || false) !== (notificationChannels.value.emailEnabled || false) ||
+    !emailsMatch ||
+    Number(savedSettings.delayThreshold ?? 15) !== Number(delayThreshold.value ?? 15)) {
+    throw new Error('General settings were not saved');
+  }
+};
+
+const verifySavedStations = async () => {
+  const res = await apiFetch('/api/stations');
+  const savedStations = await readApiJson(res, 'Verifying station settings');
+  if (!res.ok || !Array.isArray(savedStations)) {
+    throw new Error(savedStations.message || 'Could not verify saved stations');
+  }
+
+  if (savedStations.length !== stations.value.length) {
+    throw new Error('Station settings were not saved');
+  }
+};
+
 const saveSettings = async () => {
   try {
-    const settingsPayload = {
-      notificationChannels: notificationChannels.value,
-      delayThreshold: delayThreshold.value,
-      hardware: hardware.value.map(item => ({
-        ...item,
-        livefeed: item.type === 'camera'
-          ? normalizeLivefeedConfig(item.livefeed || livefeed.value, item.name)
-          : item.livefeed
-      })),
-      livefeed: {
-        dwellSeconds: Math.max(1, Number(livefeed.value.dwellSeconds) || 30),
-        referenceImage: livefeed.value.referenceImage || '',
-        zones: livefeed.value.zones.slice(0, 1).map((zone, index) => normalizeZone(zone, index))
-      }
-    };
+    if (!dirtyGeneralSettings.value &&
+      !dirtyHardwareSettings.value &&
+      !dirtyStationSettings.value) {
+      alert('No configuration changes to save');
+      return;
+    }
 
-    const settingsRes = await apiFetch('/api/settings', {
-      method: 'PUT',
-      body: JSON.stringify(settingsPayload)
-    });
-    const settingsData = await settingsRes.json();
-    if (!settingsRes.ok) throw new Error(settingsData.message || 'Cannot save settings');
+    const hardwareSaveTargets = hardware.value
+      .map((item, index) => ({ item, index }))
+      .filter(({ item }) => item.type === 'camera')
+      .map(({ item, index }) => {
+        const livefeedConfig = normalizeLivefeedConfig(item.livefeed || livefeed.value, item.name);
+        delete livefeedConfig.referenceImage;
 
-    const stationsRes = await apiFetch('/api/stations-bulk', {
-      method: 'PUT',
-      body: JSON.stringify({ stations: stations.value })
-    });
-    const stationsData = await stationsRes.json();
-    if (!stationsRes.ok) throw new Error(stationsData.message || 'Cannot save stations');
+        return { item, index, livefeedConfig };
+      });
 
-    alert('Settings saved successfully');
+    if (dirtyGeneralSettings.value) {
+      const settingsPayload = {
+        notificationChannels: notificationChannels.value,
+        delayThreshold: delayThreshold.value,
+        livefeed: {
+          dwellSeconds: Math.max(1, Number(livefeed.value.dwellSeconds) || 30),
+          zones: livefeed.value.zones.slice(0, 1).map((zone, index) => normalizeZone(zone, index))
+        }
+      };
+
+      const settingsRes = await apiFetch('/api/settings', {
+        method: 'PUT',
+        body: JSON.stringify(settingsPayload)
+      });
+      const settingsData = await readApiJson(settingsRes, 'Saving general settings');
+      if (!settingsRes.ok) throw new Error(settingsData.message || 'Cannot save general settings');
+      await verifySavedGeneralSettings();
+    }
+
+    if (dirtyHardwareSettings.value) {
+      await Promise.all(
+        hardwareSaveTargets.map(async ({ item, index, livefeedConfig }) => {
+          const res = await apiFetch(`/api/settings/hardware/${getHardwareApiId(item, index)}/livefeed`, {
+            method: 'PUT',
+            body: JSON.stringify(livefeedConfig)
+          });
+          const data = await readApiJson(res, `Saving livefeed grid for ${item.name}`);
+          if (!res.ok) throw new Error(data.message || `Cannot save livefeed grid for ${item.name}`);
+          return data;
+        })
+      );
+      await verifySavedHardwareConfigs(hardwareSaveTargets);
+    }
+
+    if (dirtyStationSettings.value) {
+      const stationsRes = await apiFetch('/api/stations-bulk', {
+        method: 'PUT',
+        body: JSON.stringify({ stations: stations.value })
+      });
+      const stationsData = await readApiJson(stationsRes, 'Saving station settings');
+      if (!stationsRes.ok) throw new Error(stationsData.message || 'Cannot save stations');
+      await verifySavedStations();
+    }
+
+    alert('Settings saved and verified successfully');
     await reloadAllData();
   } catch (error) {
     console.error(error);
-    alert('Unable to save settings');
+    alert(error.message || 'Unable to save settings');
   }
 };
 
@@ -725,15 +898,19 @@ const discardChanges = async () => {
 };
 
 // State Change Tracking
-const markAsUnsaved = () => {
-  if (!isFetching) {
-    hasUnsavedChanges.value = true;
-  }
+const markAsUnsaved = (type) => {
+  if (isFetching) return;
+
+  if (type === 'stations') dirtyStationSettings.value = true;
+  if (type === 'general') dirtyGeneralSettings.value = true;
+  if (type === 'hardware') dirtyHardwareSettings.value = true;
+  hasUnsavedChanges.value = true;
 };
-watch(stations, markAsUnsaved, { deep: true });
-watch(notificationChannels, markAsUnsaved, { deep: true });
-watch(delayThreshold, markAsUnsaved);
-watch(hardware, markAsUnsaved, { deep: true });
+
+watch(stations, () => markAsUnsaved('stations'), { deep: true });
+watch(notificationChannels, () => markAsUnsaved('general'), { deep: true });
+watch(delayThreshold, () => markAsUnsaved('general'));
+watch(hardware, () => markAsUnsaved('hardware'), { deep: true });
 
 
 // ─────────────────────────────────────────────────────────

@@ -18,7 +18,6 @@ const Analytics = require('./models/analytics');
 const HourlyAnalytics = require('./models/hourlyAnalytics');
 const Setting = require('./models/setting');
 const dns = require('dns');
-dns.setServers(['8.8.8.8', '8.8.4.4'])
 
 const app = express();
 app.use(cors());
@@ -35,6 +34,10 @@ const io = new Server(server, {
 const PORT = process.env.PORT || 3000;
 const SECRET_KEY = process.env.JWT_SECRET;
 const MONGO_URI = process.env.MONGO_URI;
+const MONGO_DNS_SERVERS = (process.env.MONGO_DNS_SERVERS || '')
+  .split(',')
+  .map(server => server.trim())
+  .filter(Boolean);
 
 const requiredEnv = ['JWT_SECRET', 'MONGO_URI'];
 const missingEnv = requiredEnv.filter(key => !process.env[key]);
@@ -106,11 +109,34 @@ const DEFAULT_LIVEFEED_CONFIG = {
   ]
 };
 const LIVEFEED_GRID_COLOR = '#16a34a';
+const SETTINGS_LIGHT_PROJECTION = {
+  'hardware.livefeed.referenceImage': 0,
+  'livefeed.referenceImage': 0
+};
 
 if (missingEnv.length > 0) {
   console.error(`Missing required environment variables: ${missingEnv.join(', ')}`);
   process.exit(1);
 }
+
+if (MONGO_DNS_SERVERS.length > 0) {
+  dns.setServers(MONGO_DNS_SERVERS);
+}
+
+mongoose.set('bufferCommands', false);
+
+const isMongoConnected = () => mongoose.connection.readyState === 1;
+
+const dbMiddleware = (req, res, next) => {
+  if (!isMongoConnected()) {
+    return res.status(503).json({
+      message: 'Database unavailable',
+      state: mongoose.STATES[mongoose.connection.readyState] || 'unknown'
+    });
+  }
+
+  next();
+};
 
 const authMiddleware = (req, res, next) => {
   try {
@@ -188,20 +214,29 @@ const normalizeLivefeedZone = (zone = {}, index = 0, zoneName = '') => {
   };
 };
 
-const normalizeLivefeedConfig = (livefeed = {}, zoneName = '') => {
+const normalizeLivefeedConfig = (livefeed = {}, zoneName = '', existingLivefeed = null, options = {}) => {
   const dwellSeconds = Number(livefeed.dwellSeconds);
   const zones = Array.isArray(livefeed.zones) && livefeed.zones.length
     ? livefeed.zones
     : DEFAULT_LIVEFEED_CONFIG.zones;
+  const nextReferenceImage = typeof livefeed.referenceImage === 'string' ? livefeed.referenceImage : '';
+  const existingReferenceImage = typeof existingLivefeed?.referenceImage === 'string'
+    ? existingLivefeed.referenceImage
+    : '';
 
   return {
     dwellSeconds: Number.isFinite(dwellSeconds) && dwellSeconds > 0 ? dwellSeconds : DEFAULT_LIVEFEED_CONFIG.dwellSeconds,
-    referenceImage: typeof livefeed.referenceImage === 'string' ? livefeed.referenceImage : '',
+    referenceImage: options.preserveExistingReferenceImage &&
+      livefeed.referenceImageAction !== 'clear' &&
+      !nextReferenceImage &&
+      existingReferenceImage
+      ? existingReferenceImage
+      : nextReferenceImage,
     zones: zones.slice(0, 1).map((zone, index) => normalizeLivefeedZone(zone, index, zoneName))
   };
 };
 
-const normalizeHardware = (hardware = {}, index = 0) => {
+const normalizeHardware = (hardware = {}, index = 0, existingHardware = null, options = {}) => {
   const type = ['sensor', 'camera', 'other'].includes(hardware.type) ? hardware.type : 'sensor';
   const status = hardware.status === 'online' ? 'online' : 'offline';
   const rtspUrl = String(hardware.rtspUrl || '').trim();
@@ -222,17 +257,108 @@ const normalizeHardware = (hardware = {}, index = 0) => {
       ip,
       type === 'camera' && rtspUrl ? 'RTSP configured' : ''
     ].filter(Boolean).join(' • '),
-    livefeed: normalizeLivefeedConfig(hardware.livefeed || DEFAULT_LIVEFEED_CONFIG, name)
+    livefeed: normalizeLivefeedConfig(
+      hardware.livefeed || DEFAULT_LIVEFEED_CONFIG,
+      name,
+      existingHardware?.livefeed,
+      options
+    )
   };
 
   if (hardware._id) normalized._id = hardware._id;
   return normalized;
 };
 
-const normalizeSettingsPayload = (payload = {}) => ({
+const getExistingHardwareForPayload = (existingSettings, hardware = {}, index = 0) => {
+  const existingHardware = Array.isArray(existingSettings?.hardware) ? existingSettings.hardware : [];
+  const payloadId = normalizeHardwareIdentifier(hardware._id || hardware.deviceId);
+  if (payloadId) {
+    const matched = existingHardware.find(item => (
+      normalizeHardwareIdentifier(item._id) === payloadId ||
+      normalizeHardwareIdentifier(item.deviceId) === payloadId
+    ));
+    if (matched) return matched;
+  }
+  return existingHardware[index] || null;
+};
+
+const normalizeSettingsPayload = (payload = {}, existingSettings = null, options = {}) => ({
   ...payload,
-  hardware: Array.isArray(payload.hardware) ? payload.hardware.map(normalizeHardware) : [],
+  hardware: Array.isArray(payload.hardware)
+    ? payload.hardware.map((hardware, index) => normalizeHardware(
+      hardware,
+      index,
+      getExistingHardwareForPayload(existingSettings, hardware, index),
+      options
+    ))
+    : Array.isArray(existingSettings?.hardware) ? existingSettings.hardware : [],
+  livefeed: normalizeLivefeedConfig(
+    payload.livefeed || DEFAULT_LIVEFEED_CONFIG,
+    '',
+    existingSettings?.livefeed,
+    options
+  )
 });
+
+const sanitizeSettingsForResponse = (settings) => {
+  if (!settings) return settings;
+  const source = settings.toObject ? settings.toObject() : settings;
+  return {
+    ...source,
+    livefeed: source.livefeed
+      ? { ...source.livefeed, referenceImage: '' }
+      : source.livefeed,
+    hardware: Array.isArray(source.hardware)
+      ? source.hardware.map(item => ({
+        ...item,
+        livefeed: item.livefeed
+          ? { ...item.livefeed, referenceImage: '' }
+          : item.livefeed
+      }))
+      : source.hardware
+  };
+};
+
+const getSettingsDocument = (includeReferenceImages = false) => (
+  includeReferenceImages
+    ? Setting.findOne().lean()
+    : Setting.findOne({}, SETTINGS_LIGHT_PROJECTION).lean()
+);
+
+const normalizeSettingsForResponse = (settings) => {
+  if (!settings) return settings;
+  const source = settings.toObject ? settings.toObject() : settings;
+  return {
+    ...source,
+    hardware: Array.isArray(source.hardware)
+      ? source.hardware.map((item, index) => normalizeHardware(item, index))
+      : []
+  };
+};
+
+const stripReferenceImagesFromSettingsPayload = (payload = {}) => {
+  const next = { ...payload };
+
+  if (next.livefeed && typeof next.livefeed === 'object') {
+    next.livefeed = { ...next.livefeed };
+    delete next.livefeed.referenceImage;
+    delete next.livefeed.referenceImageAction;
+  }
+
+  if (Array.isArray(next.hardware)) {
+    next.hardware = next.hardware.map(item => {
+      const hardware = { ...item };
+      if (hardware.livefeed && typeof hardware.livefeed === 'object') {
+        hardware.livefeed = { ...hardware.livefeed };
+        delete hardware.livefeed.referenceImage;
+        delete hardware.livefeed.referenceImageAction;
+      }
+      return hardware;
+    });
+  }
+
+  return next;
+};
 
 const normalizeHardwareIdentifier = (hardwareId) => {
   if (!hardwareId) return '';
@@ -304,7 +430,7 @@ const getMedian = (values = []) => {
 };
 
 const resolveStationIdForCamera = async (cameraId) => {
-  const settings = await Setting.findOne().lean();
+  const settings = await getSettingsDocument();
   const hardware = Array.isArray(settings?.hardware) ? settings.hardware : [];
   const camera = hardware.find(item => (
     normalizeHardwareIdentifier(item._id) === normalizeHardwareIdentifier(cameraId) ||
@@ -503,13 +629,27 @@ process.on('SIGTERM', () => {
   process.exit(0);
 });
 
+mongoose.connection.on('connected', () => {
+  console.log(`MongoDB Connected: ${mongoose.connection.name}`);
+});
+
+mongoose.connection.on('disconnected', () => {
+  console.warn('MongoDB Disconnected');
+});
+
+mongoose.connection.on('error', err => {
+  console.error('MongoDB connection error:', err.message);
+});
+
 mongoose
-  .connect(MONGO_URI)
-  .then(async () => {
-    console.log('MongoDB Connected');
-    await syncHardwareDetectors(await Setting.findOne().lean());
+  .connect(MONGO_URI, {
+    serverSelectionTimeoutMS: Number(process.env.MONGO_SERVER_SELECTION_TIMEOUT_MS) || 5000,
+    socketTimeoutMS: Number(process.env.MONGO_SOCKET_TIMEOUT_MS) || 45000,
   })
-  .catch(err => console.error('MongoDB connection error:', err));
+  .then(async () => {
+    await syncHardwareDetectors(await getSettingsDocument());
+  })
+  .catch(err => console.error('MongoDB initial connection failed:', err.message));
 
 const getLivefeedDetectionStatus = () => {
   const latest = [...cameraDetections.values()]
@@ -518,7 +658,7 @@ const getLivefeedDetectionStatus = () => {
 };
 
 const getLivefeedConfig = async (cameraId = '') => {
-  const settings = await Setting.findOne().lean();
+  const settings = await getSettingsDocument();
   const hardware = Array.isArray(settings?.hardware) ? settings.hardware : [];
   const camera = hardware.find(item => (
     normalizeHardwareIdentifier(item._id) === normalizeHardwareIdentifier(cameraId) ||
@@ -623,7 +763,9 @@ app.post('/api/livefeed/update', async (req, res) => {
   }
 
   try {
-    await updateHourlyAnalytics(req.body, detectionState);
+    if (isMongoConnected()) {
+      await updateHourlyAnalytics(req.body, detectionState);
+    }
   } catch (error) {
     console.error('[HOURLY_ANALYTICS] Could not update hourly analytics:', error);
   }
@@ -704,7 +846,7 @@ app.get('/api/livefeed/stream/:cameraId', async (req, res) => {
   proxyDetectorStream(req, res, `http://localhost:${running.port}/stream`, 'Camera stream is unavailable');
 });
 
-app.get('/api/livefeed/config', async (req, res) => {
+app.get('/api/livefeed/config', dbMiddleware, async (req, res) => {
   try {
     res.json(await getLivefeedConfig(req.query.cameraId));
   } catch (error) {
@@ -713,7 +855,18 @@ app.get('/api/livefeed/config', async (req, res) => {
 });
 
 /////////////////// Register ///////////////////
-app.post('/register', async (req, res) => {
+app.get('/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    database: {
+      connected: isMongoConnected(),
+      state: mongoose.STATES[mongoose.connection.readyState] || 'unknown',
+      name: mongoose.connection.name || null
+    }
+  });
+});
+
+app.post('/register', dbMiddleware, async (req, res) => {
   try {
     const { username, password, confirmPassword } = req.body;
     const existingUser = await User.findOne({ username });
@@ -729,7 +882,7 @@ app.post('/register', async (req, res) => {
 });
 
 /////////////////// Login ///////////////////
-app.post('/login', async (req, res) => {
+app.post('/login', dbMiddleware, async (req, res) => {
   try {
     const { username, password } = req.body;
     const user = await User.findOne({ username });
@@ -744,6 +897,7 @@ app.post('/login', async (req, res) => {
 });
 
 app.use('/api', authMiddleware);
+app.use('/api', dbMiddleware);
 
 /////////////////// Dashboard ///////////////////
 app.get('/api/dashboard', adminMiddleware, async (req, res) => {
@@ -877,7 +1031,7 @@ app.get('/api/livefeed/detection', adminMiddleware, (req, res) => {
 
 app.get('/api/livefeed/cameras', adminMiddleware, async (req, res) => {
   try {
-    const settings = await Setting.findOne().lean();
+    const settings = await getSettingsDocument();
     const cameras = (settings?.hardware || [])
       .map(normalizeHardware)
       .filter(item => item.type === 'camera')
@@ -918,7 +1072,9 @@ io.on('connection', (socket) => {
     }
 
     try {
-      await updateHourlyAnalytics(payload, detectionState);
+      if (isMongoConnected()) {
+        await updateHourlyAnalytics(payload, detectionState);
+      }
     } catch (error) {
       console.error('[HOURLY_ANALYTICS] Could not update hourly analytics:', error);
     }
@@ -1011,8 +1167,10 @@ app.patch('/api/feedback/:id', adminMiddleware, async (req, res) => {
 /////////////////// Settings ///////////////////
 app.get('/api/settings', adminMiddleware, async (req, res) => {
   try {
-    const settings = await Setting.findOne().lean();
-    res.json(settings || {});
+    const includeReferenceImages = req.query.includeReferenceImages === 'true';
+    const settings = await getSettingsDocument(includeReferenceImages);
+    const normalizedSettings = normalizeSettingsForResponse(settings || {});
+    res.json(includeReferenceImages ? normalizedSettings : sanitizeSettingsForResponse(normalizedSettings));
   } catch (error) {
     res.status(500).json(error);
   }
@@ -1020,16 +1178,24 @@ app.get('/api/settings', adminMiddleware, async (req, res) => {
 
 app.put('/api/settings', adminMiddleware, async (req, res) => {
   try {
-    const payload = normalizeSettingsPayload(req.body);
-    const settings = await Setting.findOneAndUpdate({}, payload, { new: true, upsert: true });
-    if (settings) {
-      settings.markModified('notificationChannels');
-      settings.markModified('hardware');
-      settings.markModified('livefeed');
-      await settings.save();
+    const payloadBody = stripReferenceImagesFromSettingsPayload(req.body);
+    const existingSettings = Array.isArray(payloadBody.hardware) || payloadBody.livefeed
+      ? await Setting.findOne().lean()
+      : await getSettingsDocument();
+    const payload = normalizeSettingsPayload(payloadBody, existingSettings, {
+      preserveExistingReferenceImage: true
+    });
+    if (!Array.isArray(payloadBody.hardware)) {
+      delete payload.hardware;
     }
-    await syncHardwareDetectors(settings?.toObject ? settings.toObject() : settings);
-    res.json({ message: 'Settings saved', settings });
+
+    const settings = await Setting.findOneAndUpdate(
+      {},
+      { $set: payload },
+      { returnDocument: 'after', upsert: true, projection: SETTINGS_LIGHT_PROJECTION }
+    ).lean();
+    await syncHardwareDetectors(settings);
+    res.json({ message: 'Settings saved', settings: sanitizeSettingsForResponse(settings) });
   } catch (error) {
     res.status(500).json(error);
   }
@@ -1041,9 +1207,9 @@ app.post('/api/settings/zones', adminMiddleware, async (req, res) => {
     const settings = await Setting.findOneAndUpdate(
       {},
       { $push: { zones: req.body } },
-      { new: true, upsert: true }
+      { returnDocument: 'after', upsert: true }
     );
-    res.json({ message: 'Zone added', settings });
+    res.json({ message: 'Zone added', settings: sanitizeSettingsForResponse(settings) });
   } catch (error) {
     res.status(500).json(error);
   }
@@ -1058,7 +1224,7 @@ app.put('/api/settings/zones/:index', adminMiddleware, async (req, res) => {
     settings.zones[index] = { ...settings.zones[index].toObject(), ...req.body };
     settings.markModified('zones');
     await settings.save();
-    res.json({ message: 'Zone updated', settings });
+    res.json({ message: 'Zone updated', settings: sanitizeSettingsForResponse(settings) });
   } catch (error) {
     res.status(500).json(error);
   }
@@ -1073,7 +1239,7 @@ app.delete('/api/settings/zones/:index', adminMiddleware, async (req, res) => {
     settings.zones.splice(index, 1);
     settings.markModified('zones');
     await settings.save();
-    res.json({ message: 'Zone deleted', settings });
+    res.json({ message: 'Zone deleted', settings: sanitizeSettingsForResponse(settings) });
   } catch (error) {
     res.status(500).json(error);
   }
@@ -1082,8 +1248,11 @@ app.delete('/api/settings/zones/:index', adminMiddleware, async (req, res) => {
 /////////////////// Settings - Hardware ///////////////////
 app.get('/api/settings/hardware', adminMiddleware, async (req, res) => {
   try {
-    const settings = await Setting.findOne().lean();
-    res.json(settings?.hardware || []);
+    const includeReferenceImages = req.query.includeReferenceImages === 'true';
+    const settings = await getSettingsDocument(includeReferenceImages);
+    res.json(Array.isArray(settings?.hardware)
+      ? settings.hardware.map((item, index) => normalizeHardware(item, index))
+      : []);
   } catch (error) {
     res.status(500).json(error);
   }
@@ -1091,15 +1260,15 @@ app.get('/api/settings/hardware', adminMiddleware, async (req, res) => {
 
 app.post('/api/settings/hardware', adminMiddleware, async (req, res) => {
   try {
-    const currentSettings = await Setting.findOne().lean();
+    const currentSettings = await getSettingsDocument();
     const hardware = normalizeHardware(req.body, currentSettings?.hardware?.length || 0);
     const settings = await Setting.findOneAndUpdate(
       {},
       { $push: { hardware } },
-      { new: true, upsert: true }
+      { returnDocument: 'after', upsert: true }
     );
     await syncHardwareDetectors(settings?.toObject ? settings.toObject() : settings);
-    res.json({ message: 'Hardware added', settings });
+    res.json({ message: 'Hardware added', settings: sanitizeSettingsForResponse(settings) });
   } catch (error) {
     res.status(500).json(error);
   }
@@ -1115,11 +1284,69 @@ app.put('/api/settings/hardware/:hardwareId', adminMiddleware, async (req, res) 
       return res.status(404).json({ message: 'Hardware not found' });
     }
 
-    settings.hardware[index] = normalizeHardware({ ...settings.hardware[index].toObject(), ...req.body }, index);
+    const existingHardware = settings.hardware[index].toObject();
+    settings.hardware[index] = normalizeHardware(
+      { ...existingHardware, ...req.body },
+      index,
+      existingHardware,
+      { preserveExistingReferenceImage: true }
+    );
     settings.markModified('hardware');
     await settings.save();
     await syncHardwareDetectors(settings.toObject());
-    res.json({ message: 'Hardware updated', settings });
+    res.json({ message: 'Hardware updated', settings: sanitizeSettingsForResponse(settings) });
+  } catch (error) {
+    res.status(500).json(error);
+  }
+});
+
+app.get('/api/settings/hardware/:hardwareId/livefeed/status', adminMiddleware, async (req, res) => {
+  try {
+    const hardwareId = normalizeHardwareIdentifier(req.params.hardwareId);
+    const normalizedHardwareId = mongoose.Types.ObjectId.isValid(hardwareId)
+      ? new mongoose.Types.ObjectId(hardwareId)
+      : null;
+    const hardwareExpression = /^\d+$/.test(hardwareId)
+      ? { $arrayElemAt: [{ $ifNull: ['$hardware', []] }, Number(hardwareId)] }
+      : {
+          $first: {
+            $filter: {
+              input: { $ifNull: ['$hardware', []] },
+              as: 'hardware',
+              cond: {
+                $or: [
+                  { $eq: ['$$hardware.deviceId', hardwareId] },
+                  ...(normalizedHardwareId ? [{ $eq: ['$$hardware._id', normalizedHardwareId] }] : [])
+                ]
+              }
+            }
+          }
+        };
+
+    const [result] = await Setting.aggregate([
+      {
+        $project: {
+          hardware: hardwareExpression
+        }
+      },
+      {
+        $project: {
+          livefeed: {
+            dwellSeconds: '$hardware.livefeed.dwellSeconds',
+            zones: '$hardware.livefeed.zones',
+            referenceImageBytes: {
+              $strLenBytes: { $ifNull: ['$hardware.livefeed.referenceImage', ''] }
+            }
+          }
+        }
+      }
+    ]).option({ maxTimeMS: 5000 });
+
+    if (!result?.livefeed) {
+      return res.status(404).json({ message: 'Hardware not found' });
+    }
+
+    res.json({ livefeed: result.livefeed });
   } catch (error) {
     res.status(500).json(error);
   }
@@ -1127,7 +1354,7 @@ app.put('/api/settings/hardware/:hardwareId', adminMiddleware, async (req, res) 
 
 app.put('/api/settings/hardware/:hardwareId/livefeed', adminMiddleware, async (req, res) => {
   try {
-    const settings = await Setting.findOne();
+    const settings = await getSettingsDocument();
     if (!settings) return res.status(404).json({ message: 'Settings not found' });
 
     const index = getHardwareIndex(settings, req.params.hardwareId);
@@ -1140,11 +1367,19 @@ app.put('/api/settings/hardware/:hardwareId/livefeed', adminMiddleware, async (r
       return res.status(400).json({ message: 'Livefeed grid can only be saved for camera hardware' });
     }
 
-    hardware.livefeed = normalizeLivefeedConfig(req.body, hardware.name);
-    settings.markModified('hardware');
-    await settings.save();
-    await syncHardwareDetectors(settings.toObject());
-    res.json({ message: 'Hardware livefeed saved', settings });
+    const livefeed = normalizeLivefeedConfig(stripReferenceImagesFromSettingsPayload({ livefeed: req.body }).livefeed, hardware.name);
+    const setFields = {
+      [`hardware.${index}.livefeed.dwellSeconds`]: livefeed.dwellSeconds,
+      [`hardware.${index}.livefeed.zones`]: livefeed.zones
+    };
+
+    const updatedSettings = await Setting.findOneAndUpdate(
+      {},
+      { $set: setFields },
+      { returnDocument: 'after', projection: SETTINGS_LIGHT_PROJECTION }
+    ).lean();
+    await syncHardwareDetectors(updatedSettings);
+    res.json({ message: 'Hardware livefeed saved', livefeed });
   } catch (error) {
     res.status(500).json(error);
   }
@@ -1164,7 +1399,7 @@ app.delete('/api/settings/hardware/:hardwareId', adminMiddleware, async (req, re
     settings.markModified('hardware');
     await settings.save();
     await syncHardwareDetectors(settings.toObject());
-    res.json({ message: 'Hardware deleted', settings });
+    res.json({ message: 'Hardware deleted', settings: sanitizeSettingsForResponse(settings) });
   } catch (error) {
     res.status(500).json(error);
   }
