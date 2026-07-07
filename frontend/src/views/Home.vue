@@ -6,8 +6,23 @@
       <div class="line-selector shadow-sm" @click="toggleLine">
         <span class="line-label">Line {{ activeLine }}</span>
       </div>
-      <div class="icon-circle info-icon shadow-sm">
-        <span>i</span>
+
+      <div class="info-container">
+        <div class="icon-circle info-icon shadow-sm" @click="toggleInfoMenu">
+          <span>i</span>
+        </div>
+
+        <transition name="dropdown-fade">
+          <div class="info-dropdown shadow-sm" v-if="isInfoMenuOpen">
+            <div class="info-dropdown-header">
+              <div class="info-dropdown-title">Line {{ activeLine }} Info</div>
+              <div class="info-dropdown-subtitle">Stops and landmarks</div>
+            </div>
+            <ul class="info-list">
+              <li v-for="item in currentLineInfoItems()" :key="item">{{ item }}</li>
+            </ul>
+          </div>
+        </transition>
       </div>
     </div>
 
@@ -109,6 +124,28 @@
       <i class='bx bx-target-lock locate-icon'></i>
     </div>
 
+    <div class="marker-legend shadow-sm">
+      <div class="legend-title">Marker status</div>
+      <div class="legend-item">
+        <svg class="legend-pin" viewBox="0 0 24 36" aria-hidden="true">
+          <path fill="#16a34a" d="M12 0C5.4 0 0 5.4 0 12c0 8.6 12 24 12 24s12-15.4 12-24C24 5.4 18.6 0 12 0z"/>
+        </svg>
+        <span>0-4 people waiting</span>
+      </div>
+      <div class="legend-item">
+        <svg class="legend-pin" viewBox="0 0 24 36" aria-hidden="true">
+          <path fill="#ecc100" d="M12 0C5.4 0 0 5.4 0 12c0 8.6 12 24 12 24s12-15.4 12-24C24 5.4 18.6 0 12 0z"/>
+        </svg>
+        <span>5-8 people waiting</span>
+      </div>
+      <div class="legend-item">
+        <svg class="legend-pin" viewBox="0 0 24 36" aria-hidden="true">
+          <path fill="#dc2626" d="M12 0C5.4 0 0 5.4 0 12c0 8.6 12 24 12 24s12-15.4 12-24C24 5.4 18.6 0 12 0z"/>
+        </svg>
+        <span>9+ people waiting</span>
+      </div>
+    </div>
+
     <!-- พื้นที่แผนที่ -->
     <div class="map-wrapper">
       <div id="map"></div>
@@ -125,6 +162,7 @@ import { getStationMarkerColor } from '../lib/stationAlert'
 
 // ===== ตัวแปร State =====
 const isProfileMenuOpen = ref(false)
+const isInfoMenuOpen = ref(false)
 const language = ref('English')
 const stations = ref([])
 const activeLine = ref(1)
@@ -151,16 +189,82 @@ let animFrame2 = null
 
 const defaultCenter = { lat: 20.0470, lng: 99.8940 }
 
+const line1InfoItems = [
+  'Dormitory Lamduan 2',
+  'Dormitory Lamduan 7 (Exit)',
+  'Junction 3 (Staff House)',
+  'Phiphitthaphan D2 Building',
+  'Dormitory Chin (Entrance)',
+  'Chinese Center (Entrance)',
+  'F Courtyard',
+  'D1 Building',
+  'Swimming Pool',
+  'E2 Building (Entrance)',
+  'C4 Meeting Room',
+  'C5 Building',
+  'E2 Building (Exit)',
+  'M-square Building',
+  'Chinese Center (Exit)',
+  'Dormitory Chin (Exit)',
+  'Lamduan Center',
+  'Swimming Pool Entrance',
+  'Dormitory Lamduan 7 (Entrance)',
+  'Lamduan Canteen Center',
+  '7-11 Lamduan'
+]
+
+const line2InfoItems = [
+  'Dormitory Lamduan 2',
+  'Dormitory Lamduan 7 (Exit)',
+  'Junction 3 (Staff House)',
+  'Phiphitthaphan D2 Building',
+  'Dormitory Chin (Entrance)',
+  'Chinese Center (Entrance)',
+  'F Courtyard',
+  'D1 Building',
+  'Swimming Pool',
+  'E2 Building (Entrance)',
+  'E2 Building (Exit)',
+  'M-square Building',
+  'Chinese Center (Exit)',
+  'Dormitory Chin (Exit)',
+  'Lamduan Center',
+  'Swimming Pool Entrance',
+  'Dormitory Lamduan 7 (Entrance)',
+  'Lamduan Canteen Center',
+  '7-11 Lamduan',
+  'Mae Fah Luang University Hospital'
+]
+
 // ===== Functions จัดการ UI =====
 const toggleProfileMenu = (e) => {
   e.stopPropagation()
   isProfileMenuOpen.value = !isProfileMenuOpen.value
+  if (isProfileMenuOpen.value) {
+    isInfoMenuOpen.value = false
+  }
+}
+
+const toggleInfoMenu = (e) => {
+  e.stopPropagation()
+  isInfoMenuOpen.value = !isInfoMenuOpen.value
+  if (isInfoMenuOpen.value) {
+    isProfileMenuOpen.value = false
+  }
 }
 
 const closeMenuOutside = (e) => {
-  if (!e.target.closest('.profile-container')) {
+  const clickedInsideProfile = e.target.closest('.profile-container')
+  const clickedInsideInfo = e.target.closest('.info-container')
+
+  if (!clickedInsideProfile && !clickedInsideInfo) {
     isProfileMenuOpen.value = false
+    isInfoMenuOpen.value = false
   }
+}
+
+const currentLineInfoItems = () => {
+  return activeLine.value === 1 ? line1InfoItems : line2InfoItems
 }
 
 const toggleLanguage = () => {
@@ -509,6 +613,10 @@ onUnmounted(() => {
   color: #333;
 }
 
+.info-container {
+  position: relative;
+}
+
 .info-icon {
   width: 34px;
   height: 34px;
@@ -522,6 +630,54 @@ onUnmounted(() => {
   font-style: italic;
   font-family: serif;
   cursor: pointer;
+}
+
+.info-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  width: min(320px, 80vw);
+  max-height: min(360px, 60vh);
+  overflow-y: auto;
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 10px 0;
+  z-index: 1100;
+}
+
+.info-dropdown-header {
+  padding: 6px 16px 10px;
+  border-bottom: 1px solid #f0f0f0;
+  margin-bottom: 6px;
+}
+
+.info-dropdown-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #111;
+}
+
+.info-dropdown-subtitle {
+  font-size: 12px;
+  color: #6b7280;
+  margin-top: 2px;
+}
+
+.info-list {
+  list-style: none;
+  padding: 0 4px;
+  margin: 0;
+}
+
+.info-list li {
+  padding: 8px 14px;
+  font-size: 13px;
+  color: #333;
+  line-height: 1.4;
+}
+
+.info-list li:nth-child(odd) {
+  background: #fafafa;
 }
 
 /* ================== 2. มุมขวาบน (Profile & Dropdown) ================== */
@@ -766,6 +922,39 @@ onUnmounted(() => {
 .locate-icon { font-size: 24px; color: #ff3b3b; }
 
 /* ================== MAP WRAPPER ================== */
+.marker-legend {
+  position: absolute;
+  bottom: 24px;
+  left: 24px;
+  z-index: 1000;
+  background: #ffffff;
+  border-radius: 14px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.legend-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #374151;
+}
+
+.legend-pin {
+  width: 12px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
 .map-wrapper {
   position: absolute;
   top: 0;
@@ -784,6 +973,7 @@ onUnmounted(() => {
   .floating-panel { top: 16px; left: 16px; }
   .profile-container { top: 16px; right: 16px; }
   .floating-btn { bottom: 24px; right: 16px; }
+  .marker-legend { bottom: 16px; left: 16px; padding: 10px 12px; }
   
   .profile-dropdown {
     width: 230px; 
