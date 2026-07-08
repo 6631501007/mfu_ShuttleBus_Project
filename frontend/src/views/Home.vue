@@ -56,7 +56,7 @@
           </div>
           
           <!-- ปุ่ม Destination -->
-          <div class="menu-card action-card dest-card shadow-sm">
+          <div class="menu-card action-card dest-card shadow-sm" @click.stop="toggleDestinationMenu">
             <i class='bx bxs-map icon-black'></i>
             <span class="card-label">Destination</span>
           </div>
@@ -69,6 +69,35 @@
           
         </div>
       </transition>
+    </div>
+
+    <div class="modal-backdrop destination-modal-backdrop" v-if="isDestinationMenuOpen" @click.self="closeDestinationModal">
+      <div class="destination-modal shadow">
+        <div class="destination-modal-header">
+          <div>
+            <h2>Select destination</h2>
+            <p>Choose a station to zoom to it on the map.</p>
+          </div>
+          <button class="modal-close" type="button" @click="closeDestinationModal">
+            <i class='bx bx-x'></i>
+          </button>
+        </div>
+
+        <div v-if="stations.length" class="destination-list">
+          <button
+            v-for="station in stations"
+            :key="getStationKey(station)"
+            class="destination-item"
+            :class="{ active: selectedDestination === (station.name || 'Selected destination') }"
+            type="button"
+            @click.stop="selectDestination(station)"
+          >
+            <span>{{ station.name }}</span>
+            <small>{{ station.incomingBuses || 'No buses incoming' }}</small>
+          </button>
+        </div>
+        <div v-else class="destination-empty">Loading stations...</div>
+      </div>
     </div>
 
     <div class="modal-backdrop" v-if="isFeedbackOpen" @click.self="closeFeedbackModal">
@@ -163,6 +192,7 @@ import { getStationMarkerColor } from '../lib/stationAlert'
 // ===== ตัวแปร State =====
 const isProfileMenuOpen = ref(false)
 const isInfoMenuOpen = ref(false)
+const isDestinationMenuOpen = ref(false)
 const language = ref('English')
 const stations = ref([])
 const activeLine = ref(1)
@@ -172,6 +202,7 @@ const feedbackRating = ref(5)
 const feedbackError = ref('')
 const feedbackSuccess = ref('')
 const isSubmittingFeedback = ref(false)
+const selectedDestination = ref('')
 
 // ตัวแปรเก็บข้อมูล User (ดึงจาก Database)
 const userName = ref('Loading...')
@@ -186,6 +217,8 @@ let busMarker1 = null
 let busMarker2 = null
 let animFrame1 = null
 let animFrame2 = null
+let stationMarkers = []
+let selectedStationMarker = null
 
 const defaultCenter = { lat: 20.0470, lng: 99.8940 }
 
@@ -253,6 +286,19 @@ const toggleInfoMenu = (e) => {
   }
 }
 
+const toggleDestinationMenu = (e) => {
+  e.stopPropagation()
+  isDestinationMenuOpen.value = !isDestinationMenuOpen.value
+  if (isDestinationMenuOpen.value) {
+    isInfoMenuOpen.value = false
+    isProfileMenuOpen.value = false
+  }
+}
+
+const closeDestinationModal = () => {
+  isDestinationMenuOpen.value = false
+}
+
 const closeMenuOutside = (e) => {
   const clickedInsideProfile = e.target.closest('.profile-container')
   const clickedInsideInfo = e.target.closest('.info-container')
@@ -260,6 +306,7 @@ const closeMenuOutside = (e) => {
   if (!clickedInsideProfile && !clickedInsideInfo) {
     isProfileMenuOpen.value = false
     isInfoMenuOpen.value = false
+    isDestinationMenuOpen.value = false
   }
 }
 
@@ -433,6 +480,61 @@ const centerMap = () => {
   }
 }
 
+const getStationKey = (station) => {
+  if (!station) return ''
+  return station._id || station.id || station.name || `${station.location?.lat ?? ''}-${station.location?.lng ?? ''}`
+}
+
+const createStationIcon = (markerColor, isSelected = false) => {
+  const pinWidth = isSelected ? 34 : 28
+  const pinHeight = isSelected ? 49 : 41
+  const iconSvg = encodeURIComponent(`
+    <svg xmlns="http://www.w3.org/2000/svg" width="${pinWidth}" height="${pinHeight}" viewBox="0 0 28 41">
+      <path fill="${markerColor}" stroke="#ffffff" stroke-width="2" d="M14 1C6.8 1 1 6.8 1 14c0 9.5 13 26 13 26s13-16.5 13-26C27 6.8 21.2 1 14 1z"/>
+      <circle cx="14" cy="14" r="5" fill="#ffffff"/>
+    </svg>
+  `)
+
+  return L.icon({
+    iconUrl: `data:image/svg+xml;charset=UTF-8,${iconSvg}`,
+    iconSize: [pinWidth, pinHeight],
+    iconAnchor: [pinWidth / 2, pinHeight],
+    popupAnchor: [0, -pinHeight + 4]
+  })
+}
+
+const selectDestination = (station, marker = null) => {
+  if (!station || !map) return
+
+  const stationKey = getStationKey(station)
+  const matchedMarker = marker || stationMarkers.find((entry) => entry.key === stationKey)?.marker
+
+  if (selectedStationMarker) {
+    const previousEntry = stationMarkers.find((entry) => entry.marker === selectedStationMarker)
+    if (previousEntry) {
+      const previousColor = getStationMarkerColor(previousEntry.station.waitingPassengers || 0)
+      previousEntry.marker.setIcon(createStationIcon(previousColor, false))
+    }
+  }
+
+  if (matchedMarker) {
+    const markerColor = getStationMarkerColor(station.waitingPassengers || 0)
+    matchedMarker.setIcon(createStationIcon(markerColor, true))
+    selectedStationMarker = matchedMarker
+    selectedDestination.value = station.name || 'Selected destination'
+
+    const lat = parseFloat(station.location?.lat)
+    const lng = parseFloat(station.location?.lng)
+    if (!Number.isNaN(lat) && !Number.isNaN(lng)) {
+      map.flyTo([lat, lng], 17, { duration: 1.2 })
+      matchedMarker.openPopup()
+    }
+  }
+
+  isDestinationMenuOpen.value = false
+  isProfileMenuOpen.value = false
+}
+
 const createBusIcon = () => {
   return L.icon({
     iconUrl: '/travel.png',
@@ -480,6 +582,10 @@ const createMap = () => {
   // ==========================================
   console.log('📌 ข้อมูลสถานีที่ได้จาก API:', stations.value) // เช็กใน Console (F12) ว่ามีข้อมูลมาไหม
 
+  stationMarkers = []
+  selectedStationMarker = null
+  selectedDestination.value = ''
+
   const validStations = stations.value.filter((s) => {
     if (!s.location || s.location.lat == null || s.location.lng == null) return false
     
@@ -493,27 +599,10 @@ const createMap = () => {
   console.log('📌 สถานีที่พิกัดถูกต้อง พร้อมปักหมุด:', validStations)
 
   // สร้างหมุดป้ายรถเมล์
-// สร้างหมุดป้ายรถเมล์แบบรูป "หมุดแผนที่ (Pin)"
   validStations.forEach((station) => {
     const markerColor = getStationMarkerColor(station.waitingPassengers || 0)
-    
-    // สร้างรูปหมุด (Pin) ด้วย SVG และเปลี่ยนสีตาม markerColor
-    const iconSvg = encodeURIComponent(`
-      <svg xmlns="http://www.w3.org/2000/svg" width="28" height="41" viewBox="0 0 28 41">
-        <path fill="${markerColor}" stroke="#ffffff" stroke-width="2" d="M14 1C6.8 1 1 6.8 1 14c0 9.5 13 26 13 26s13-16.5 13-26C27 6.8 21.2 1 14 1z"/>
-        <circle cx="14" cy="14" r="5" fill="#ffffff"/>
-      </svg>
-    `)
-
-    const customIcon = L.icon({
-      iconUrl: `data:image/svg+xml;charset=UTF-8,${iconSvg}`,
-      iconSize: [28, 41],
-      iconAnchor: [14, 41], // ปลายแหลมของหมุดปักตรงพิกัดเป๊ะๆ
-      popupAnchor: [0, -38] // ให้ Popup ลอยเหนือหมุด
-    })
-
     const marker = L.marker([parseFloat(station.location.lat), parseFloat(station.location.lng)], {
-      icon: customIcon
+      icon: createStationIcon(markerColor)
     }).addTo(map)
 
     marker.bindPopup(`
@@ -525,6 +614,13 @@ const createMap = () => {
     `)
     marker.on('mouseover', () => marker.openPopup())
     marker.on('mouseout', () => marker.closePopup())
+    marker.on('click', () => selectDestination(station, marker))
+
+    stationMarkers.push({
+      key: getStationKey(station),
+      marker,
+      station
+    })
   })
   // ==========================================
 
@@ -759,6 +855,79 @@ onUnmounted(() => {
 .feedback-card { background: #f8f9fa; } /* สีขาวเทา */
 .dest-card { background: #eaf4fd; } /* สีฟ้าอ่อน */
 .logout-card { background: #fce4e4; } /* สีแดงอ่อน */
+
+.destination-modal-backdrop {
+  z-index: 3000;
+}
+
+.destination-modal {
+  width: min(460px, calc(100% - 24px));
+  max-height: min(70vh, 560px);
+  overflow: auto;
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 20px;
+}
+
+.destination-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.destination-modal-header h2 {
+  margin: 0 0 4px;
+  color: #111827;
+  font-size: 20px;
+}
+
+.destination-modal-header p {
+  margin: 0;
+  color: #6b7280;
+  font-size: 13px;
+}
+
+.destination-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.destination-item {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #f9fafb;
+  padding: 10px 12px;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  cursor: pointer;
+  color: #111827;
+}
+
+.destination-item span {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.destination-item small {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.destination-item.active {
+  border-color: #2563eb;
+  background: #eff6ff;
+}
+
+.destination-empty {
+  padding: 10px 4px;
+  color: #6b7280;
+  font-size: 13px;
+}
 
 .card-label { font-size: 14px; font-weight: 600; color: #111; }
 .emoji-icon { font-size: 20px; }
