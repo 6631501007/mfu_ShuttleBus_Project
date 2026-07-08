@@ -1,101 +1,146 @@
-# Demo Project Setup Guide
+# BusStop / APC-QA Demo
 
+A developer-focused web application for bus stop passenger monitoring, station management, feedback handling, analytics, and live camera-based human detection.
 
-## Language / ภาษา
+The repository contains a Vue frontend, a Node.js/Express API, MongoDB/Mongoose data models, and a Python YOLOv8 AI service that can process webcam or RTSP camera streams.
 
-- 🇬🇧 [English Instructions](#english-instructions)
-- 🇹🇭 [คำแนะนำภาษาไทย](#คำแนะนำภาษาไทย)
+> **Note:** Some files under `docs/` describe a historical or separate "NewSystem" workflow. This README is based on the source code that exists in this repository.
 
----
+## Main Features
 
-## English Instructions
+- User registration and login with JWT authentication.
+- Role-based navigation for `admin` and `user` roles.
+- Admin dashboard for passenger, station, bus, notification, and queue analytics data.
+- Station map views using Leaflet.
+- Feedback submission and admin feedback resolution.
+- Settings screens for stations, notification settings, hardware devices, and live feed counting zones.
+- Live feed camera monitoring with AI detection metadata.
+- Hourly queue analytics persisted from live detection updates.
 
-This project has three parts:
+## Technologies Used
 
-- `frontend/` - Vue 3 + Vite web app
-- `backend/` - Node.js + Express API server
-- `AI/` - Python YOLOv8 live human detection service
+| Area | Technology |
+| --- | --- |
+| Frontend | Vue 3, Vite, Vue Router, Leaflet, ApexCharts, Chart.js, Tailwind/PostCSS |
+| Backend | Node.js, Express 5, Socket.IO, Mongoose, bcryptjs, JSON Web Token |
+| AI service | Python, OpenCV, Ultralytics YOLOv8, FastAPI, Uvicorn, NumPy, Requests, python-socketio |
+| Database | MongoDB |
+| Auth | JWT bearer tokens, bcrypt password hashing |
 
-Run them in this order:
+## Project Architecture Overview
 
-1. Backend
-2. Frontend
-3. AI service, only if you want the live camera feed
+```text
+Browser
+  -> Vue/Vite frontend
+  -> Express API + Socket.IO backend
+  -> MongoDB
 
-
-### 1. Install Required Software
-
-Install these before running the project.
-
-#### Windows
-
-1. Install Git: https://git-scm.com/download/win
-2. Install Node.js 20.19 or newer: https://nodejs.org/
-3. Install Python 3.10 or newer: https://www.python.org/downloads/windows/
-4. Install MongoDB locally, or use MongoDB Atlas:
-   - MongoDB Community Server: https://www.mongodb.com/try/download/community
-   - MongoDB Atlas: https://www.mongodb.com/atlas
-5. Optional for RTSP camera streams: install FFmpeg and make sure `ffmpeg` works in PowerShell or Command Prompt.
-
-#### Linux
-
-Ubuntu/Debian example:
-
-```bash
-sudo apt update
-sudo apt install -y git python3 python3-venv python3-pip ffmpeg
+Camera / RTSP / Webcam
+  -> Python YOLOv8 AI service
+  -> Socket.IO detection:update or HTTP /api/livefeed/update
+  -> Express backend
+  -> MongoDB hourly_analytics
+  -> Vue live feed and analytics pages
 ```
 
-Install Node.js 20.19 or newer. One common option is `nvm`:
+# Repository Structure
 
-```bash
-curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
-source ~/.bashrc
-nvm install 22
-nvm use 22
+```text
+.
+├── AI/
+├── backend/
+├── docs/
+├── frontend/
+├── README.md
+└── .gitignore
 ```
 
-Install MongoDB locally, or use MongoDB Atlas.
+| Path | Purpose |
+| --- | --- |
+| `AI/` | Python live camera human detection service. Contains `detect_humans_live-api.py` and `requirements.txt`. |
+| `AI/output/` | Generated output directory. **TODO:** Verify intended usage. |
+| `backend/` | Express API server, Socket.IO server, MongoDB connection, auth logic, detector process management, and Mongoose models. |
+| `backend/models/` | Mongoose schemas for users, stations, buses, feedback, settings, analytics, and hourly analytics. |
+| `frontend/` | Vue 3 + Vite application. |
+| `frontend/src/views/` | Main UI pages: login, dashboard, home, map, live feed, settings, analytics, and feedback. |
+| `frontend/src/lib/` | Frontend API wrapper and station alert utilities. |
+| `frontend/src/router/` | Vue Router route definitions and client-side auth guards. |
+| `frontend/src/components/` | Shared Vue component(s), currently top-bar notification UI. |
+| `frontend/public/` | Static frontend assets. |
+| `docs/` | Project notes, AI workflow documents, PRD/change templates, and agent guidance. Some docs reference source paths not present in this repo. |
 
-### 2. Clone the Project
+# Prerequisites
 
-#### Windows
+- Git.
+- Node.js. The local environment used for inspection was Node.js `v22.22.2`; exact minimum is not declared in the repo. **TODO:** Verify this information.
+- npm. The local environment used for inspection was npm `10.9.7`; exact minimum is not declared in the repo. **TODO:** Verify this information.
+- Python 3. The local environment used for inspection was Python `3.12.3`; exact minimum is not declared in the repo. **TODO:** Verify this information.
+- MongoDB, either local MongoDB or MongoDB Atlas.
+- FFmpeg is recommended for RTSP camera handling through OpenCV.
+- Docker Desktop / Docker Engine: not required by the current repository because no Docker files are present.
+- Docker Compose: not required by the current repository because no Compose files are present.
+- CUDA / NVIDIA Driver: optional only if running YOLO inference on CUDA. The default AI command uses CPU.
 
-```powershell
-git clone <your-repository-url>
+# Quick Setup Guide
+
+## 🇺🇸 English
+
+### 1. Clone Repository
+
+```bash
+git clone <repository-url>
 cd demo
 ```
 
-#### Linux
+### 2. Install Dependencies
+
+Install backend, frontend, and AI dependencies separately.
 
 ```bash
-git clone <your-repository-url>
-cd demo
+cd backend
+npm install
 ```
 
-### 3. Backend Setup
+```bash
+cd ../frontend
+npm install
+```
 
-Open terminal 1 in the project root.
+```bash
+cd ../AI
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+```
 
-#### Windows
+On Windows PowerShell, activate the AI virtual environment with:
 
 ```powershell
-cd backend
-npm install
-copy .env.example .env
+cd AI
+py -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+pip install -r requirements.txt
 ```
 
-#### Linux
+### 3. Configure Environment Variables
+
+Create backend and frontend `.env` files from the examples.
 
 ```bash
-cd backend
-npm install
-cp .env.example .env
+cp backend/.env.example backend/.env
+cp frontend/.env.example frontend/.env
 ```
 
-Edit `backend/.env`.
+On Windows PowerShell:
 
-For local MongoDB, use:
+```powershell
+copy backend\.env.example backend\.env
+copy frontend\.env.example frontend\.env
+```
+
+Edit `backend/.env` and set at least:
 
 ```env
 PORT=3000
@@ -105,45 +150,71 @@ LIVEFEED_SOURCE_STREAM_URL=http://localhost:8090/stream
 LIVEFEED_PUBLIC_STREAM_URL=/api/livefeed/stream
 ```
 
-If you use MongoDB Atlas, replace `MONGO_URI` with your Atlas connection string.
+Edit `frontend/.env`:
 
-Start the backend:
+```env
+VITE_API_BASE_URL=http://localhost:3000
+```
+
+> **Warning:** Do not commit real secrets or production MongoDB credentials.
+
+### 4. Install Backend Dependencies
 
 ```bash
+cd backend
+npm install
+```
+
+### 5. Install Frontend Dependencies
+
+```bash
+cd frontend
+npm install
+```
+
+### 6. Install AI Dependencies
+
+```bash
+cd AI
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+### 7. Prepare Database
+
+Start MongoDB locally or configure `MONGO_URI` for MongoDB Atlas.
+
+Local MongoDB example:
+
+```env
+MONGO_URI=mongodb://127.0.0.1:27017/demo
+```
+
+There are no migration or seed scripts in the repository. Data is created through the API and frontend forms.
+
+### 8. Run Backend
+
+```bash
+cd backend
 npm run dev
 ```
 
-Backend URL:
+The backend defaults to:
 
 ```text
 http://localhost:3000
 ```
 
-Keep this terminal open.
-
-### 4. Frontend Setup
-
-Open terminal 2 in the project root.
-
-#### Windows
-
-```powershell
-cd frontend
-npm install
-copy .env.example .env
-npm run dev
-```
-
-#### Linux
+### 9. Run Frontend
 
 ```bash
 cd frontend
-npm install
-cp .env.example .env
 npm run dev
 ```
 
-Frontend URL:
+The Vite dev server usually runs at:
 
 ```text
 http://localhost:5173
@@ -151,11 +222,104 @@ http://localhost:5173
 
 If Vite prints a different URL, use the URL shown in the terminal.
 
-### 5. AI Service Setup
+### 10. Run AI Service
 
-Open terminal 3 in the project root.
+Webcam example:
 
-#### Windows
+```bash
+cd AI
+source .venv/bin/activate
+python detect_humans_live-api.py --source 0
+```
+
+RTSP camera example:
+
+```bash
+cd AI
+source .venv/bin/activate
+python detect_humans_live-api.py --source "rtsp://username:password@camera-ip/path"
+```
+
+The AI service exposes an MJPEG preview at:
+
+```text
+http://localhost:8090/stream
+```
+
+### 11. Access the Application
+
+Open the frontend in a browser:
+
+```text
+http://localhost:5173
+```
+
+The frontend calls the backend configured by `VITE_API_BASE_URL`.
+
+### 12. Login Information
+
+The app provides registration through the login page and `/register` endpoint. New users are created with the `user` role.
+
+Most admin pages require the `admin` role. No default admin seed account exists in the repository.
+
+For local development, register a user and update the role in MongoDB:
+
+```javascript
+db.users.updateOne(
+  { username: "<your-username>" },
+  { $set: { role: "admin" } }
+)
+```
+
+### 13. Default Ports
+
+| Service | Default Port | Source |
+| --- | ---: | --- |
+| Backend API / Socket.IO | `3000` | `backend/.env.example`, `backend/app.js` |
+| Frontend dev server | `5173` | Vite default |
+| AI MJPEG stream | `8090` | `AI/detect_humans_live-api.py` |
+| Auto-started per-camera detectors | `DETECTOR_BASE_PORT + index + 1` | `backend/app.js` |
+
+### 14. Troubleshooting
+
+- Backend exits immediately: verify `JWT_SECRET` and `MONGO_URI` exist in `backend/.env`.
+- Frontend receives HTML instead of JSON: verify `VITE_API_BASE_URL` points to the backend, not the frontend dev server.
+- Login succeeds but admin pages redirect to `/home`: the account role is not `admin`.
+- Live feed is offline: start the AI service or configure an online camera hardware entry with a valid RTSP URL.
+- YOLO model download fails: verify network access, because Ultralytics downloads `yolov8*.pt` weights when missing.
+
+## 🇹🇭 ภาษาไทย
+
+### 1. Clone Repository
+
+```bash
+git clone <repository-url>
+cd demo
+```
+
+### 2. ติดตั้ง Dependencies
+
+โปรเจกต์นี้แยก dependencies เป็น 3 ส่วน: backend, frontend และ AI service
+
+```bash
+cd backend
+npm install
+```
+
+```bash
+cd ../frontend
+npm install
+```
+
+```bash
+cd ../AI
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+ถ้าใช้ Windows PowerShell:
 
 ```powershell
 cd AI
@@ -165,238 +329,23 @@ python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-If PowerShell blocks virtual environment activation, run this once:
+### 3. ตั้งค่า Environment Variables
+
+สร้างไฟล์ `.env` จากไฟล์ตัวอย่าง
+
+```bash
+cp backend/.env.example backend/.env
+cp frontend/.env.example frontend/.env
+```
+
+ถ้าใช้ Windows PowerShell:
 
 ```powershell
-Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+copy backend\.env.example backend\.env
+copy frontend\.env.example frontend\.env
 ```
 
-Then activate the virtual environment again:
-
-```powershell
-.\.venv\Scripts\Activate.ps1
-```
-
-#### Linux
-
-```bash
-cd AI
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-pip install -r requirements.txt
-```
-
-Run the AI service with a webcam:
-
-```bash
-python detect_humans_live-api.py --source 0
-```
-
-For an RTSP camera:
-
-```bash
-python detect_humans_live-api.py --source "rtsp://username:password@camera-ip/path"
-```
-
-AI stream URL:
-
-```text
-http://localhost:8090/stream
-```
-
-The AI service sends live detection counts to:
-
-```text
-http://localhost:3000/api/livefeed/update
-```
-
-### 6. Recommended Run Order
-
-Use three terminals.
-
-Terminal 1, backend:
-
-```bash
-cd backend
-npm run dev
-```
-
-Terminal 2, frontend:
-
-```bash
-cd frontend
-npm run dev
-```
-
-Terminal 3, AI:
-
-Windows:
-
-```powershell
-cd AI
-.\.venv\Scripts\Activate.ps1
-python detect_humans_live-api.py --source 0
-```
-
-Linux:
-
-```bash
-cd AI
-source .venv/bin/activate
-python detect_humans_live-api.py --source 0
-```
-
-### 7. Login and Admin Access
-
-The app has `/register` and `/login` endpoints. New registered users are created with the `user` role, but most dashboard pages require the `admin` role.
-
-For local development:
-
-1. Open the frontend.
-2. Register a new user.
-3. Update that user's role to `admin` in MongoDB.
-
-MongoDB shell example:
-
-```javascript
-use demo
-db.users.updateOne({ username: "your-username" }, { $set: { role: "admin" } })
-```
-
-Then log out and log back in.
-
-### 8. Useful URLs
-
-- Frontend: `http://localhost:5173`
-- Backend API: `http://localhost:3000`
-- AI MJPEG stream: `http://localhost:8090/stream`
-- Backend proxied live stream: `http://localhost:3000/api/livefeed/stream`
-
-### 9. Common Problems
-
-#### Backend says missing environment variables
-
-Make sure `backend/.env` exists and contains `JWT_SECRET` and `MONGO_URI`.
-
-#### Backend cannot connect to MongoDB
-
-Make sure MongoDB is running. If you use Atlas, check the connection string, username, password, IP allowlist, and database name.
-
-#### Frontend cannot call backend
-
-Make sure `frontend/.env` contains:
-
-```env
-VITE_API_BASE_URL=http://localhost:3000
-```
-
-Restart `npm run dev` after changing `.env`.
-
-#### AI cannot open webcam on Linux
-
-Try another camera source:
-
-```bash
-python detect_humans_live-api.py --source /dev/video0
-python detect_humans_live-api.py --source 1
-```
-
-Also make sure no other program is using the camera.
-
-#### AI install is slow or downloads a large file
-
-The `ultralytics` package may download YOLO model weights the first time it runs.
-
----
-
-## คำแนะนำภาษาไทย
-
-โปรเจกต์นี้มี 3 ส่วน:
-
-- `frontend/` - หน้าเว็บ Vue 3 + Vite
-- `backend/` - API Server ด้วย Node.js + Express
-- `AI/` - ระบบตรวจจับคนจากกล้องด้วย Python YOLOv8
-
-ให้รันตามลำดับนี้:
-
-1. Backend
-2. Frontend
-3. AI service เฉพาะตอนที่ต้องการใช้งาน live camera feed
-
-### 1. ติดตั้งโปรแกรมที่จำเป็น
-
-ติดตั้งโปรแกรมเหล่านี้ก่อนเริ่มรันโปรเจกต์
-
-#### Windows
-
-1. ติดตั้ง Git: https://git-scm.com/download/win
-2. ติดตั้ง Node.js เวอร์ชัน 20.19 หรือใหม่กว่า: https://nodejs.org/
-3. ติดตั้ง Python 3.10 หรือใหม่กว่า: https://www.python.org/downloads/windows/
-4. ติดตั้ง MongoDB ในเครื่อง หรือใช้ MongoDB Atlas:
-   - MongoDB Community Server: https://www.mongodb.com/try/download/community
-   - MongoDB Atlas: https://www.mongodb.com/atlas
-5. ถ้าจะใช้กล้อง RTSP แนะนำให้ติดตั้ง FFmpeg และตรวจว่าใช้คำสั่ง `ffmpeg` ได้ใน PowerShell หรือ Command Prompt
-
-#### Linux
-
-ตัวอย่างสำหรับ Ubuntu/Debian:
-
-```bash
-sudo apt update
-sudo apt install -y git python3 python3-venv python3-pip ffmpeg
-```
-
-ติดตั้ง Node.js เวอร์ชัน 20.19 หรือใหม่กว่า ตัวอย่างนี้ใช้ `nvm`:
-
-```bash
-curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
-source ~/.bashrc
-nvm install 22
-nvm use 22
-```
-
-ติดตั้ง MongoDB ในเครื่อง หรือใช้ MongoDB Atlas
-
-### 2. Clone โปรเจกต์
-
-#### Windows
-
-```powershell
-git clone <your-repository-url>
-cd demo
-```
-
-#### Linux
-
-```bash
-git clone <your-repository-url>
-cd demo
-```
-
-### 3. ตั้งค่า Backend
-
-เปิด terminal ที่ 1 ในโฟลเดอร์หลักของโปรเจกต์
-
-#### Windows
-
-```powershell
-cd backend
-npm install
-copy .env.example .env
-```
-
-#### Linux
-
-```bash
-cd backend
-npm install
-cp .env.example .env
-```
-
-แก้ไขไฟล์ `backend/.env`
-
-ถ้าใช้ MongoDB ในเครื่อง ให้ตั้งค่าแบบนี้:
+แก้ไข `backend/.env` อย่างน้อยให้มีค่าต่อไปนี้:
 
 ```env
 PORT=3000
@@ -406,79 +355,29 @@ LIVEFEED_SOURCE_STREAM_URL=http://localhost:8090/stream
 LIVEFEED_PUBLIC_STREAM_URL=/api/livefeed/stream
 ```
 
-ถ้าใช้ MongoDB Atlas ให้เปลี่ยน `MONGO_URI` เป็น connection string ของ Atlas
+แก้ไข `frontend/.env`:
 
-เริ่มรัน backend:
+```env
+VITE_API_BASE_URL=http://localhost:3000
+```
+
+> **Warning:** ห้าม commit secret จริงหรือ connection string ของ production ลง repository
+
+### 4. ติดตั้ง Backend Dependencies
 
 ```bash
-npm run dev
-```
-
-Backend จะอยู่ที่:
-
-```text
-http://localhost:3000
-```
-
-เปิด terminal นี้ค้างไว้
-
-### 4. ตั้งค่า Frontend
-
-เปิด terminal ที่ 2 ในโฟลเดอร์หลักของโปรเจกต์
-
-#### Windows
-
-```powershell
-cd frontend
+cd backend
 npm install
-copy .env.example .env
-npm run dev
 ```
 
-#### Linux
+### 5. ติดตั้ง Frontend Dependencies
 
 ```bash
 cd frontend
 npm install
-cp .env.example .env
-npm run dev
 ```
 
-Frontend จะอยู่ที่:
-
-```text
-http://localhost:5173
-```
-
-ถ้า Vite แสดง URL อื่นใน terminal ให้ใช้ URL นั้นแทน
-
-### 5. ตั้งค่า AI Service
-
-เปิด terminal ที่ 3 ในโฟลเดอร์หลักของโปรเจกต์
-
-#### Windows
-
-```powershell
-cd AI
-py -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-pip install -r requirements.txt
-```
-
-ถ้า PowerShell ไม่ยอม activate virtual environment ให้รันคำสั่งนี้ 1 ครั้ง:
-
-```powershell
-Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
-```
-
-จากนั้น activate virtual environment อีกครั้ง:
-
-```powershell
-.\.venv\Scripts\Activate.ps1
-```
-
-#### Linux
+### 6. ติดตั้ง AI Dependencies
 
 ```bash
 cd AI
@@ -488,59 +387,49 @@ python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-รัน AI service ด้วย webcam:
+### 7. เตรียม Database
 
-```bash
-python detect_humans_live-api.py --source 0
+ให้เปิดใช้งาน MongoDB ในเครื่อง หรือใส่ connection string ของ MongoDB Atlas ใน `MONGO_URI`
+
+ตัวอย่าง MongoDB ในเครื่อง:
+
+```env
+MONGO_URI=mongodb://127.0.0.1:27017/demo
 ```
 
-ถ้าใช้กล้อง RTSP:
+repository นี้ไม่มี migration script หรือ seed script ข้อมูลจะถูกสร้างผ่าน API และหน้าจอ frontend
 
-```bash
-python detect_humans_live-api.py --source "rtsp://username:password@camera-ip/path"
-```
-
-AI stream จะอยู่ที่:
-
-```text
-http://localhost:8090/stream
-```
-
-AI service จะส่งจำนวนคนที่ตรวจจับได้ไปที่:
-
-```text
-http://localhost:3000/api/livefeed/update
-```
-
-### 6. ลำดับการรันที่แนะนำ
-
-ใช้ 3 terminals
-
-Terminal 1, backend:
+### 8. รัน Backend
 
 ```bash
 cd backend
 npm run dev
 ```
 
-Terminal 2, frontend:
+backend จะรันที่:
+
+```text
+http://localhost:3000
+```
+
+### 9. รัน Frontend
 
 ```bash
 cd frontend
 npm run dev
 ```
 
-Terminal 3, AI:
+โดยปกติ Vite จะรันที่:
 
-Windows:
-
-```powershell
-cd AI
-.\.venv\Scripts\Activate.ps1
-python detect_humans_live-api.py --source 0
+```text
+http://localhost:5173
 ```
 
-Linux:
+ถ้า terminal แสดง URL อื่น ให้ใช้ URL นั้นแทน
+
+### 10. รัน AI Service
+
+ตัวอย่างใช้ webcam:
 
 ```bash
 cd AI
@@ -548,63 +437,553 @@ source .venv/bin/activate
 python detect_humans_live-api.py --source 0
 ```
 
-### 7. การ Login และสิทธิ์ Admin
-
-ระบบมี endpoint `/register` และ `/login` ผู้ใช้ที่สมัครใหม่จะได้ role เป็น `user` แต่หน้า dashboard ส่วนใหญ่ต้องใช้ role `admin`
-
-สำหรับการใช้งานในเครื่อง:
-
-1. เปิด frontend
-2. สมัคร user ใหม่
-3. เปลี่ยน role ของ user นั้นเป็น `admin` ใน MongoDB
-
-ตัวอย่างคำสั่ง MongoDB shell:
-
-```javascript
-use demo
-db.users.updateOne({ username: "your-username" }, { $set: { role: "admin" } })
-```
-
-จากนั้น logout แล้ว login ใหม่
-
-### 8. URL ที่ใช้บ่อย
-
-- Frontend: `http://localhost:5173`
-- Backend API: `http://localhost:3000`
-- AI MJPEG stream: `http://localhost:8090/stream`
-- Live stream ผ่าน backend: `http://localhost:3000/api/livefeed/stream`
-
-### 9. ปัญหาที่พบบ่อย
-
-#### Backend แจ้งว่า missing environment variables
-
-ตรวจว่าไฟล์ `backend/.env` มีอยู่จริง และมีค่า `JWT_SECRET` กับ `MONGO_URI`
-
-#### Backend ต่อ MongoDB ไม่ได้
-
-ตรวจว่า MongoDB กำลังรันอยู่ ถ้าใช้ Atlas ให้ตรวจ connection string, username, password, IP allowlist และ database name
-
-#### Frontend เรียก backend ไม่ได้
-
-ตรวจว่า `frontend/.env` มีค่านี้:
-
-```env
-VITE_API_BASE_URL=http://localhost:3000
-```
-
-หลังแก้ `.env` ให้ restart คำสั่ง `npm run dev`
-
-#### AI เปิด webcam บน Linux ไม่ได้
-
-ลองเปลี่ยน camera source:
+ตัวอย่างใช้กล้อง RTSP:
 
 ```bash
-python detect_humans_live-api.py --source /dev/video0
-python detect_humans_live-api.py --source 1
+cd AI
+source .venv/bin/activate
+python detect_humans_live-api.py --source "rtsp://username:password@camera-ip/path"
 ```
 
-และตรวจว่าไม่มีโปรแกรมอื่นกำลังใช้กล้องอยู่
+AI service จะเปิด MJPEG preview ที่:
 
-#### AI install ช้าหรือมีการ download ไฟล์ใหญ่
+```text
+http://localhost:8090/stream
+```
 
-แพ็กเกจ `ultralytics` อาจ download YOLO model weights ตอนรันครั้งแรก
+### 11. เข้าใช้งาน Application
+
+เปิด frontend ใน browser:
+
+```text
+http://localhost:5173
+```
+
+frontend จะเรียก backend ตามค่าที่ตั้งไว้ใน `VITE_API_BASE_URL`
+
+### 12. ข้อมูล Login
+
+ระบบสมัครสมาชิกได้จากหน้า login และ endpoint `/register` ผู้ใช้ใหม่จะมี role เป็น `user`
+
+หน้าสำหรับ admin ส่วนใหญ่ต้องใช้ role `admin` และ repository นี้ไม่มี default admin account หรือ seed script
+
+สำหรับ local development ให้สมัครผู้ใช้ก่อน แล้วแก้ role ใน MongoDB:
+
+```javascript
+db.users.updateOne(
+  { username: "<your-username>" },
+  { $set: { role: "admin" } }
+)
+```
+
+### 13. Default Ports
+
+| Service | Default Port | Source |
+| --- | ---: | --- |
+| Backend API / Socket.IO | `3000` | `backend/.env.example`, `backend/app.js` |
+| Frontend dev server | `5173` | Vite default |
+| AI MJPEG stream | `8090` | `AI/detect_humans_live-api.py` |
+| detector รายกล้องที่ backend สั่งเปิด | `DETECTOR_BASE_PORT + index + 1` | `backend/app.js` |
+
+### 14. Troubleshooting
+
+- backend ปิดทันทีตอนเริ่มรัน: ตรวจว่า `backend/.env` มี `JWT_SECRET` และ `MONGO_URI`
+- frontend ได้ HTML แทน JSON: ตรวจว่า `VITE_API_BASE_URL` ชี้ไป backend ไม่ใช่ Vite dev server
+- login ได้แต่เข้า admin page แล้วถูกส่งไป `/home`: user ยังไม่ใช่ role `admin`
+- live feed offline: ต้องเปิด AI service หรือเพิ่ม hardware กล้องที่ online และมี RTSP URL ถูกต้อง
+- YOLO model โหลดไม่ได้: ตรวจ network เพราะ Ultralytics จะดาวน์โหลดไฟล์ `yolov8*.pt` เมื่อยังไม่มีในเครื่อง
+
+# Environment Variables
+
+| Variable | Description | Required | Default |
+| --- | --- | --- | --- |
+| `PORT` | Backend HTTP and Socket.IO port. | No | `3000` |
+| `JWT_SECRET` | Secret used to sign and verify JWT tokens. Backend exits if missing. | Yes | None |
+| `MONGO_URI` | MongoDB connection string. Backend exits if missing. | Yes | None |
+| `MONGO_DNS_SERVERS` | Optional comma-separated DNS servers passed to Node `dns.setServers()` before MongoDB connection. | No | Empty |
+| `MONGO_SERVER_SELECTION_TIMEOUT_MS` | Mongoose server selection timeout. | No | `5000` |
+| `MONGO_SOCKET_TIMEOUT_MS` | Mongoose socket timeout. | No | `45000` |
+| `LIVEFEED_SOURCE_STREAM_URL` | Source MJPEG stream proxied by `/api/livefeed/stream`. | No | `http://localhost:8090/stream` |
+| `LIVEFEED_STREAM_URL` | Legacy fallback for `LIVEFEED_SOURCE_STREAM_URL`. | No | None |
+| `LIVEFEED_PUBLIC_STREAM_URL` | Stream URL returned in live feed detection status. | No | `/api/livefeed/stream` |
+| `DETECTOR_PYTHON_BIN` | Python executable used by backend when spawning detector processes. | No | `../AI/.venv/bin/python`, `../.venv/bin/python`, or `python3` |
+| `DETECTOR_SCRIPT_PATH` | Detector script path used by backend. | No | `../AI/detect_humans_live-api.py` |
+| `DETECTOR_BASE_PORT` | Base port used for auto-started per-camera detector MJPEG streams. | No | `8090` |
+| `DETECTOR_MODEL` | YOLOv8 model variant passed to the AI script by backend. | No | `yolov8s` |
+| `DETECTOR_IMGSZ` | YOLO inference image size passed by backend. | No | `640` |
+| `DETECTOR_SKIP_FRAMES` | Process every Nth frame when backend starts AI detectors. | No | `2` |
+| `DETECTOR_STREAM_FPS` | MJPEG preview FPS for backend-started detector processes. | No | `6` |
+| `DETECTOR_STREAM_WIDTH` | MJPEG preview width for backend-started detector processes. | No | `640` |
+| `DETECTOR_JPEG_QUALITY` | MJPEG JPEG quality for backend-started detector processes. | No | `65` |
+| `DETECTOR_SOCKET_EMIT_INTERVAL` | Minimum seconds between AI Socket.IO emits for backend-started detectors. | No | `0.5` |
+| `ANALYTICS_TIMEZONE` | Time zone used for hourly analytics buckets and labels. | No | `Asia/Bangkok` |
+| `VITE_API_BASE_URL` | Frontend API base URL. | No | `http://localhost:3000` |
+
+> **Note:** The AI script is configured through CLI flags, not `.env` variables.
+
+# Running with Docker
+
+No `Dockerfile`, `docker-compose.yml`, or production container deployment files were found in this repository.
+
+| Task | Status |
+| --- | --- |
+| Build | **TODO:** Verify this information. |
+| Run | **TODO:** Verify this information. |
+| Stop | **TODO:** Verify this information. |
+| Rebuild | **TODO:** Verify this information. |
+| Logs | **TODO:** Verify this information. |
+| Production deployment | **TODO:** Verify this information. |
+
+# API Overview
+
+All `/api/*` routes are protected by JWT authentication and database availability middleware except the live feed ingest/config/stream endpoints declared before `app.use('/api', authMiddleware)`.
+
+| Method | Endpoint | Description | Authentication |
+| --- | --- | --- | --- |
+| `GET` | `/health` | Backend and MongoDB health status. | Public |
+| `POST` | `/register` | Register a new user with role `user`. | Public |
+| `POST` | `/login` | Login and receive JWT token. | Public |
+| `POST` | `/api/livefeed/update` | Receive AI detection count and metadata; updates hourly analytics when MongoDB is connected. | Public |
+| `POST` | `/api/livefeed/stop` | Clear live feed detection state. | Public |
+| `GET` | `/api/livefeed/stream` | Proxy the configured MJPEG stream. | Public |
+| `GET` | `/api/livefeed/stream/:cameraId` | Proxy a running per-camera detector MJPEG stream. | Public |
+| `GET` | `/api/livefeed/config` | Return live feed zone/dwell configuration, optionally by `cameraId`. | Public, requires database |
+| `GET` | `/api/dashboard` | Dashboard KPIs, charts, notifications, stations, buses, hourly analytics. | Admin |
+| `GET` | `/api/analytics` | Latest analytics overview and chart datasets. | Admin |
+| `GET` | `/api/hourly-analytics` | Hourly analytics, optionally filtered by `station_id`; supports `limit`. | Admin |
+| `POST` | `/api/analytics` | Create analytics document. | Admin |
+| `GET` | `/api/home` | User home data: passenger chart, stations, rankings. | Authenticated |
+| `GET` | `/api/map` | Admin station map data. | Admin |
+| `GET` | `/api/livefeed/detection` | Current live feed detection status. | Admin |
+| `GET` | `/api/livefeed/cameras` | Configured camera hardware and detector status. | Admin |
+| `GET` | `/api/feedback` | Feedback list and resolved/unresolved summary. | Admin |
+| `POST` | `/api/feedback` | Submit feedback for current user. | Authenticated |
+| `PATCH` | `/api/feedback/:id` | Update feedback status or response. | Admin |
+| `GET` | `/api/settings` | Read settings; supports `includeReferenceImages=true`. | Admin |
+| `PUT` | `/api/settings` | Save settings and synchronize detector processes. | Admin |
+| `POST` | `/api/settings/zones` | Add settings zone. | Admin |
+| `PUT` | `/api/settings/zones/:index` | Update settings zone by array index. | Admin |
+| `DELETE` | `/api/settings/zones/:index` | Delete settings zone by array index. | Admin |
+| `GET` | `/api/settings/hardware` | List hardware devices. | Admin |
+| `POST` | `/api/settings/hardware` | Add hardware device. | Admin |
+| `PUT` | `/api/settings/hardware/:hardwareId` | Update hardware device. | Admin |
+| `GET` | `/api/settings/hardware/:hardwareId/livefeed/status` | Read hardware livefeed config and reference image byte size. | Admin |
+| `PUT` | `/api/settings/hardware/:hardwareId/livefeed` | Save livefeed dwell/zones for camera hardware. | Admin |
+| `DELETE` | `/api/settings/hardware/:hardwareId` | Delete hardware device. | Admin |
+| `POST` | `/api/stations` | Create station. | Admin |
+| `GET` | `/api/stations` | List stations. | Admin |
+| `PUT` | `/api/stations-bulk` | Replace all stations in bulk. | Admin |
+| `PUT` | `/api/stations/bulk` | Replace all stations in bulk. | Admin |
+| `PUT` | `/api/stations/:id` | Update station by MongoDB document ID. | Admin |
+| `DELETE` | `/api/stations/:id` | Delete station by MongoDB document ID. | Admin |
+| `POST` | `/api/buses` | Create bus. | Admin |
+| `GET` | `/api/user-map` | Station map data for non-admin users. | Authenticated |
+| `GET` | `/api/user/me` | Current user profile. | Authenticated |
+
+## Socket.IO Events
+
+| Event | Direction | Description |
+| --- | --- | --- |
+| `detection:update` | AI/client -> backend | Sends detection metadata to backend. |
+| `detection:broadcast` | backend -> clients | Broadcasts current detection status after a valid update. |
+| `detection:error` | backend -> client | Sent when detection payload is invalid. |
+
+# Database
+
+## Database Type
+
+MongoDB through Mongoose.
+
+## Collections / Models
+
+| Model | Collection | Main Fields |
+| --- | --- | --- |
+| `User` | `users` | `username`, hashed `password`, `role` (`user` or `admin`) |
+| `Station` | `stations` | `stationId`, `name`, `desc`, `zone`, `location`, `capacity`, `waitingPassengers`, `incomingBuses`, `status` |
+| `Bus` | `buses` | `busId`, `route`, `status`, `currentLocation`, `eta` |
+| `Feedback` | `feedbacks` | `userName`, `message`, `rating`, `status`, `response` |
+| `Analytics` | `analytics` | date ranges, terminals, metrics, weekly/monthly/previous chart data |
+| `HourlyAnalytics` | `hourly_analytics` | station/camera ID, hourly queue counts, queue time metrics, total persons processed |
+| `Setting` | `settings` | zones, notification channels, delay threshold, hardware, livefeed configuration |
+
+## Relationships
+
+- No Mongoose `ref` relationships are defined.
+- `HourlyAnalytics.station_id` is derived from camera settings when possible.
+- Feedback stores `userName` as text rather than a user reference.
+
+## Indexes
+
+- `HourlyAnalytics` has a unique index on `{ station_id: 1, timestamp: 1 }`.
+- `HourlyAnalytics` has an index on `{ timestamp: -1 }`.
+- `Station.stationId` is unique.
+- `Bus.busId` is unique.
+
+## Migrations
+
+No migration framework or migration files were found.
+
+## Seed Data
+
+No seed script was found. **TODO:** Verify this information.
+
+# AI Service
+
+The AI service is implemented in `AI/detect_humans_live-api.py`.
+
+## Model Used
+
+- Ultralytics YOLOv8.
+- CLI default: `yolov8n`.
+- Backend-spawned detector default: `yolov8s`.
+- The script loads model weights with `YOLO(f"{args.model}.pt")`.
+
+## Input
+
+- Webcam index, for example `--source 0`.
+- RTSP URL, for example `--source "rtsp://username:password@camera-ip/path"`.
+- Livefeed zone/dwell configuration from `--config-url`, defaulting to `http://localhost:3000/api/livefeed/config`.
+
+## Output
+
+- MJPEG preview stream at `/stream` on the configured port.
+- Detection metadata via Socket.IO, default event `detection:update`.
+- HTTP fallback POST to `/api/livefeed/update`.
+
+Example detection fields include:
+
+```json
+{
+  "cameraId": "cam01",
+  "timestamp": 1710000000000,
+  "frameWidth": 1280,
+  "frameHeight": 720,
+  "peopleCount": 2,
+  "activeCount": 1,
+  "detections": []
+}
+```
+
+## Detection Pipeline
+
+1. Open webcam or RTSP stream with OpenCV.
+2. Keep a raw MJPEG preview frame for frontend compatibility.
+3. Fetch livefeed zone and dwell configuration.
+4. Crop configured counting zones.
+5. Run YOLO person detection on each zone.
+6. Track centroids and dwell time.
+7. Count a person after they remain in a zone for the configured dwell seconds.
+8. Publish metadata to Socket.IO and/or HTTP.
+9. Backend stores hourly analytics when MongoDB is connected.
+
+## Dependencies
+
+See `AI/requirements.txt`:
+
+```text
+opencv-python
+ultralytics
+requests
+fastapi
+uvicorn
+numpy
+python-socketio[client]
+```
+
+## Camera / RTSP Configuration
+
+Manual RTSP command:
+
+```bash
+cd AI
+source .venv/bin/activate
+python detect_humans_live-api.py --source "rtsp://username:password@camera-ip/path"
+```
+
+Admin-managed camera flow:
+
+1. Add hardware in Settings with `type` set to `camera`.
+2. Set `status` to `online`.
+3. Provide `rtspUrl`.
+4. Save settings.
+5. Backend starts a detector process for the camera when configured.
+
+## Performance Considerations
+
+- Use `--device cuda` or `--device cuda:0` only when CUDA and a compatible NVIDIA driver are installed.
+- Reduce `--imgsz` to lower latency.
+- Increase `--skip-frames` to reduce inference load.
+- Use `--drop-frames` and FFmpeg RTSP options to reduce buffered RTSP delay.
+- Lower `--stream-width`, `--stream-fps`, or `--jpeg-quality` to reduce MJPEG bandwidth.
+
+# Authentication & Authorization
+
+## Login Flow
+
+1. User submits `username` and `password` to `/login`.
+2. Backend finds the user in MongoDB.
+3. Password is verified with `bcrypt.compare`.
+4. Backend signs a JWT with `{ id, role }` and `expiresIn: '1d'`.
+5. Frontend stores `token` and `role` in `localStorage`.
+6. Frontend route guards redirect unauthenticated users to `/`.
+
+## JWT / Session
+
+- JWT bearer tokens are accepted through the `Authorization` header.
+- Backend supports both `Authorization: Bearer <token>` and raw token value.
+- No server-side session store is implemented.
+
+## IAM Integration
+
+No active IAM integration exists in the current source code.
+
+> **TODO:** Verify this information.
+
+## User Roles
+
+| Role | Behavior |
+| --- | --- |
+| `user` | Can access authenticated user routes such as `/home`, `/livefeed`, `/api/home`, `/api/user-map`, `/api/user/me`, and submit feedback. |
+| `admin` | Can access admin dashboard, analytics, feedback management, settings, map, stations, hardware, buses, and livefeed admin APIs. |
+
+## Permission System
+
+The backend uses `adminMiddleware`, which checks `req.user.role === 'admin'`. There is no granular permission matrix in the active backend source.
+
+# Development Workflow
+
+## Branch Strategy
+
+No branch strategy is documented in the active repository.
+
+> **TODO:** Verify this information.
+
+## Pull Requests
+
+No pull request template or CI workflow was found.
+
+> **TODO:** Verify this information.
+
+## Code Style
+
+- Backend uses CommonJS modules and a single Express application file.
+- Frontend uses Vue single-file components and Composition API in several views.
+- AI service is a standalone Python script.
+- No ESLint, Prettier, Black, Ruff, or equivalent formatter configuration was found.
+
+## Linting
+
+No lint scripts are defined in `backend/package.json` or `frontend/package.json`.
+
+## Formatting
+
+No formatting scripts are defined.
+
+## Build Process
+
+Frontend production build:
+
+```bash
+cd frontend
+npm run build
+```
+
+Frontend preview:
+
+```bash
+cd frontend
+npm run preview
+```
+
+Backend runtime:
+
+```bash
+cd backend
+npm start
+```
+
+# Testing
+
+No first-party unit, integration, or end-to-end test scripts were found in `backend/package.json`, `frontend/package.json`, or the source tree.
+
+| Test Type | Command | Status |
+| --- | --- | --- |
+| Backend unit tests | **TODO:** Verify this information. | No script found |
+| Backend integration tests | **TODO:** Verify this information. | No script found |
+| Frontend unit tests | **TODO:** Verify this information. | No script found |
+| End-to-end tests | **TODO:** Verify this information. | No script found |
+| AI service tests | **TODO:** Verify this information. | No script found |
+
+Manual smoke checks:
+
+```bash
+cd backend
+npm run dev
+```
+
+```bash
+cd frontend
+npm run dev
+```
+
+```bash
+curl http://localhost:3000/health
+```
+
+# Troubleshooting
+
+## Port Already in Use
+
+Change the backend port in `backend/.env`:
+
+```env
+PORT=3001
+```
+
+Then update the frontend:
+
+```env
+VITE_API_BASE_URL=http://localhost:3001
+```
+
+For AI stream conflicts, change:
+
+```bash
+python detect_humans_live-api.py --mjpeg-port 8091
+```
+
+## Missing Environment Variables
+
+The backend exits if `JWT_SECRET` or `MONGO_URI` is missing.
+
+```bash
+cp backend/.env.example backend/.env
+```
+
+## Database Connection Failed
+
+- Verify MongoDB is running.
+- Verify `MONGO_URI`.
+- For MongoDB Atlas, verify IP allowlist, username, password, and database name.
+- Optionally set `MONGO_DNS_SERVERS` if DNS resolution is the issue.
+
+## Docker Container Won't Start
+
+No Docker configuration exists in the current repository.
+
+> **TODO:** Verify this information.
+
+## npm Install Errors
+
+Try a clean install inside the affected package:
+
+```bash
+rm -rf node_modules package-lock.json
+npm install
+```
+
+> **Warning:** Only remove `package-lock.json` intentionally. Keeping lockfiles is usually preferred for reproducible installs.
+
+## Python Dependency Issues
+
+Recreate the AI virtual environment:
+
+```bash
+cd AI
+rm -rf .venv
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+## RTSP Camera Inaccessible
+
+- Verify the RTSP URL and credentials.
+- Confirm the camera is reachable from the machine running the AI service.
+- Install FFmpeg if OpenCV cannot open the stream.
+- Try TCP transport through the script's default RTSP options or override `--ffmpeg-capture-options`.
+
+## AI Model Not Loading
+
+- Verify `ultralytics` is installed.
+- Verify the model name is valid, for example `yolov8n`, `yolov8s`, or `yolov8m`.
+- Verify network access if the `.pt` weights are not already downloaded.
+- Use CPU first:
+
+```bash
+python detect_humans_live-api.py --source 0 --device cpu
+```
+
+# Contributing
+
+1. Fork the repository.
+2. Create a feature branch.
+
+```bash
+git checkout -b feature/short-description
+```
+
+3. Make focused changes and keep them aligned with existing backend, frontend, or AI patterns.
+4. Run available build/smoke checks.
+
+```bash
+cd frontend
+npm run build
+```
+
+```bash
+cd backend
+npm run dev
+```
+
+5. Use clear commit messages.
+
+```text
+feat: add station status filter
+fix: handle missing livefeed config
+docs: update setup guide
+```
+
+6. Open a pull request with:
+   - Summary of changes.
+   - Manual test evidence.
+   - Screenshots for UI changes when relevant.
+   - Any environment or database impact.
+
+> **TODO:** Verify branch naming and commit message policy.
+
+# License
+
+No root `LICENSE` file was found.
+
+`backend/package.json` declares:
+
+```json
+{
+  "license": "ISC"
+}
+```
+
+The frontend package does not declare a license.
+
+> **TODO:** Verify repository-level license.
+
+# Acknowledgements
+
+This project uses:
+
+- [Vue](https://vuejs.org/)
+- [Vite](https://vite.dev/)
+- [Vue Router](https://router.vuejs.org/)
+- [Express](https://expressjs.com/)
+- [Socket.IO](https://socket.io/)
+- [Mongoose](https://mongoosejs.com/)
+- [MongoDB](https://www.mongodb.com/)
+- [Leaflet](https://leafletjs.com/)
+- [ApexCharts](https://apexcharts.com/)
+- [Chart.js](https://www.chartjs.org/)
+- [OpenCV](https://opencv.org/)
+- [Ultralytics YOLO](https://docs.ultralytics.com/)
+- [FastAPI](https://fastapi.tiangolo.com/)
+- [Uvicorn](https://www.uvicorn.org/)
