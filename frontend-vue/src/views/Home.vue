@@ -4,7 +4,7 @@
     <!-- 1. มุมซ้ายบน: ปุ่มเลือกสายรถ (UI แบบแคปซูล) และปุ่ม Info -->
     <div class="floating-panel top-left">
       <div class="line-selector shadow-sm" @click="toggleLine">
-        <span class="line-label">Line {{ activeLine }}</span>
+        <span class="line-label">{{ lineTitle }}</span>
       </div>
 
       <div class="info-container">
@@ -15,8 +15,8 @@
         <transition name="dropdown-fade">
           <div class="info-dropdown shadow-sm" v-if="isInfoMenuOpen">
             <div class="info-dropdown-header">
-              <div class="info-dropdown-title">Line {{ activeLine }} Info</div>
-              <div class="info-dropdown-subtitle">Stops and landmarks</div>
+              <div class="info-dropdown-title">{{ lineInfoTitle }}</div>
+              <div class="info-dropdown-subtitle">{{ t.stopsAndLandmarks }}</div>
             </div>
             <ul class="info-list">
               <li v-for="item in currentLineInfoItems()" :key="item">{{ item }}</li>
@@ -45,26 +45,26 @@
           
           <!-- ปุ่มเปลี่ยนภาษา -->
           <div class="menu-card action-card lang-card shadow-sm" @click="toggleLanguage">
-            <span class="emoji-icon">🇺🇸</span>
-            <span class="card-label">{{ language }}</span>
+            <span class="emoji-icon">{{ languageFlag }}</span>
+            <span class="card-label">{{ languageLabel }}</span>
           </div>
           
           <!-- ปุ่ม Feedback -->
           <div class="menu-card action-card feedback-card shadow-sm" @click="openFeedbackModal">
             <i class='bx bxs-message-alt-error icon-dark-red'></i>
-            <span class="card-label">Feedback</span>
+            <span class="card-label">{{ t.feedback }}</span>
           </div>
           
           <!-- ปุ่ม Destination -->
           <div class="menu-card action-card dest-card shadow-sm" @click.stop="toggleDestinationMenu">
             <i class='bx bxs-map icon-black'></i>
-            <span class="card-label">Destination</span>
+            <span class="card-label">{{ t.destination }}</span>
           </div>
           
           <!-- ปุ่ม Logout -->
           <div class="menu-card action-card logout-card shadow-sm" @click="logout">
             <i class='bx bx-log-out icon-red'></i>
-            <span class="card-label">Logout</span>
+            <span class="card-label">{{ t.logout }}</span>
           </div>
           
         </div>
@@ -75,8 +75,8 @@
       <div class="destination-modal shadow">
         <div class="destination-modal-header">
           <div>
-            <h2>Select destination</h2>
-            <p>Choose a station to zoom to it on the map.</p>
+            <h2>{{ t.selectDestination }}</h2>
+            <p>{{ t.chooseStation }}</p>
           </div>
           <button class="modal-close" type="button" @click="closeDestinationModal">
             <i class='bx bx-x'></i>
@@ -88,15 +88,15 @@
             v-for="station in stations"
             :key="getStationKey(station)"
             class="destination-item"
-            :class="{ active: selectedDestination === (station.name || 'Selected destination') }"
+            :class="{ active: selectedDestination === getStationDisplayName(station) }"
             type="button"
             @click.stop="selectDestination(station)"
           >
-            <span>{{ station.name }}</span>
-            <small>{{ station.incomingBuses || 'No buses incoming' }}</small>
+            <span>{{ getStationDisplayName(station) }}</span>
+            <small>{{ station.incomingBuses || t.noBusesIncoming }}</small>
           </button>
         </div>
-        <div v-else class="destination-empty">Loading stations...</div>
+        <div v-else class="destination-empty">{{ t.loadingStations }}</div>
       </div>
     </div>
 
@@ -104,8 +104,8 @@
       <form class="feedback-modal shadow" @submit.prevent="submitFeedback">
         <div class="feedback-modal-header">
           <div>
-            <h2>Send Feedback</h2>
-            <p>Tell the admin about your waiting experience.</p>
+            <h2>{{ t.sendFeedback }}</h2>
+            <p>{{ t.feedbackPrompt }}</p>
           </div>
           <button class="modal-close" type="button" @click="closeFeedbackModal">
             <i class='bx bx-x'></i>
@@ -113,18 +113,18 @@
         </div>
 
         <label class="feedback-field">
-          <span>Message</span>
+          <span>{{ t.message }}</span>
           <textarea
             v-model="feedbackMessage"
             rows="4"
             maxlength="500"
-            placeholder="Example: The waiting system is too slow"
+            :placeholder="t.feedbackPlaceholder"
             required
           ></textarea>
         </label>
 
         <div class="feedback-field">
-          <span>Rating</span>
+          <span>{{ t.rating }}</span>
           <div class="rating-options">
             <button
               v-for="rating in 5"
@@ -143,7 +143,7 @@
         <p class="feedback-success" v-if="feedbackSuccess">{{ feedbackSuccess }}</p>
 
         <button class="feedback-submit" type="submit" :disabled="isSubmittingFeedback">
-          {{ isSubmittingFeedback ? 'Sending...' : 'Submit Feedback' }}
+          {{ isSubmittingFeedback ? t.sending : t.submitFeedback }}
         </button>
       </form>
     </div>
@@ -154,24 +154,24 @@
     </div>
 
     <div class="marker-legend shadow-sm">
-      <div class="legend-title">Marker status</div>
+      <div class="legend-title">{{ t.markerStatus }}</div>
       <div class="legend-item">
         <svg class="legend-pin" viewBox="0 0 24 36" aria-hidden="true">
           <path fill="#16a34a" d="M12 0C5.4 0 0 5.4 0 12c0 8.6 12 24 12 24s12-15.4 12-24C24 5.4 18.6 0 12 0z"/>
         </svg>
-        <span>0-4 people waiting</span>
+        <span>{{ t.waiting0to4 }}</span>
       </div>
       <div class="legend-item">
         <svg class="legend-pin" viewBox="0 0 24 36" aria-hidden="true">
           <path fill="#ecc100" d="M12 0C5.4 0 0 5.4 0 12c0 8.6 12 24 12 24s12-15.4 12-24C24 5.4 18.6 0 12 0z"/>
         </svg>
-        <span>5-8 people waiting</span>
+        <span>{{ t.waiting5to8 }}</span>
       </div>
       <div class="legend-item">
         <svg class="legend-pin" viewBox="0 0 24 36" aria-hidden="true">
           <path fill="#dc2626" d="M12 0C5.4 0 0 5.4 0 12c0 8.6 12 24 12 24s12-15.4 12-24C24 5.4 18.6 0 12 0z"/>
         </svg>
-        <span>9+ people waiting</span>
+        <span>{{ t.waiting9Plus }}</span>
       </div>
     </div>
 
@@ -183,7 +183,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { computed, ref, onMounted, onUnmounted } from 'vue'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { apiFetch } from '../service/api'
@@ -193,7 +193,7 @@ import { getStationMarkerColor } from '../lib/stationAlert'
 const isProfileMenuOpen = ref(false)
 const isInfoMenuOpen = ref(false)
 const isDestinationMenuOpen = ref(false)
-const language = ref('English')
+const language = ref('en')
 const stations = ref([])
 const activeLine = ref(1)
 const isFeedbackOpen = ref(false)
@@ -204,8 +204,85 @@ const feedbackSuccess = ref('')
 const isSubmittingFeedback = ref(false)
 const selectedDestination = ref('')
 
+const translations = {
+  en: {
+    languageLabel: 'English',
+    languageFlag: '🇺🇸',
+    line: 'Line',
+    info: 'Info',
+    stopsAndLandmarks: 'Stops and landmarks',
+    feedback: 'Feedback',
+    destination: 'Destination',
+    logout: 'Logout',
+    selectDestination: 'Select destination',
+    chooseStation: 'Choose a station to zoom to it on the map.',
+    selectedDestination: 'Selected destination',
+    noBusesIncoming: 'No buses incoming',
+    loadingStations: 'Loading stations...',
+    sendFeedback: 'Send Feedback',
+    feedbackPrompt: 'Tell the admin about your waiting experience.',
+    message: 'Message',
+    feedbackPlaceholder: 'Example: The waiting system is too slow',
+    rating: 'Rating',
+    sending: 'Sending...',
+    submitFeedback: 'Submit Feedback',
+    writeFeedbackMessage: 'Please write your feedback message.',
+    unableToSendFeedback: 'Unable to send feedback',
+    feedbackSent: 'Thank you. Your feedback was sent to the admin.',
+    markerStatus: 'Marker status',
+    waiting0to4: '0-4 people waiting',
+    waiting5to8: '5-8 people waiting',
+    waiting9Plus: '9+ people waiting',
+    peopleWaitingNow: 'People waiting now:',
+    loading: 'Loading...',
+    user: 'USER'
+  },
+  th: {
+    languageLabel: 'ไทย',
+    languageFlag: '🇹🇭',
+    line: 'สาย',
+    info: 'ข้อมูล',
+    stopsAndLandmarks: 'ป้ายหยุดรถและจุดสังเกต',
+    feedback: 'ข้อเสนอแนะ',
+    destination: 'ปลายทาง',
+    logout: 'ออกจากระบบ',
+    selectDestination: 'เลือกปลายทาง',
+    chooseStation: 'เลือกสถานีเพื่อซูมไปยังตำแหน่งบนแผนที่',
+    selectedDestination: 'ปลายทางที่เลือก',
+    noBusesIncoming: 'ไม่มีรถบัสที่กำลังมา',
+    loadingStations: 'กำลังโหลดสถานี...',
+    sendFeedback: 'ส่งข้อเสนอแนะ',
+    feedbackPrompt: 'แจ้งผู้ดูแลเกี่ยวกับประสบการณ์การรอของคุณ',
+    message: 'ข้อความ',
+    feedbackPlaceholder: 'ตัวอย่าง: ระบบแจ้งเวลารอนานเกินไป',
+    rating: 'คะแนน',
+    sending: 'กำลังส่ง...',
+    submitFeedback: 'ส่งข้อเสนอแนะ',
+    writeFeedbackMessage: 'กรุณาเขียนข้อความข้อเสนอแนะ',
+    unableToSendFeedback: 'ไม่สามารถส่งข้อเสนอแนะได้',
+    feedbackSent: 'ขอบคุณ ข้อเสนอแนะของคุณถูกส่งไปยังผู้ดูแลแล้ว',
+    markerStatus: 'สถานะหมุด',
+    waiting0to4: 'มีคนรอ 0-4 คน',
+    waiting5to8: 'มีคนรอ 5-8 คน',
+    waiting9Plus: 'มีคนรอ 9 คนขึ้นไป',
+    peopleWaitingNow: 'จำนวนคนรอขณะนี้:',
+    loading: 'กำลังโหลด...',
+    user: 'ผู้ใช้'
+  }
+}
+
+const t = computed(() => translations[language.value])
+const languageFlag = computed(() => t.value.languageFlag)
+const languageLabel = computed(() => t.value.languageLabel)
+const lineTitle = computed(() => `${t.value.line} ${activeLine.value}`)
+const lineInfoTitle = computed(() => {
+  return language.value === 'th'
+    ? `${t.value.info}${t.value.line} ${activeLine.value}`
+    : `${lineTitle.value} ${t.value.info}`
+})
+
 // ตัวแปรเก็บข้อมูล User (ดึงจาก Database)
-const userName = ref('Loading...')
+const userName = ref(translations.en.loading)
 const userEmail = ref('')
 const userAvatar = ref('https://i.pravatar.cc/150?img=11') // รูป Default
 
@@ -222,52 +299,137 @@ let selectedStationMarker = null
 
 const defaultCenter = { lat: 20.0470, lng: 99.8940 }
 
-const line1InfoItems = [
-  'Dormitory Lamduan 2',
-  'Dormitory Lamduan 7 (Exit)',
-  'Junction 3 (Staff House)',
-  'Phiphitthaphan D2 Building',
-  'Dormitory Chin (Entrance)',
-  'Chinese Center (Entrance)',
-  'F Courtyard',
-  'D1 Building',
-  'Swimming Pool',
-  'E2 Building (Entrance)',
-  'C4 Meeting Room',
-  'C5 Building',
-  'E2 Building (Exit)',
-  'M-square Building',
-  'Chinese Center (Exit)',
-  'Dormitory Chin (Exit)',
-  'Lamduan Center',
-  'Swimming Pool Entrance',
-  'Dormitory Lamduan 7 (Entrance)',
-  'Lamduan Canteen Center',
-  '7-11 Lamduan'
-]
+const lineInfoItems = {
+  1: {
+    en: [
+      'Dormitory Lamduan 2',
+      'Dormitory Lamduan 7 (Exit)',
+      'Junction 3 (Staff House)',
+      'Museum D2 Building',
+      'International Dormitory (Entrance)',
+      'Chinese Center (Entrance)',
+      'F Courtyard',
+      'D1 Building',
+      'Swimming Pool',
+      'E2 Building (Entrance)',
+      'C4 Meeting Room',
+      'C5 Building',
+      'E2 Building (Exit)',
+      'M-square Building',
+      'Chinese Center (Exit)',
+      'International Dormitory (Exit)',
+      'Lamduan Center',
+      'Swimming Pool Entrance',
+      'Dormitory Lamduan 7 (Entrance)',
+      'Lamduan Canteen Center',
+      '7-11 Lamduan'
+    ],
+    th: [
+      'หอพักลำดวน 2',
+      'หอพักลำดวน 7 (ทางออก)',
+      'สามแยก 3 (บ้านพักบุคลากร)',
+      'อาคารพิพิธภัณฑ์ D2',
+      'หอพักนานาชาติ (ทางเข้า)',
+      'ศูนย์จีน (ทางเข้า)',
+      'ลาน F',
+      'อาคาร D1',
+      'สระว่ายน้ำ',
+      'อาคาร E2 (ทางเข้า)',
+      'ห้องประชุม C4',
+      'อาคาร C5',
+      'อาคาร E2 (ทางออก)',
+      'อาคาร M-square',
+      'ศูนย์จีน (ทางออก)',
+      'หอพักนานาชาติ (ทางออก)',
+      'ศูนย์ลำดวน',
+      'ทางเข้าสระว่ายน้ำ',
+      'หอพักลำดวน 7 (ทางเข้า)',
+      'ศูนย์อาหารลำดวน',
+      '7-11 ลำดวน'
+    ]
+  },
+  2: {
+    en: [
+      'Dormitory Lamduan 2',
+      'Dormitory Lamduan 7 (Exit)',
+      'Junction 3 (Staff House)',
+      'Museum D2 Building',
+      'International Dormitory (Entrance)',
+      'Chinese Center (Entrance)',
+      'F Courtyard',
+      'D1 Building',
+      'Swimming Pool',
+      'E2 Building (Entrance)',
+      'E2 Building (Exit)',
+      'M-square Building',
+      'Chinese Center (Exit)',
+      'International Dormitory (Exit)',
+      'Lamduan Center',
+      'Swimming Pool Entrance',
+      'Dormitory Lamduan 7 (Entrance)',
+      'Lamduan Canteen Center',
+      '7-11 Lamduan',
+      'Mae Fah Luang University Hospital'
+    ],
+    th: [
+      'หอพักลำดวน 2',
+      'หอพักลำดวน 7 (ทางออก)',
+      'สามแยก 3 (บ้านพักบุคลากร)',
+      'อาคารพิพิธภัณฑ์ D2',
+      'หอพักนานาชาติ (ทางเข้า)',
+      'ศูนย์จีน (ทางเข้า)',
+      'ลาน F',
+      'อาคาร D1',
+      'สระว่ายน้ำ',
+      'อาคาร E2 (ทางเข้า)',
+      'อาคาร E2 (ทางออก)',
+      'อาคาร M-square',
+      'ศูนย์จีน (ทางออก)',
+      'หอพักนานาชาติ (ทางออก)',
+      'ศูนย์ลำดวน',
+      'ทางเข้าสระว่ายน้ำ',
+      'หอพักลำดวน 7 (ทางเข้า)',
+      'ศูนย์อาหารลำดวน',
+      '7-11 ลำดวน',
+      'โรงพยาบาลมหาวิทยาลัยแม่ฟ้าหลวง'
+    ]
+  }
+}
 
-const line2InfoItems = [
-  'Dormitory Lamduan 2',
-  'Dormitory Lamduan 7 (Exit)',
-  'Junction 3 (Staff House)',
-  'Phiphitthaphan D2 Building',
-  'Dormitory Chin (Entrance)',
-  'Chinese Center (Entrance)',
-  'F Courtyard',
-  'D1 Building',
-  'Swimming Pool',
-  'E2 Building (Entrance)',
-  'E2 Building (Exit)',
-  'M-square Building',
-  'Chinese Center (Exit)',
-  'Dormitory Chin (Exit)',
-  'Lamduan Center',
-  'Swimming Pool Entrance',
-  'Dormitory Lamduan 7 (Entrance)',
-  'Lamduan Canteen Center',
-  '7-11 Lamduan',
-  'Mae Fah Luang University Hospital'
-]
+const stationNameTranslations = {
+  en: {
+    'Phiphitthaphan D2 Building': 'Museum D2 Building',
+    'Dormitory Chin (Entrance)': 'International Dormitory (Entrance)',
+    'Dormitory Chin (Exit)': 'International Dormitory (Exit)'
+  },
+  th: {
+    'Dormitory Lamduan 2': 'หอพักลำดวน 2',
+    'Dormitory Lamduan 7 (Exit)': 'หอพักลำดวน 7 (ทางออก)',
+    'Junction 3 (Staff House)': 'สามแยก 3 (บ้านพักบุคลากร)',
+    'Phiphitthaphan D2 Building': 'อาคารพิพิธภัณฑ์ D2',
+    'Museum D2 Building': 'อาคารพิพิธภัณฑ์ D2',
+    'Dormitory Chin (Entrance)': 'หอพักนานาชาติ (ทางเข้า)',
+    'International Dormitory (Entrance)': 'หอพักนานาชาติ (ทางเข้า)',
+    'Chinese Center (Entrance)': 'ศูนย์จีน (ทางเข้า)',
+    'F Courtyard': 'ลาน F',
+    'D1 Building': 'อาคาร D1',
+    'Swimming Pool': 'สระว่ายน้ำ',
+    'E2 Building (Entrance)': 'อาคาร E2 (ทางเข้า)',
+    'C4 Meeting Room': 'ห้องประชุม C4',
+    'C5 Building': 'อาคาร C5',
+    'E2 Building (Exit)': 'อาคาร E2 (ทางออก)',
+    'M-square Building': 'อาคาร M-square',
+    'Chinese Center (Exit)': 'ศูนย์จีน (ทางออก)',
+    'Dormitory Chin (Exit)': 'หอพักนานาชาติ (ทางออก)',
+    'International Dormitory (Exit)': 'หอพักนานาชาติ (ทางออก)',
+    'Lamduan Center': 'ศูนย์ลำดวน',
+    'Swimming Pool Entrance': 'ทางเข้าสระว่ายน้ำ',
+    'Dormitory Lamduan 7 (Entrance)': 'หอพักลำดวน 7 (ทางเข้า)',
+    'Lamduan Canteen Center': 'ศูนย์อาหารลำดวน',
+    '7-11 Lamduan': '7-11 ลำดวน',
+    'Mae Fah Luang University Hospital': 'โรงพยาบาลมหาวิทยาลัยแม่ฟ้าหลวง'
+  }
+}
 
 // ===== Functions จัดการ UI =====
 const toggleProfileMenu = (e) => {
@@ -311,11 +473,30 @@ const closeMenuOutside = (e) => {
 }
 
 const currentLineInfoItems = () => {
-  return activeLine.value === 1 ? line1InfoItems : line2InfoItems
+  return lineInfoItems[activeLine.value]?.[language.value] || []
 }
 
 const toggleLanguage = () => {
-  language.value = language.value === 'English' ? 'Thai' : 'English'
+  const wasLoadingName = [translations.en.loading, translations.th.loading].includes(userName.value)
+  const wasFallbackName = [translations.en.user, translations.th.user].includes(userName.value)
+
+  language.value = language.value === 'en' ? 'th' : 'en'
+  if (wasLoadingName) {
+    userName.value = t.value.loading
+  } else if (wasFallbackName) {
+    userName.value = t.value.user
+  }
+  if (selectedStationMarker) {
+    const selectedEntry = stationMarkers.find((entry) => entry.marker === selectedStationMarker)
+    selectedDestination.value = selectedEntry ? getStationDisplayName(selectedEntry.station) : ''
+  }
+  refreshMapText()
+}
+
+const getStationDisplayName = (station) => {
+  const stationName = station?.name
+  if (!stationName) return t.value.selectedDestination
+  return stationNameTranslations[language.value]?.[stationName] || stationName
 }
 
 const openFeedbackModal = () => {
@@ -339,7 +520,7 @@ const submitFeedback = async () => {
   const message = feedbackMessage.value.trim()
 
   if (!message) {
-    feedbackError.value = 'Please write your feedback message.'
+    feedbackError.value = t.value.writeFeedbackMessage
     return
   }
 
@@ -358,14 +539,14 @@ const submitFeedback = async () => {
     const data = await res.json()
 
     if (!res.ok) {
-      throw new Error(data.message || 'Unable to send feedback')
+      throw new Error(data.message || t.value.unableToSendFeedback)
     }
 
     resetFeedbackForm()
-    feedbackSuccess.value = 'Thank you. Your feedback was sent to the admin.'
+    feedbackSuccess.value = t.value.feedbackSent
   } catch (error) {
     console.error(error)
-    feedbackError.value = error.message || 'Unable to send feedback'
+    feedbackError.value = error.message || t.value.unableToSendFeedback
   } finally {
     isSubmittingFeedback.value = false
   }
@@ -384,7 +565,7 @@ const loadData = async () => {
     const userRes = await apiFetch('/api/user/me') 
     if (userRes.ok) {
       const userData = await userRes.json()
-      userName.value = userData.name || userData.username || 'USER'
+      userName.value = userData.name || userData.username || t.value.user
       userEmail.value = userData.email || ''
       if (userData.avatar) {
         userAvatar.value = userData.avatar
@@ -402,6 +583,26 @@ const loadData = async () => {
   }
   
   createMap()
+}
+
+const getStationPopupHtml = (station, markerColor) => {
+  return `
+    <div style="font-family: 'Inter', sans-serif; font-size: 13px;">
+      <b style="color: ${markerColor};">${getStationDisplayName(station)}</b><br>
+      ${t.value.peopleWaitingNow} <b>${station.waitingPassengers || 0}</b><br>
+      <span style="color: #6b7280; font-size: 12px;">${station.incomingBuses || t.value.noBusesIncoming}</span>
+    </div>
+  `
+}
+
+const refreshMapText = () => {
+  stationMarkers.forEach(({ marker, station }) => {
+    const markerColor = getStationMarkerColor(station.waitingPassengers || 0)
+    marker.bindPopup(getStationPopupHtml(station, markerColor))
+  })
+
+  if (busMarker1) busMarker1.bindTooltip(`${t.value.line} 1`, { permanent: false, direction: 'top' })
+  if (busMarker2) busMarker2.bindTooltip(`${t.value.line} 2`, { permanent: false, direction: 'top' })
 }
 
 // ===== พิกัดเส้นทางรถบัส (Line 1 & 2) =====
@@ -521,7 +722,7 @@ const selectDestination = (station, marker = null) => {
     const markerColor = getStationMarkerColor(station.waitingPassengers || 0)
     matchedMarker.setIcon(createStationIcon(markerColor, true))
     selectedStationMarker = matchedMarker
-    selectedDestination.value = station.name || 'Selected destination'
+    selectedDestination.value = getStationDisplayName(station)
 
     const lat = parseFloat(station.location?.lat)
     const lng = parseFloat(station.location?.lng)
@@ -605,13 +806,7 @@ const createMap = () => {
       icon: createStationIcon(markerColor)
     }).addTo(map)
 
-    marker.bindPopup(`
-      <div style="font-family: 'Inter', sans-serif; font-size: 13px;">
-        <b style="color: ${markerColor};">${station.name}</b><br>
-        People waiting now: <b>${station.waitingPassengers || 0}</b><br>
-        <span style="color: #6b7280; font-size: 12px;">${station.incomingBuses || 'No buses incoming'}</span>
-      </div>
-    `)
+    marker.bindPopup(getStationPopupHtml(station, markerColor))
     marker.on('mouseover', () => marker.openPopup())
     marker.on('mouseout', () => marker.closePopup())
     marker.on('click', () => selectDestination(station, marker))
@@ -625,10 +820,10 @@ const createMap = () => {
   // ==========================================
 
   busMarker1 = L.marker(line1Coords[0], { icon: createBusIcon(), zIndexOffset: 1000 })
-  busMarker1.bindTooltip('Line 1', { permanent: false, direction: 'top' })
+  busMarker1.bindTooltip(`${t.value.line} 1`, { permanent: false, direction: 'top' })
 
   busMarker2 = L.marker(line2Coords[0], { icon: createBusIcon(), zIndexOffset: 1000 })
-  busMarker2.bindTooltip('Line 2', { permanent: false, direction: 'top' })
+  busMarker2.bindTooltip(`${t.value.line} 2`, { permanent: false, direction: 'top' })
 
   syncLineVisibility()
 
