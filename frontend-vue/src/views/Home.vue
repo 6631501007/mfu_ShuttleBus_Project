@@ -306,6 +306,7 @@ let routeLayer = null
 let navigatorMarker = null
 let navAnimFrame = null
 let currentPosition = null
+let userLocationMarker = null
 
 const defaultCenter = { lat: 20.0470, lng: 99.8940 }
 
@@ -733,6 +734,7 @@ const selectDestination = (station, marker = null) => {
     matchedMarker.setIcon(createStationIcon(markerColor, true))
     selectedStationMarker = matchedMarker
     selectedDestination.value = getStationDisplayName(station)
+    updateStationMarkerVisibility(stationKey)
 
     const lat = parseFloat(station.location?.lat)
     const lng = parseFloat(station.location?.lng)
@@ -745,7 +747,6 @@ const selectDestination = (station, marker = null) => {
   isDestinationMenuOpen.value = false
   isProfileMenuOpen.value = false
 
-  // เริ่มระบบนำทางมายังสถานีที่เลือก
   startNavigation(station)
 }
 
@@ -764,6 +765,47 @@ const createNavigatorIcon = () => {
     iconSize: [36, 36],
     iconAnchor: [18, 18],
     popupAnchor: [0, -18],
+  })
+}
+
+const createUserLocationIcon = () => {
+  return L.divIcon({
+    html: '<div class="user-location-pin"></div>',
+    className: 'user-location-icon',
+    iconSize: [16, 16],
+    iconAnchor: [8, 8],
+  })
+}
+
+const updateUserLocationMarker = (pos) => {
+  if (!map || !pos) return
+
+  if (userLocationMarker && map.hasLayer(userLocationMarker)) {
+    map.removeLayer(userLocationMarker)
+  }
+
+  const lat = parseFloat(pos.lat)
+  const lng = parseFloat(pos.lng)
+  if (Number.isNaN(lat) || Number.isNaN(lng)) return
+
+  userLocationMarker = L.marker([lat, lng], {
+    icon: createUserLocationIcon(),
+    zIndexOffset: 3000,
+  }).addTo(map)
+
+  userLocationMarker.bindPopup('Your location')
+}
+
+const updateStationMarkerVisibility = (selectedKey = null) => {
+  if (!map) return
+
+  stationMarkers.forEach(({ key, marker }) => {
+    const shouldShow = !selectedKey || key === selectedKey
+    if (shouldShow) {
+      if (!map.hasLayer(marker)) marker.addTo(map)
+    } else if (map.hasLayer(marker)) {
+      map.removeLayer(marker)
+    }
   })
 }
 
@@ -864,10 +906,10 @@ const startNavigation = async (station) => {
     const from = pos ? [parseFloat(pos.lat), parseFloat(pos.lng)] : [defaultCenter.lat, defaultCenter.lng]
     const to = [destLat, destLng]
 
-    // Try OSRM first
+    updateUserLocationMarker(pos || { lat: from[0], lng: from[1] })
+
     let routeCoords = await getRouteFromOSRM(from, to)
     if (!routeCoords) {
-      // fallback to simple interpolated straight line
       routeCoords = getInterpolatedRoute(from, to, 160)
     }
 
@@ -875,23 +917,21 @@ const startNavigation = async (station) => {
 
     navigatorMarker = L.marker(routeCoords[0], { icon: createNavigatorIcon(), zIndexOffset: 2000 }).addTo(map)
 
-    // Fit map to route bounds with some padding
     const bounds = L.latLngBounds(routeCoords.map((c) => [c[0], c[1]]))
     try { map.fitBounds(bounds.pad(0.25)) } catch (e) {}
 
     navAnimFrame = animateAlongRoute(navigatorMarker, routeCoords, 0.006, 0)
   }
 
-  // Try Geolocation, fallback to map center
   if (navigator.geolocation) {
     navigator.geolocation.getCurrentPosition((p) => {
       currentPosition = { lat: p.coords.latitude, lng: p.coords.longitude }
       beginNavigation(currentPosition)
     }, () => {
-      beginNavigation(null)
+      beginNavigation({ lat: defaultCenter.lat, lng: defaultCenter.lng })
     }, { enableHighAccuracy: true, maximumAge: 10000, timeout: 5000 })
   } else {
-    await beginNavigation(null)
+    await beginNavigation({ lat: defaultCenter.lat, lng: defaultCenter.lng })
   }
 }
 
@@ -933,7 +973,7 @@ const createMap = () => {
     const markerColor = getStationMarkerColor(station.waitingPassengers || 0)
     const marker = L.marker([parseFloat(station.location.lat), parseFloat(station.location.lng)], {
       icon: createStationIcon(markerColor)
-    }).addTo(map)
+    })
 
     marker.bindPopup(getStationPopupHtml(station, markerColor))
     marker.on('mouseover', () => marker.openPopup())
@@ -946,6 +986,7 @@ const createMap = () => {
       station
     })
   })
+  updateStationMarkerVisibility(null)
   // ==========================================
 
   busMarker1 = L.marker(line1Coords[0], { icon: createBusIcon(), zIndexOffset: 1000 })
@@ -978,6 +1019,23 @@ onUnmounted(() => {
 })
 
 </script>
+
+<style scoped>
+.user-location-icon {
+  background: transparent;
+  border: none;
+}
+
+.user-location-pin {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #2563eb;
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 0 6px rgba(37, 99, 235, 0.2);
+}
+
+</style>
 
 <style scoped>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
