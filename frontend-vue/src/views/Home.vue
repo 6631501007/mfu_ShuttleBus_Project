@@ -302,6 +302,10 @@ let animFrame1 = null
 let animFrame2 = null
 let stationMarkers = []
 let selectedStationMarker = null
+let routeLayer = null
+let navigatorMarker = null
+let navAnimFrame = null
+let currentPosition = null
 
 const defaultCenter = { lat: 20.0470, lng: 99.8940 }
 
@@ -740,6 +744,9 @@ const selectDestination = (station, marker = null) => {
 
   isDestinationMenuOpen.value = false
   isProfileMenuOpen.value = false
+
+  // เริ่มระบบนำทางมายังสถานีที่เลือก
+  startNavigation(station)
 }
 
 const createBusIcon = () => {
@@ -748,6 +755,15 @@ const createBusIcon = () => {
     iconSize: [32, 32],
     iconAnchor: [16, 16],
     popupAnchor: [0, -16],
+  })
+}
+
+const createNavigatorIcon = () => {
+  return L.icon({
+    iconUrl: '/navigator.png',
+    iconSize: [36, 36],
+    iconAnchor: [18, 18],
+    popupAnchor: [0, -18],
   })
 }
 
@@ -770,6 +786,113 @@ const animateBus = (marker, coords, speed, startOffset = 0) => {
     return requestAnimationFrame(step)
   }
   return requestAnimationFrame(step)
+}
+
+// Simple navigator animation along an array of LatLngs
+const animateAlongRoute = (marker, coords, speed = 0.004, startIndex = 0) => {
+  if (!marker || !coords || !coords.length) return null
+  let index = startIndex
+  let progress = 0
+  const step = () => {
+    if (!marker) return
+    const from = coords[index % coords.length]
+    const to = coords[(index + 1) % coords.length]
+    const lat = from[0] + (to[0] - from[0]) * progress
+    const lng = from[1] + (to[1] - from[1]) * progress
+    marker.setLatLng([lat, lng])
+    progress += speed
+    if (progress >= 1) {
+      progress = 0
+      index = (index + 1) % coords.length
+      // stop at last segment if we're at the end of the route
+      if (index === coords.length - 1) return null
+    }
+    return requestAnimationFrame(step)
+  }
+  return requestAnimationFrame(step)
+}
+
+const clearNavigation = () => {
+  if (navAnimFrame) cancelAnimationFrame(navAnimFrame)
+  navAnimFrame = null
+  if (navigatorMarker) { try { map.removeLayer(navigatorMarker) } catch (e) {} navigatorMarker = null }
+  if (routeLayer) { try { map.removeLayer(routeLayer) } catch (e) {} routeLayer = null }
+}
+
+const getInterpolatedRoute = (start, end, segments = 120) => {
+  const sLat = parseFloat(start[0])
+  const sLng = parseFloat(start[1])
+  const eLat = parseFloat(end[0])
+  const eLng = parseFloat(end[1])
+  const out = []
+  for (let i = 0; i <= segments; i++) {
+    const t = i / segments
+    const lat = sLat + (eLat - sLat) * t
+    const lng = sLng + (eLng - sLng) * t
+    out.push([lat, lng])
+  }
+  return out
+}
+
+const getRouteFromOSRM = async (start, end) => {
+  try {
+    // OSRM expects lng,lat pairs
+    const coords = `${start[1]},${start[0]};${end[1]},${end[0]}`
+    const url = `https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson&alternatives=false&annotations=duration,distance`
+    const res = await fetch(url)
+    if (!res.ok) throw new Error('OSRM error')
+    const data = await res.json()
+    if (!data.routes || !data.routes.length) throw new Error('No route')
+    const coordsLngLat = data.routes[0].geometry.coordinates // [lng, lat]
+    // convert to [lat, lng]
+    const coordsLatLng = coordsLngLat.map((c) => [c[1], c[0]])
+    return coordsLatLng
+  } catch (err) {
+    console.warn('OSRM route failed, falling back:', err)
+    return null
+  }
+}
+
+const startNavigation = async (station) => {
+  if (!map || !station || !station.location) return
+  clearNavigation()
+
+  const destLat = parseFloat(station.location.lat)
+  const destLng = parseFloat(station.location.lng)
+
+  const beginNavigation = async (pos) => {
+    const from = pos ? [parseFloat(pos.lat), parseFloat(pos.lng)] : [defaultCenter.lat, defaultCenter.lng]
+    const to = [destLat, destLng]
+
+    // Try OSRM first
+    let routeCoords = await getRouteFromOSRM(from, to)
+    if (!routeCoords) {
+      // fallback to simple interpolated straight line
+      routeCoords = getInterpolatedRoute(from, to, 160)
+    }
+
+    routeLayer = L.polyline(routeCoords, { color: '#2563eb', weight: 4, opacity: 0.9 }).addTo(map)
+
+    navigatorMarker = L.marker(routeCoords[0], { icon: createNavigatorIcon(), zIndexOffset: 2000 }).addTo(map)
+
+    // Fit map to route bounds with some padding
+    const bounds = L.latLngBounds(routeCoords.map((c) => [c[0], c[1]]))
+    try { map.fitBounds(bounds.pad(0.25)) } catch (e) {}
+
+    navAnimFrame = animateAlongRoute(navigatorMarker, routeCoords, 0.006, 0)
+  }
+
+  // Try Geolocation, fallback to map center
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition((p) => {
+      currentPosition = { lat: p.coords.latitude, lng: p.coords.longitude }
+      beginNavigation(currentPosition)
+    }, () => {
+      beginNavigation(null)
+    }, { enableHighAccuracy: true, maximumAge: 10000, timeout: 5000 })
+  } else {
+    await beginNavigation(null)
+  }
 }
 
 const createMap = () => {
@@ -848,6 +971,9 @@ onUnmounted(() => {
   document.removeEventListener('click', closeMenuOutside)
   if (animFrame1) cancelAnimationFrame(animFrame1)
   if (animFrame2) cancelAnimationFrame(animFrame2)
+  if (navAnimFrame) cancelAnimationFrame(navAnimFrame)
+  if (navigatorMarker) try { map.removeLayer(navigatorMarker) } catch (e) {}
+  if (routeLayer) try { map.removeLayer(routeLayer) } catch (e) {}
   if (map) map.remove()
 })
 
