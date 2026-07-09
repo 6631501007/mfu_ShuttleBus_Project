@@ -10,27 +10,27 @@
         <nav class="menu">
           <div class="menu-item" @click="router.push('/dashboard')">
             <i class='bx bx-grid-alt menu-icon'></i>
-            <span class="menu-label">Dashboard</span>
+            <span class="menu-label">{{ t.dashboard }}</span>
           </div>
           <div class="menu-item" @click="router.push('/analytics')">
             <i class='bx bx-line-chart menu-icon'></i>
-            <span class="menu-label">Analytics</span>
+            <span class="menu-label">{{ t.analytics }}</span>
           </div>
           <div class="menu-item" @click="router.push('/map')">
             <i class='bx bx-map-alt menu-icon'></i>
-            <span class="menu-label">Map</span>
+            <span class="menu-label">{{ t.map }}</span>
           </div>
           <div class="menu-item" @click="router.push('/livefeed')">
             <i class='bx bx-video menu-icon'></i>
-            <span class="menu-label">Live Feed</span>
+            <span class="menu-label">{{ t.liveFeed }}</span>
           </div>
           <div class="menu-item" @click="router.push('/feedback')">
             <i class='bx bx-message-square-dots menu-icon'></i>
-            <span class="menu-label">Feedback</span>
+            <span class="menu-label">{{ t.feedback }}</span>
           </div>
           <div class="menu-item" @click="router.push('/setting')">
             <i class='bx bx-cog menu-icon'></i>
-            <span class="menu-label">Settings</span>
+            <span class="menu-label">{{ t.settings }}</span>
           </div>
         </nav>
       </div>
@@ -38,8 +38,8 @@
       <div class="user-card">
         <div class="user-avatar">A</div>
         <div class="user-info">
-          <p class="user-name">Admin User</p>
-          <p class="user-role">Operational Lead</p>
+          <p class="user-name">{{ t.adminUser }}</p>
+          <p class="user-role">{{ t.operationalLead }}</p>
         </div>
       </div>
     </aside>
@@ -47,10 +47,10 @@
     <main class="main-content">
       <header class="top-header">
         <div class="header-left">
-          <h2 class="header-title">Feedback</h2>
+          <h2 class="header-title">{{ t.pageTitle }}</h2>
           <div class="search-bar">
             <i class='bx bx-search search-icon'></i>
-            <input class="search-input" v-model="searchQuery" type="text" placeholder="Search feedback..." />
+            <input class="search-input" v-model="searchQuery" type="text" :placeholder="t.searchPlaceholder" />
           </div>
         </div>
 
@@ -59,7 +59,7 @@
             <TopbarNotification />
             <div class="lang-switcher" @click="toggleLanguage">
               <i class='bx bx-globe'></i>
-              <span class="lang-text">{{ language }}</span>
+              <span class="lang-text">{{ t.languageName }}</span>
               <i class='bx bx-chevron-down'></i>
             </div>
           </div>
@@ -69,7 +69,7 @@
               <i class='bx bxs-user'></i>
             </div>
             <div class="dropdown-menu" v-show="isDropdownOpen">
-              <div class="dropdown-item logout-item" @click="logout"><i class='bx bx-log-out'></i> Log out</div>
+              <div class="dropdown-item logout-item" @click="logout"><i class='bx bx-log-out'></i> {{ t.logout }}</div>
             </div>
           </div>
         </div>
@@ -79,19 +79,19 @@
         <!-- HEADER -->
         <div class="feedback-header">
           <div>
-            <h1 class="page-title">User Feedback</h1>
-            <p class="page-subtitle">ดูข้อเสนอแนะจากผู้ใช้และติดตามสถานะการตอบกลับได้ที่นี่</p>
+            <h1 class="page-title">{{ t.userFeedbackTitle }}</h1>
+            <p class="page-subtitle">{{ t.userFeedbackSubtitle }}</p>
           </div>
         </div>
 
         <!-- SUMMARY -->
         <div class="feedback-summary">
           <div class="summary-item">
-            <span class="summary-label">Unresolved</span>
+            <span class="summary-label">{{ t.unresolved }}</span>
             <span class="summary-value">{{ summary.unresolved }}</span>
           </div>
           <div class="summary-item">
-            <span class="summary-label">Resolved</span>
+            <span class="summary-label">{{ t.resolved }}</span>
             <span class="summary-value">{{ summary.resolved }}</span>
           </div>
         </div>
@@ -99,7 +99,7 @@
         <!-- FILTER -->
         <section class="filters">
           <div class="filter-group">
-            <label>Status</label>
+            <label>{{ t.status }}</label>
             <div class="select-box">
               <select v-model="statusFilter">
                 <option value="">All statuses</option>
@@ -111,15 +111,15 @@
           </div>
 
           <div class="filter-group">
-            <label>Rating</label>
+            <label>{{ t.rating }}</label>
             <div class="select-box">
               <select v-model.number="ratingFilter">
                 <option value="">All ratings</option>
-                <option value="1">1 star</option>
-                <option value="2">2 stars</option>
-                <option value="3">3 stars</option>
-                <option value="4">4 stars</option>
-                <option value="5">5 stars</option>
+                <option value="1">{{ t.star(1) }}</option>
+                <option value="2">{{ t.star(2) }}</option>
+                <option value="3">{{ t.star(3) }}</option>
+                <option value="4">{{ t.star(4) }}</option>
+                <option value="5">{{ t.star(5) }}</option>
               </select>
               <i class='bx bx-chevron-down arrow'></i>
             </div>
@@ -128,7 +128,7 @@
 
         <!-- FEEDBACK ITEMS -->
         <div class="feedback-list">
-          <div v-if="filteredFeedbacks.length === 0" class="empty-state">No feedback available.</div>
+          <div v-if="filteredFeedbacks.length === 0" class="empty-state">{{ t.noFeedback }}</div>
           <div class="feedback-item" v-for="item in filteredFeedbacks" :key="item._id">
             <div class="feedback-header-row">
               <div class="feedback-user">
@@ -144,31 +144,31 @@
             </div>
             <div class="feedback-message">
               <p class="feedback-text">{{ item.message }}</p>
-              <p class="feedback-rating">⭐ Rating: {{ item.rating }}/5</p>
+              <p class="feedback-rating">⭐ {{ t.ratingLabel }}: {{ item.rating }}/5</p>
             </div>
             <div class="feedback-response" v-if="item.response">
-              <p class="response-label">Response:</p>
+              <p class="response-label">{{ t.responseLabel }}:</p>
               <p class="response-text">{{ item.response }}</p>
             </div>
             <div class="response-editor">
-              <label :for="`response-${item._id}`">Admin response</label>
+              <label :for="`response-${item._id}`">{{ t.adminResponse }}</label>
               <textarea
                 :id="`response-${item._id}`"
                 v-model="responseDrafts[item._id]"
                 rows="3"
-                placeholder="Write a response, or leave it blank before resolving."
+                :placeholder="t.responsePlaceholder"
               ></textarea>
             </div>
             <div class="feedback-actions">
               <button class="btn-action btn-reply" @click="saveResponse(item._id)" :disabled="savingFeedbackId === item._id">
-                <i class='bx bx-message-dots'></i> Save response
+                <i class='bx bx-message-dots'></i> {{ t.saveResponse }}
               </button>
               <button
                 class="btn-action btn-resolve"
                 @click="resolveFeedback(item._id)"
                 :disabled="savingFeedbackId === item._id || item.status === 'resolved'"
               >
-                <i class='bx bx-check'></i> Resolve
+                <i class='bx bx-check'></i> {{ t.resolve }}
               </button>
             </div>
           </div>
@@ -186,7 +186,7 @@ import { apiFetch } from '../service/api'
 
 const router = useRouter()
 const isDropdownOpen = ref(false)
-const language = ref('English')
+const language = ref('en')
 const feedbacks = ref([])
 const summary = ref({ unresolved: 0, resolved: 0 })
 const statusFilter = ref('')
@@ -194,6 +194,71 @@ const ratingFilter = ref('')
 const searchQuery = ref('')
 const responseDrafts = reactive({})
 const savingFeedbackId = ref('')
+
+const translations = {
+  en: {
+    dashboard: 'Dashboard',
+    analytics: 'Analytics',
+    map: 'Map',
+    liveFeed: 'Live Feed',
+    feedback: 'Feedback',
+    settings: 'Settings',
+    adminUser: 'Admin User',
+    operationalLead: 'Operational Lead',
+    logout: 'Log out',
+    languageName: 'English',
+    pageTitle: 'Feedback',
+    searchPlaceholder: 'Search feedback...',
+    userFeedbackTitle: 'User Feedback',
+    userFeedbackSubtitle: 'View user feedback and track response status here.',
+    unresolved: 'Unresolved',
+    resolved: 'Resolved',
+    status: 'Status',
+    rating: 'Rating',
+    allStatuses: 'All statuses',
+    allRatings: 'All ratings',
+    star: (n) => `${n} star${n > 1 ? 's' : ''}`,
+    noFeedback: 'No feedback available.',
+    ratingLabel: 'Rating',
+    responseLabel: 'Response',
+    adminResponse: 'Admin response',
+    responsePlaceholder: 'Write a response, or leave it blank before resolving.',
+    saveResponse: 'Save response',
+    resolve: 'Resolve',
+  },
+  th: {
+    dashboard: 'แดชบอร์ด',
+    analytics: 'การวิเคราะห์',
+    map: 'แผนที่',
+    liveFeed: 'ฟีดสด',
+    feedback: 'ข้อเสนอแนะ',
+    settings: 'การตั้งค่า',
+    adminUser: 'ผู้ดูแลระบบ',
+    operationalLead: 'หัวหน้าฝ่ายปฏิบัติการ',
+    logout: 'ออกจากระบบ',
+    languageName: 'ไทย',
+    pageTitle: 'ข้อเสนอแนะ',
+    searchPlaceholder: 'ค้นหาข้อเสนอแนะ...',
+    userFeedbackTitle: 'ข้อเสนอแนะจากผู้ใช้',
+    userFeedbackSubtitle: 'ดูข้อเสนอแนะจากผู้ใช้และติดตามสถานะการตอบกลับได้ที่นี่',
+    unresolved: 'ยังไม่แก้ไข',
+    resolved: 'แก้ไขแล้ว',
+    status: 'สถานะ',
+    rating: 'คะแนน',
+    allStatuses: 'ทุกสถานะ',
+    allRatings: 'ทุกคะแนน',
+    star: (n) => `${n} ดาว`,
+    noFeedback: 'ไม่มีข้อเสนอแนะ',
+    ratingLabel: 'คะแนน',
+    responseLabel: 'การตอบกลับ',
+    adminResponse: 'การตอบกลับของแอดมิน',
+    responsePlaceholder: 'เขียนการตอบกลับ หรือเว้นว่างไว้ก่อนที่จะแก้ไข',
+    saveResponse: 'บันทึกการตอบกลับ',
+    resolve: 'แก้ไข',
+  }
+};
+
+const t = computed(() => translations[language.value]);
 
 const filteredFeedbacks = computed(() => {
   const normalizedQuery = searchQuery.value.toLowerCase().trim()
@@ -219,7 +284,7 @@ const closeDropdown = (e) => {
 }
 
 const toggleLanguage = () => {
-  language.value = language.value === 'English' ? 'Thai' : 'English'
+  language.value = language.value === 'en' ? 'th' : 'en';
 }
 
 const loadFeedbacks = async () => {
@@ -270,7 +335,7 @@ const resolveFeedback = async (id) => {
 }
 
 const getStatusLabel = (item) => {
-  return item.status === 'resolved' ? 'resolved' : 'unresolved'
+  return item.status === 'resolved' ? t.value.resolved : t.value.unresolved;
 }
 
 const formatDate = (value) => {

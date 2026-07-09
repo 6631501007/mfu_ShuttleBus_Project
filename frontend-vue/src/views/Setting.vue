@@ -9,46 +9,45 @@
         <nav class="menu">
           <div class="menu-item" @click="router.push('/dashboard')">
             <i class='bx bx-grid-alt'></i>
-            <span>Dashboard</span>
+            <span>{{ t.dashboard }}</span>
           </div>
           <div class="menu-item" @click="router.push('/analytics')">
             <i class='bx bx-line-chart'></i>
-            <span>Analytics</span>
+            <span>{{ t.analytics }}</span>
           </div>
           <div class="menu-item" @click="router.push('/map')">
             <i class='bx bx-map-alt'></i>
-            <span>Map</span>
+            <span>{{ t.map }}</span>
           </div>
           <div class="menu-item" @click="router.push('/livefeed')">
             <i class='bx bx-video'></i>
-            <span>Live Feed</span>
+            <span>{{ t.liveFeed }}</span>
           </div>
           <div class="menu-item" @click="router.push('/feedback')">
             <i class='bx bx-message-square-dots'></i>
-            <span>Feedback</span>
+            <span>{{ t.feedback }}</span>
           </div>
           <div class="menu-item" @click="router.push('/setting')">
             <i class='bx bx-cog'></i>
-            <span>Settings</span>
+            <span>{{ t.settings }}</span>
           </div>
         </nav>
       </div>
       <div class="user-card">
         <div class="avatar">A</div>
         <div>
-          <h4>Admin User</h4>
-          <p>Operational Lead</p>
+          <h4>{{ t.adminUser }}</h4>
+          <p>{{ t.operationalLead }}</p>
         </div>
       </div>
     </aside>
 
     <main class="main-content">
       <header class="top-header">
-        <div class="header-left">
-          <h2 class="header-title">Settings</h2>
+        <div class="header-left">          <h2 class="header-title">{{ t.settingsTitle }}</h2>
           <div class="search-bar">
             <i class='bx bx-search'></i>
-            <input type="text" placeholder="Search devices or zones..." />
+            <input type="text" :placeholder="t.searchPlaceholder" />
           </div>
         </div>
         <div class="header-right">
@@ -56,7 +55,7 @@
             <TopbarNotification />
             <div class="lang-switcher" @click="toggleLanguage">
               <i class='bx bx-globe'></i>
-              <span>{{ language }}</span>
+              <span>{{ t.languageName }}</span>
               <i class='bx bx-chevron-down'></i>
             </div>
           </div>
@@ -65,7 +64,7 @@
               <i class='bx bxs-user'></i>
             </div>
             <div class="dropdown-menu" v-show="isDropdownOpen">
-              <div class="dropdown-item logout-item" @click="logout"><i class='bx bx-log-out'></i> Log out</div>
+              <div class="dropdown-item logout-item" @click="logout"><i class='bx bx-log-out'></i> {{ t.logout }}</div>
             </div>
           </div>
         </div>
@@ -73,8 +72,8 @@
 
       <div class="settings-page">
         <div class="page-title">
-          <h2>System Settings</h2>
-          <p>Configure operational parameters and automated alert triggers.</p>
+          <h2>{{ t.systemSettings }}</h2>
+          <p>{{ t.systemSettingsDesc }}</p>
         </div>
 
         <div class="settings-grid top-grid">
@@ -82,9 +81,9 @@
             <div class="card-header">
               <div class="header-title-card">
                 <i class='bx bxs-group'></i>
-                <h3>Station Thresholds</h3>
+                <h3>{{ t.stationThresholds }}</h3>
               </div>
-              <button class="btn-dark" @click="openAddModal">Add Station</button>
+              <button class="btn-dark" @click="openAddModal">{{ t.addStation }}</button>
             </div>
             <div class="threshold-list">
               <div v-if="stations.length === 0" class="empty-state">
@@ -101,12 +100,12 @@
                       :style="{ width: getPercentage(station.waitingPassengers, station.capacity) + '%' }"></div>
                   </div>
                   <div class="progress-labels">
-                    <span class="current">CURRENT: {{ station.waitingPassengers ?? 0 }} People</span>
-                    <span class="limit-label">CAPACITY: {{ station.capacity ?? '—' }}</span>
+                    <span class="current">{{ t.current }}: {{ station.waitingPassengers ?? 0 }} {{ t.people }}</span>
+                    <span class="limit-label">{{ t.capacity }}: {{ station.capacity ?? '—' }}</span>
                   </div>
                 </div>
                 <div class="limit-box">
-                  <span>Now:</span>
+                  <span>{{ t.now }}:</span>
                   <strong>{{ station.waitingPassengers ?? 0 }}</strong>
                 </div>
                 <div class="item-actions">
@@ -121,28 +120,28 @@
             <div class="card-header">
               <div class="header-title-card">
                 <i class='bx bx-bell'></i>
-                <h3>Notification Channels</h3>
+                <h3>{{ t.notificationChannels }}</h3>
               </div>
             </div>
             <div class="channel-section">
               <div class="channel-row">
-                <strong>EMAIL ALERTS</strong>
+                <strong>{{ t.emailAlerts }}</strong>
                 <label class="switch"><input type="checkbox" v-model="notificationChannels.emailEnabled"><span
                     class="slider"></span></label>
               </div>
               <p class="channel-desc">{{ notificationChannels.emails.length ? notificationChannels.emails.join(', ') :
-                'No active email recipients' }}</p>
+                t.noActiveRecipients }}</p>
               <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px;">
                 <span v-for="(email, idx) in notificationChannels.emails" :key="idx" class="tag-item">
                   {{ email }}
                   <i class='bx bx-x' @click="removeEmail(idx)" style="cursor:pointer; margin-left:4px;"></i>
                 </span>
               </div>
-              <span class="add-link" @click="openNotificationModal('email')">+ Add recipient</span>
+              <span class="add-link" @click="openNotificationModal('email')">+ {{ t.addRecipient }}</span>
             </div>
 
             <div class="queue-threshold-section">
-              <strong>Queue Delay Threshold</strong>
+              <strong>{{ t.queueDelayThreshold }}</strong>
               <div class="range-slider-container">
                 <input type="range" min="1" max="60" v-model="delayThreshold" class="range-slider">
                 <span class="range-value text-red">{{ delayThreshold }}m</span>
@@ -157,9 +156,9 @@
             <div class="card-header">
               <div class="header-title-card">
                 <i class='bx bx-broadcast'></i>
-                <h3>Connected Hardware</h3>
+                <h3>{{ t.connectedHardware }}</h3>
               </div>
-              <button class="btn-dark" @click="openAddHardwareModal">+ Add Hardware</button>
+              <button class="btn-dark" @click="openAddHardwareModal">+ {{ t.addHardware }}</button>
             </div>
             <div class="hardware-list">
               <div class="hw-item" v-for="(hw, index) in hardware" :key="hw.deviceId || index">
@@ -182,13 +181,13 @@
             <div class="card-header">
               <div class="header-title-card">
                 <i class='bx bx-selection'></i>
-                <h3>Live Feed Counting Grid</h3>
+                <h3>{{ t.liveFeedGrid }}</h3>
               </div>
             </div>
             <div class="livefeed-config">
               <div v-if="cameraHardware.length === 0" class="zone-reference-empty standalone">
                 <i class='bx bx-camera-off'></i>
-                <span>Add a camera hardware device to configure its counting grid</span>
+                <span>{{ t.addCameraToConfigure }}</span>
               </div>
               <div class="livefeed-toolbar" v-if="cameraHardware.length > 0">
                 <div class="form-group compact">
@@ -200,12 +199,12 @@
                   </select>
                 </div>
                 <div class="form-group compact">
-                  <label>Dwell Time Before Count</label>
+                  <label>{{ t.dwellTime }}</label>
                   <input type="number" min="1" v-model.number="selectedLivefeed.dwellSeconds" :disabled="!selectedLivefeedHardware" />
                 </div>
                 <label class="image-upload-btn">
                   <i class='bx bx-image-add'></i>
-                  Upload Camera Image
+                  {{ t.uploadImage }}
                   <input type="file" accept="image/*" :disabled="!selectedLivefeedHardware" @change="handleReferenceImageUpload" />
                 </label>
                 <button v-if="selectedLivefeed.referenceImage" class="btn-outline small" type="button" @click="clearReferenceImage">
@@ -217,7 +216,7 @@
                 <img v-if="selectedLivefeed.referenceImage" :src="selectedLivefeed.referenceImage" class="zone-reference-image" alt="" />
                 <div v-else class="zone-reference-empty">
                   <i class='bx bx-image'></i>
-                  <span>Upload a camera reference image</span>
+                  <span>{{ t.uploadReferenceImage }}</span>
                 </div>
                 <div
                   v-for="(zone, index) in selectedLivefeed.zones"
@@ -245,7 +244,7 @@
               <div v-if="selectedLivefeedHardware" v-for="(zone, index) in selectedLivefeed.zones" :key="index" class="zone-config-row">
                 <div class="zone-config-head">
                   <strong>{{ selectedLivefeedHardware.name }}</strong>
-                  <label class="zone-enabled"><input type="checkbox" v-model="zone.enabled" /> Enabled</label>
+                  <label class="zone-enabled"><input type="checkbox" v-model="zone.enabled" /> {{ t.enabled }}</label>
                 </div>
               </div>
             </div>
@@ -256,8 +255,8 @@
       <transition name="slide-up">
         <div class="action-bar" v-if="hasUnsavedChanges">
           <div class="action-right">
-            <button class="btn-outline" @click="discardChanges">Discard Changes</button>
-            <button class="btn-dark-blue" @click="saveSettings">Save Configuration</button>
+            <button class="btn-outline" @click="discardChanges">{{ t.discardChanges }}</button>
+            <button class="btn-dark-blue" @click="saveSettings">{{ t.saveConfiguration }}</button>
           </div>
         </div>
       </transition>
@@ -266,39 +265,39 @@
     <div class="modal-overlay" v-if="isModalOpen" @click.self="closeModal">
       <div class="modal-content">
         <div class="modal-header">
-          <h3>{{ modalMode === 'add' ? 'Add New Station' : 'Edit Station' }}</h3>
+          <h3>{{ modalMode === 'add' ? t.addNewStation : t.editStation }}</h3>
           <i class='bx bx-x close-btn' @click="closeModal"></i>
         </div>
         <div class="modal-body">
           <div class="form-group">
-            <label>Station Name</label>
-            <input type="text" v-model="formData.name" placeholder="e.g. Station A" />
+            <label>{{ t.stationName }}</label>
+            <input type="text" v-model="formData.name" :placeholder="t.stationNamePlaceholder" />
           </div>
           <div class="form-group">
-            <label>Description</label>
-            <input type="text" v-model="formData.desc" placeholder="e.g. Main Waiting Area" />
+            <label>{{ t.description }}</label>
+            <input type="text" v-model="formData.desc" :placeholder="t.descriptionPlaceholder" />
           </div>
           <div class="form-group">
-            <label>Capacity (Passenger Limit)</label>
-            <input type="number" v-model.number="formData.capacity" placeholder="e.g. 100" min="1" />
+            <label>{{ t.capacityLimit }}</label>
+            <input type="number" v-model.number="formData.capacity" :placeholder="t.capacityPlaceholder" min="1" />
           </div>
           <div class="form-group" v-if="modalMode === 'add'">
-            <label>Initial Waiting Passengers</label>
-            <input type="number" v-model.number="formData.waitingPassengers" placeholder="e.g. 0" min="0" />
+            <label>{{ t.initialWaiting }}</label>
+            <input type="number" v-model.number="formData.waitingPassengers" :placeholder="t.initialWaitingPlaceholder" min="0" />
           </div>
           <div class="form-group">
-            <label>Pick Station Location</label>
+            <label>{{ t.pickLocation }}</label>
             <div id="station-modal-map" class="modal-map"></div>
-            <p class="map-help">Click on the map to choose the station position. This will appear on the Map page.</p>
+            <p class="map-help">{{ t.mapHelp }}</p>
             <div class="location-coordinates">
-              <span>Lat: {{ formData.location.lat.toFixed(6) }}</span>
-              <span>Lng: {{ formData.location.lng.toFixed(6) }}</span>
+              <span>{{ t.lat }}: {{ formData.location.lat.toFixed(6) }}</span>
+              <span>{{ t.lng }}: {{ formData.location.lng.toFixed(6) }}</span>
             </div>
           </div>
         </div>
         <div class="modal-actions">
-          <button class="btn-outline" @click="closeModal">Cancel</button>
-          <button class="btn-dark-blue" @click="confirmModal">Confirm</button>
+          <button class="btn-outline" @click="closeModal">{{ t.cancel }}</button>
+          <button class="btn-dark-blue" @click="confirmModal">{{ t.confirm }}</button>
         </div>
       </div>
     </div>
@@ -306,16 +305,16 @@
     <div class="modal-overlay" v-if="isHardwareModalOpen" @click.self="closeHardwareModal">
       <div class="modal-content">
         <div class="modal-header">
-          <h3>{{ hardwareModalMode === 'add' ? 'Add Hardware' : 'Edit Hardware' }}</h3>
+          <h3>{{ hardwareModalMode === 'add' ? t.addHardware : t.editHardware }}</h3>
           <i class='bx bx-x close-btn' @click="closeHardwareModal"></i>
         </div>
         <div class="modal-body">
           <div class="form-group">
-            <label>Device Name</label>
-            <input type="text" v-model="hardwareFormData.name" placeholder="e.g. Sensor-Unit-001" />
+            <label>{{ t.deviceName }}</label>
+            <input type="text" v-model="hardwareFormData.name" :placeholder="t.deviceNamePlaceholder" />
           </div>
           <div class="form-group">
-            <label>Device Type</label>
+            <label>{{ t.deviceType }}</label>
             <select v-model="hardwareFormData.type"
               style="width:100%;padding:8px;border:1px solid #ddd;border-radius:8px;">
               <option value="sensor">Sensor</option>
@@ -324,19 +323,19 @@
             </select>
           </div>
           <div class="form-group">
-            <label>IP Address</label>
-            <input type="text" v-model="hardwareFormData.ip" placeholder="e.g. 192.168.1.100" />
+            <label>{{ t.ipAddress }}</label>
+            <input type="text" v-model="hardwareFormData.ip" :placeholder="t.ipAddressPlaceholder" />
           </div>
           <div class="form-group">
-            <label>RTSP URL</label>
-            <input type="text" v-model="hardwareFormData.rtspUrl" placeholder="rtsp://user:pass@camera-ip/path" />
+            <label>{{ t.rtspUrl }}</label>
+            <input type="text" v-model="hardwareFormData.rtspUrl" :placeholder="t.rtspUrlPlaceholder" />
           </div>
           <div class="form-group">
-            <label>Firmware Version</label>
-            <input type="text" v-model="hardwareFormData.fw" placeholder="e.g. v2.4.1" />
+            <label>{{ t.firmwareVersion }}</label>
+            <input type="text" v-model="hardwareFormData.fw" :placeholder="t.firmwareVersionPlaceholder" />
           </div>
           <div class="form-group">
-            <label>Status</label>
+            <label>{{ t.status }}</label>
             <select v-model="hardwareFormData.status"
               style="width:100%;padding:8px;border:1px solid #ddd;border-radius:8px;">
               <option value="online">Online</option>
@@ -345,8 +344,8 @@
           </div>
         </div>
         <div class="modal-actions">
-          <button class="btn-outline" @click="closeHardwareModal">Cancel</button>
-          <button class="btn-dark-blue" @click="confirmHardwareModal">Confirm</button>
+          <button class="btn-outline" @click="closeHardwareModal">{{ t.cancel }}</button>
+          <button class="btn-dark-blue" @click="confirmHardwareModal">{{ t.confirm }}</button>
         </div>
       </div>
     </div>
@@ -354,23 +353,23 @@
     <div class="modal-overlay" v-if="isNotificationModalOpen" @click.self="closeNotificationModal">
       <div class="modal-content">
         <div class="modal-header">
-          <h3>Add Email Recipient</h3>
+          <h3>{{ t.addEmailRecipient }}</h3>
           <i class='bx bx-x close-btn' @click="closeNotificationModal"></i>
         </div>
         <div class="modal-body">
           <div class="form-group">
-            <label>Email Address</label>
+            <label>{{ t.emailAddress }}</label>
             <input 
               type="text" 
               v-model="newChannelValue" 
-              placeholder="e.g. admin@example.com"
+              :placeholder="t.emailAddressPlaceholder"
               @keyup.enter="addNotificationChannel"
             />
           </div>
         </div>
         <div class="modal-actions">
-          <button class="btn-outline" @click="closeNotificationModal">Cancel</button>
-          <button class="btn-dark-blue" @click="addNotificationChannel">Add</button>
+          <button class="btn-outline" @click="closeNotificationModal">{{ t.cancel }}</button>
+          <button class="btn-dark-blue" @click="addNotificationChannel">{{ t.add }}</button>
         </div>
       </div>
     </div>
@@ -389,7 +388,7 @@ const router = useRouter();
 
 // ── UI state ──────────────────────────────────────────────
 const isDropdownOpen = ref(false);
-const language = ref('English');
+const language = ref('en');
 const hasUnsavedChanges = ref(false); 
 let isFetching = false; 
 const dirtyGeneralSettings = ref(false);
@@ -439,11 +438,154 @@ const hardwareModalMode = ref('add');
 const hardwareEditIndex = ref(-1);
 const hardwareFormData = ref({ _id: '', deviceId: '', name: '', type: 'camera', ip: '', rtspUrl: '', fw: '', status: 'offline', livefeed: undefined });
 
+const translations = {
+  en: {
+    languageName: 'English',
+    logout: 'Log out',
+    settingsTitle: 'Settings',
+    searchPlaceholder: 'Search devices or zones...',
+    systemSettings: 'System Settings',
+    systemSettingsDesc: 'Configure operational parameters and automated alert triggers.',
+    stationThresholds: 'Station Thresholds',
+    addStation: 'Add Station',
+    current: 'CURRENT',
+    people: 'People',
+    capacity: 'CAPACITY',
+    now: 'Now',
+    notificationChannels: 'Notification Channels',
+    emailAlerts: 'EMAIL ALERTS',
+    noActiveRecipients: 'No active email recipients',
+    addRecipient: 'Add recipient',
+    queueDelayThreshold: 'Queue Delay Threshold',
+    connectedHardware: 'Connected Hardware',
+    addHardware: 'Add Hardware',
+    liveFeedGrid: 'Live Feed Counting Grid',
+    addCameraToConfigure: 'Add a camera hardware device to configure its counting grid',
+    cameraHardware: 'Camera Hardware',
+    dwellTime: 'Dwell Time Before Count',
+    uploadImage: 'Upload Camera Image',
+    uploadReferenceImage: 'Upload a camera reference image',
+    enabled: 'Enabled',
+    discardChanges: 'Discard Changes',
+    saveConfiguration: 'Save Configuration',
+    addNewStation: 'Add New Station',
+    editStation: 'Edit Station',
+    stationName: 'Station Name',
+    stationNamePlaceholder: 'e.g. Station A',
+    description: 'Description',
+    descriptionPlaceholder: 'e.g. Main Waiting Area',
+    capacityLimit: 'Capacity (Passenger Limit)',
+    capacityPlaceholder: 'e.g. 100',
+    initialWaiting: 'Initial Waiting Passengers',
+    initialWaitingPlaceholder: 'e.g. 0',
+    pickLocation: 'Pick Station Location',
+    mapHelp: 'Click on the map to choose the station position. This will appear on the Map page.',
+    lat: 'Lat',
+    lng: 'Lng',
+    cancel: 'Cancel',
+    confirm: 'Confirm',
+    editHardware: 'Edit Hardware',
+    deviceName: 'Device Name',
+    deviceNamePlaceholder: 'e.g. Sensor-Unit-001',
+    deviceType: 'Device Type',
+    ipAddress: 'IP Address',
+    ipAddressPlaceholder: 'e.g. 192.168.1.100',
+    rtspUrl: 'RTSP URL',
+    rtspUrlPlaceholder: 'rtsp://user:pass@camera-ip/path',
+    firmwareVersion: 'Firmware Version',
+    firmwareVersionPlaceholder: 'e.g. v2.4.1',
+    status: 'Status',
+    addEmailRecipient: 'Add Email Recipient',
+    emailAddress: 'Email Address',
+    emailAddressPlaceholder: 'e.g. admin@example.com',
+    add: 'Add',
+    dashboard: 'Dashboard',
+    analytics: 'Analytics',
+    map: 'Map',
+    liveFeed: 'Live Feed',
+    feedback: 'Feedback',
+    settings: 'Settings',
+    adminUser: 'Admin User',
+    operationalLead: 'Operational Lead',
+  },
+  th: {
+    languageName: 'ไทย',
+    logout: 'ออกจากระบบ',
+    settingsTitle: 'การตั้งค่า',
+    searchPlaceholder: 'ค้นหาอุปกรณ์หรือโซน...',
+    systemSettings: 'การตั้งค่าระบบ',
+    systemSettingsDesc: 'กำหนดค่าพารามิเตอร์การดำเนินงานและทริกเกอร์การแจ้งเตือนอัตโนมัติ',
+    stationThresholds: 'เกณฑ์สถานี',
+    addStation: 'เพิ่มสถานี',
+    current: 'ปัจจุบัน',
+    people: 'คน',
+    capacity: 'ความจุ',
+    now: 'ตอนนี้',
+    notificationChannels: 'ช่องทางการแจ้งเตือน',
+    emailAlerts: 'การแจ้งเตือนทางอีเมล',
+    noActiveRecipients: 'ไม่มีผู้รับอีเมลที่ใช้งานอยู่',
+    addRecipient: 'เพิ่มผู้รับ',
+    queueDelayThreshold: 'เกณฑ์การหน่วงเวลาคิว',
+    connectedHardware: 'ฮาร์ดแวร์ที่เชื่อมต่อ',
+    addHardware: 'เพิ่มฮาร์ดแวร์',
+    liveFeedGrid: 'ตารางนับจำนวน Live Feed',
+    addCameraToConfigure: 'เพิ่มอุปกรณ์ฮาร์ดแวร์กล้องเพื่อกำหนดค่าตารางการนับ',
+    cameraHardware: 'ฮาร์ดแวร์กล้อง',
+    dwellTime: 'เวลาพักก่อนนับ',
+    uploadImage: 'อัปโหลดรูปภาพกล้อง',
+    uploadReferenceImage: 'อัปโหลดภาพอ้างอิงของกล้อง',
+    enabled: 'เปิดใช้งาน',
+    discardChanges: 'ยกเลิกการเปลี่ยนแปลง',
+    saveConfiguration: 'บันทึกการกำหนดค่า',
+    addNewStation: 'เพิ่มสถานีใหม่',
+    editStation: 'แก้ไขสถานี',
+    stationName: 'ชื่อสถานี',
+    stationNamePlaceholder: 'เช่น สถานี A',
+    description: 'คำอธิบาย',
+    descriptionPlaceholder: 'เช่น พื้นที่รอหลัก',
+    capacityLimit: 'ความจุ (ขีดจำกัดผู้โดยสาร)',
+    capacityPlaceholder: 'เช่น 100',
+    initialWaiting: 'จำนวนผู้โดยสารรอเริ่มต้น',
+    initialWaitingPlaceholder: 'เช่น 0',
+    pickLocation: 'เลือกตำแหน่งสถานี',
+    mapHelp: 'คลิกบนแผนที่เพื่อเลือกตำแหน่งสถานี ซึ่งจะปรากฏในหน้าแผนที่',
+    lat: 'ละติจูด',
+    lng: 'ลองจิจูด',
+    cancel: 'ยกเลิก',
+    confirm: 'ยืนยัน',
+    editHardware: 'แก้ไขฮาร์ดแวร์',
+    deviceName: 'ชื่ออุปกรณ์',
+    deviceNamePlaceholder: 'เช่น Sensor-Unit-001',
+    deviceType: 'ประเภทอุปกรณ์',
+    ipAddress: 'ที่อยู่ IP',
+    ipAddressPlaceholder: 'เช่น 192.168.1.100',
+    rtspUrl: 'RTSP URL',
+    rtspUrlPlaceholder: 'rtsp://user:pass@camera-ip/path',
+    firmwareVersion: 'เวอร์ชันเฟิร์มแวร์',
+    firmwareVersionPlaceholder: 'เช่น v2.4.1',
+    status: 'สถานะ',
+    addEmailRecipient: 'เพิ่มผู้รับอีเมล',
+    emailAddress: 'ที่อยู่อีเมล',
+    emailAddressPlaceholder: 'เช่น admin@example.com',
+    add: 'เพิ่ม',
+    dashboard: 'แดชบอร์ด',
+    analytics: 'การวิเคราะห์',
+    map: 'แผนที่',
+    liveFeed: 'ฟีดสด',
+    feedback: 'ข้อเสนอแนะ',
+    settings: 'การตั้งค่า',
+    adminUser: 'ผู้ดูแลระบบ',
+    operationalLead: 'หัวหน้าฝ่ายปฏิบัติการ',
+  }
+};
+
+const t = computed(() => translations[language.value]);
+
 // ─────────────────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────────────────
 const toggleLanguage = () => {
-  language.value = language.value === 'English' ? 'Thai' : 'English';
+  language.value = language.value === 'en' ? 'th' : 'en';
 };
 
 const getPercentage = (current, limit) => {

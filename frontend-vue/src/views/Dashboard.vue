@@ -10,27 +10,27 @@
         <nav class="menu">
           <div class="menu-item" @click="router.push('/dashboard')">
             <i class='bx bx-grid-alt menu-icon'></i>
-            <span class="menu-label">Dashboard</span>
+            <span class="menu-label">{{ t.dashboard }}</span>
           </div>
           <div class="menu-item" @click="router.push('/analytics')">
             <i class='bx bx-line-chart menu-icon'></i>
-            <span class="menu-label">Analytics</span>
+            <span class="menu-label">{{ t.analytics }}</span>
           </div>
           <div class="menu-item" @click="router.push('/map')">
             <i class='bx bx-map-alt menu-icon'></i>
-            <span class="menu-label">Map</span>
+            <span class="menu-label">{{ t.map }}</span>
           </div>
           <div class="menu-item" @click="router.push('/livefeed')">
             <i class='bx bx-video menu-icon'></i>
-            <span class="menu-label">Live Feed</span>
+            <span class="menu-label">{{ t.liveFeed }}</span>
           </div>
           <div class="menu-item" @click="router.push('/feedback')">
             <i class='bx bx-message-square-dots menu-icon'></i>
-            <span class="menu-label">Feedback</span>
+            <span class="menu-label">{{ t.feedback }}</span>
           </div>
           <div class="menu-item" @click="router.push('/setting')">
             <i class='bx bx-cog menu-icon'></i>
-            <span class="menu-label">Settings</span>
+            <span class="menu-label">{{ t.settings }}</span>
           </div>
         </nav>
       </div>
@@ -38,8 +38,8 @@
       <div class="user-card">
         <div class="user-avatar">A</div>
         <div class="user-info">
-          <p class="user-name">Admin User</p>
-          <p class="user-role">Operational Lead</p>
+          <p class="user-name">{{ t.adminUser }}</p>
+          <p class="user-role">{{ t.operationalLead }}</p>
         </div>
       </div>
     </aside>
@@ -47,10 +47,10 @@
     <main class="main-content">
       <header class="top-header">
         <div class="header-left">
-          <h2 class="header-title">Dashboard</h2>
+          <h2 class="header-title">{{ t.dashboardTitle }}</h2>
           <div class="search-bar">
             <i class='bx bx-search search-icon'></i>
-            <input class="search-input" type="text" placeholder="Search stations or buses..." />
+            <input class="search-input" type="text" :placeholder="t.searchPlaceholder" />
           </div>
         </div>
 
@@ -59,7 +59,7 @@
             <TopbarNotification />
             <div class="lang-switcher" @click="toggleLanguage">
               <i class='bx bx-globe'></i>
-              <span class="lang-text">{{ language }}</span>
+              <span class="lang-text">{{ t.languageName }}</span>
               <i class='bx bx-chevron-down'></i>
             </div>
           </div>
@@ -69,7 +69,7 @@
               <i class='bx bxs-user'></i>
             </div>
             <div class="dropdown-menu" v-show="isDropdownOpen">
-              <div class="dropdown-item logout-item" @click="logout"><i class='bx bx-log-out'></i> Log out</div>
+              <div class="dropdown-item logout-item" @click="logout"><i class='bx bx-log-out'></i> {{ t.logout }}</div>
             </div>
           </div>
         </div>
@@ -97,9 +97,9 @@
 
       <div class="hourly-card">
         <div class="table-header">
-          <div>
-            <h3 class="chart-title">Hourly Queue Analytics</h3>
-            <p class="chart-sub">Latest AI hourly records from live human detection</p>
+          <div style="min-width: 0;">
+            <h3 class="chart-title">{{ t.hourlyQueueAnalyticsTitle }}</h3>
+            <p class="chart-sub">{{ t.hourlyQueueAnalyticsSub }}</p>
           </div>
         </div>
         <div class="hourly-grid" v-if="hourlyAnalytics.length">
@@ -109,28 +109,28 @@
               <span>{{ formatHour(item.timestamp) }}</span>
             </div>
             <div class="hourly-stats">
-              <span><b>{{ item.current_queue_count }}</b> now</span>
-              <span><b>{{ item.peak_queue_count }}</b> peak</span>
-              <span><b>{{ item.total_persons_processed }}</b> processed</span>
+              <span><b>{{ item.current_queue_count }}</b> {{ t.now }}</span>
+              <span><b>{{ item.peak_queue_count }}</b> {{ t.peak }}</span>
+              <span><b>{{ item.total_persons_processed }}</b> {{ t.processed }}</span>
             </div>
             <div class="hourly-foot">
-              Avg wait {{ formatSeconds(item.avg_queue_time_seconds) }} · Peak {{ item.peak_time || '-' }}
+              {{ t.avgWait }} {{ formatSeconds(item.avg_queue_time_seconds) }} · {{ t.peakTime }} {{ item.peak_time || '-' }}
             </div>
           </div>
         </div>
-        <div class="noti-empty" v-else>No hourly analytics available yet.</div>
+        <div class="noti-empty" v-else>{{ t.noHourlyAnalytics }}</div>
       </div>
 
       <div class="charts-grid">
         <div class="chart-card">
           <div class="chart-header">
             <div>
-              <h3 class="chart-title">{{ activePassengerView === 'weekly' ? 'Weekly Passengers' : 'Monthly Passengers' }}</h3>
-              <p class="chart-sub">Passenger traffic overview across all stations</p>
+              <h3 class="chart-title">{{ activePassengerViewTitle }}</h3>
+              <p class="chart-sub">{{ t.passengerChartSub }}</p>
             </div>
             <div class="chart-toggles">
-              <button class="toggle" :class="{ 'toggle-active': activePassengerView === 'weekly' }" @click="setPassengerView('weekly')">Weekly</button>
-              <button class="toggle" :class="{ 'toggle-active': activePassengerView === 'monthly' }" @click="setPassengerView('monthly')">Monthly</button>
+              <button class="toggle" :class="{ 'toggle-active': activePassengerView === 'weekly' }" @click="setPassengerView('weekly')">{{ t.weekly }}</button>
+              <button class="toggle" :class="{ 'toggle-active': activePassengerView === 'monthly' }" @click="setPassengerView('monthly')">{{ t.monthly }}</button>
             </div>
           </div>
           <div class="bars-container">
@@ -148,37 +148,37 @@
         </div>
 
         <div class="chart-card">
-          <h3 class="chart-title" style="margin-bottom:16px">Notifications</h3>
+          <h3 class="chart-title" style="margin-bottom:16px">{{ t.notifications }}</h3>
           <div class="noti-list">
             <div class="noti-item" v-for="item in notifications" :key="item.id">
               <div class="noti-icon"><i class='bx bxs-error'></i></div>
               <div class="noti-content">
                 <strong class="noti-strong">{{ item.station }}</strong>
                 <span class="noti-desc">{{ item.message }}</span>
-                <span class="noti-time">People waiting now: {{ item.people }} people</span>
+                <span class="noti-time">{{ t.peopleWaitingNowNoti }} {{ item.people }} people</span>
               </div>
             </div>
-            <div class="noti-empty" v-if="notifications.length === 0">No notifications available.</div>
+            <div class="noti-empty" v-if="notifications.length === 0">{{ t.noNotifications }}</div>
           </div>
         </div>
       </div>
 
       <div class="table-card">
         <div class="table-header">
-          <h3 class="chart-title">Active Stations Detail</h3>
+          <h3 class="chart-title">{{ t.activeStationsDetail }}</h3>
           <div class="legend">
-            <span class="legend-item"><span class="dot dot-green"></span> Normal</span>
-            <span class="legend-item"><span class="dot dot-red"></span> Alert</span>
+            <span class="legend-item"><span class="dot dot-green"></span> {{ t.normal }}</span>
+            <span class="legend-item"><span class="dot dot-red"></span> {{ t.alert }}</span>
           </div>
         </div>
         <table class="data-table">
           <thead>
             <tr>
-              <th>STATION NAME</th>
-              <th>WAITING PASSENGERS</th>
-              <th>INCOMING BUSES</th>
-              <th>STATUS</th>
-              <th>ACTION</th>
+              <th>{{ t.stationName }}</th>
+              <th>{{ t.waitingPassengers }}</th>
+              <th>{{ t.incomingBuses }}</th>
+              <th>{{ t.status }}</th>
+              <th>{{ t.action }}</th>
             </tr>
           </thead>
           <tbody>
@@ -200,7 +200,7 @@
               <td><span class="action-link"><i class='bx bx-link-external'></i></span></td>
             </tr>
             <tr v-if="stations.length === 0">
-              <td colspan="5">No station data available.</td>
+              <td colspan="5">{{ t.noStationData }}</td>
             </tr>
           </tbody>
         </table>
@@ -218,17 +218,139 @@ import { createRedStationNotification, isRedStation } from '../lib/stationAlert'
 
 const router = useRouter()
 const isDropdownOpen = ref(false);
-const language = ref('English');
+const language = ref('en');
 
 const activePassengerView = ref('weekly');
 const selectedChartIndex = ref(null); // เพิ่มตัวแปรสำหรับเก็บ Index ของแท่งกราฟที่ถูกเลือก
 
-const kpis = ref([
-  { title: 'TOTAL PASSENGERS', value: '-', trend: 'Loading...', type: 'positive', icon: 'bx bxs-group', indicator: 'bx bx-up-arrow-alt' },
-  { title: 'ACTIVE BUSES', value: '-', trend: 'Loading...', type: 'positive', icon: 'bx bxs-bus', indicator: 'bx bx-check-circle' },
-  { title: 'STILL BUSES', value: '-', trend: 'Loading...', type: 'neutral', icon: 'bx bx-stop-circle', indicator: 'bx bx-time-five' },
-  { title: 'MAINTAIN BUSES', value: '-', trend: 'Loading...', type: 'warning', icon: 'bx bxs-wrench', indicator: 'bx bx-cog' }
+const translations = {
+  en: {
+    languageName: 'English',
+    logout: 'Log out',
+    now: 'now',
+    peak: 'peak',
+    processed: 'processed',
+    avgWait: 'Avg wait',
+    peakTime: 'Peak',
+    noHourlyAnalytics: 'No hourly analytics available yet.',
+    weekly: 'Weekly',
+    monthly: 'Monthly',
+    notifications: 'Notifications',
+    noNotifications: 'No notifications available.',
+    activeStationsDetail: 'Active Stations Detail',
+    normal: 'Normal',
+    alert: 'Alert',
+    stationName: 'STATION NAME',
+    waitingPassengers: 'WAITING PASSENGERS',
+    incomingBuses: 'INCOMING BUSES',
+    status: 'STATUS',
+    action: 'ACTION',
+    noStationData: 'No station data available.',
+    // Sidebar and Header can also be translated if needed
+    dashboardTitle: 'Dashboard',
+    searchPlaceholder: 'Search stations or buses...',
+    weeklyPassengers: 'Weekly Passengers',
+    monthlyPassengers: 'Monthly Passengers',
+    totalPassengersKpi: 'TOTAL PASSENGERS',
+    activeBusesKpi: 'ACTIVE BUSES',
+    hourlyQueueAnalyticsTitle: 'Hourly Queue Analytics',
+    hourlyQueueAnalyticsSub: 'Latest AI hourly records from live human detection',
+    passengerChartSub: 'Passenger traffic overview across all stations',
+    stillBusesKpi: 'STILL BUSES',
+    maintainBusesKpi: 'MAINTAIN BUSES',
+    trendCurrentWaiting: 'Current waiting',
+    trendOnRoute: 'On route',
+    trendStandby: 'Standby at station',
+    trendMaintenance: 'Under maintenance',
+    peopleWaitingNowNoti: 'People waiting now:',
+    dashboard: 'Dashboard',
+    analytics: 'Analytics',
+    map: 'Map',
+    liveFeed: 'Live Feed',
+    feedback: 'Feedback',
+    settings: 'Settings',
+    adminUser: 'Admin User',
+    operationalLead: 'Operational Lead',
+  },
+  th: {
+    languageName: 'ไทย',
+    logout: 'ออกจากระบบ',
+    now: 'ตอนนี้',
+    peak: 'สูงสุด',
+    processed: 'ผ่านไปแล้ว',
+    avgWait: 'รอเฉลี่ย',
+    peakTime: 'เวลาพีค',
+    noHourlyAnalytics: 'ยังไม่มีข้อมูลการวิเคราะห์รายชั่วโมง',
+    weekly: 'รายสัปดาห์',
+    monthly: 'รายเดือน',
+    notifications: 'การแจ้งเตือน',
+    noNotifications: 'ไม่มีการแจ้งเตือน',
+    activeStationsDetail: 'รายละเอียดสถานีที่ใช้งาน',
+    normal: 'ปกติ',
+    alert: 'แจ้งเตือน',
+    stationName: 'ชื่อสถานี',
+    waitingPassengers: 'ผู้โดยสารที่รอ',
+    incomingBuses: 'รถที่กำลังมา',
+    status: 'สถานะ',
+    action: 'การกระทำ',
+    noStationData: 'ไม่มีข้อมูลสถานี',
+    // Sidebar and Header
+    dashboardTitle: 'แดชบอร์ด',
+    searchPlaceholder: 'ค้นหาสถานีหรือรถบัส...',
+    weeklyPassengers: 'ผู้โดยสารรายสัปดาห์',
+    monthlyPassengers: 'ผู้โดยสารรายเดือน',
+    totalPassengersKpi: 'ผู้โดยสารทั้งหมด',
+    activeBusesKpi: 'รถที่ให้บริการ',
+    hourlyQueueAnalyticsTitle: 'การวิเคราะห์คิวรายชั่วโมง',
+    hourlyQueueAnalyticsSub: 'บันทึกรายชั่วโมงล่าสุดจาก AI ตรวจจับคน',
+    passengerChartSub: 'ภาพรวมการสัญจรของผู้โดยสารทุกสถานี',
+    stillBusesKpi: 'รถที่จอดรอ',
+    maintainBusesKpi: 'รถที่ซ่อมบำรุง',
+    trendCurrentWaiting: 'กำลังรอ',
+    trendOnRoute: 'กำลังให้บริการ',
+    trendStandby: 'จอดรอที่สถานี',
+    trendMaintenance: 'อยู่ระหว่างซ่อมบำรุง',
+    peopleWaitingNowNoti: 'จำนวนคนรอขณะนี้:',
+    dashboard: 'แดชบอร์ด',
+    analytics: 'การวิเคราะห์',
+    map: 'แผนที่',
+    liveFeed: 'ฟีดสด',
+    feedback: 'ข้อเสนอแนะ',
+    settings: 'การตั้งค่า',
+    adminUser: 'ผู้ดูแลระบบ',
+    operationalLead: 'หัวหน้าฝ่ายปฏิบัติการ',
+  }
+};
+
+const t = computed(() => translations[language.value]);
+const activePassengerViewTitle = computed(() => {
+  return activePassengerView.value === 'weekly' ? t.value.weeklyPassengers : t.value.monthlyPassengers;
+});
+
+const apiKpis = ref([
+  { title: 'TOTAL PASSENGERS', value: '-', trend: 'Loading...' },
+  { title: 'ACTIVE BUSES', value: '-', trend: 'Loading...' },
+  { title: 'STILL BUSES', value: '-', trend: 'Loading...' },
+  { title: 'MAINTAIN BUSES', value: '-', trend: 'Loading...' }
 ]);
+
+const kpis = computed(() => {
+  const trendMap = {
+    'Current waiting': t.value.trendCurrentWaiting,
+    'On route': t.value.trendOnRoute,
+    'Standby at station': t.value.trendStandby,
+    'Under maintenance': t.value.trendMaintenance,
+    'Loading...': t.value.trendLoading || 'Loading...'
+  };
+
+  return [
+    { title: t.value.totalPassengersKpi, value: apiKpis.value[0].value, trend: trendMap[apiKpis.value[0].trend] || apiKpis.value[0].trend, type: 'positive', icon: 'bx bxs-group', indicator: 'bx bx-up-arrow-alt' },
+    { title: t.value.activeBusesKpi, value: apiKpis.value[1].value, trend: trendMap[apiKpis.value[1].trend] || apiKpis.value[1].trend, type: 'positive', icon: 'bx bxs-bus', indicator: 'bx bx-check-circle' },
+    { title: t.value.stillBusesKpi, value: apiKpis.value[2].value, trend: trendMap[apiKpis.value[2].trend] || apiKpis.value[2].trend, type: 'neutral', icon: 'bx bx-stop-circle', indicator: 'bx bx-time-five' },
+    { title: t.value.maintainBusesKpi, value: apiKpis.value[3].value, trend: trendMap[apiKpis.value[3].trend] || apiKpis.value[3].trend, type: 'warning', icon: 'bx bxs-wrench', indicator: 'bx bx-cog' }
+  ];
+});
+
 const notifications = ref([]);
 const stations = ref([]);
 const buses = ref([]);
@@ -300,7 +422,7 @@ const loadDashboard = async () => {
 
     const stationItems = data.stations || [];
 
-    kpis.value = data.kpis || kpis.value;
+    apiKpis.value = data.kpis || apiKpis.value;
     notifications.value = mergeNotifications(data.notifications || [], stationItems);
     stations.value = stationItems;
     buses.value = data.buses || [];
@@ -317,7 +439,7 @@ const closeDropdown = (e) => {
 };
 
 const toggleLanguage = () => {
-  language.value = language.value === 'English' ? 'Thai' : 'English';
+  language.value = language.value === 'en' ? 'th' : 'en';
 };
 
 onMounted(() => {

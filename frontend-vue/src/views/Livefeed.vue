@@ -12,27 +12,27 @@
         <nav class="menu">
           <div class="menu-item" @click="router.push('/dashboard')">
             <i class='bx bx-grid-alt menu-icon'></i>
-            <span class="menu-label">Dashboard</span>
+            <span class="menu-label">{{ t.dashboard }}</span>
           </div>
           <div class="menu-item" @click="router.push('/analytics')">
             <i class='bx bx-line-chart menu-icon'></i>
-            <span class="menu-label">Analytics</span>
+            <span class="menu-label">{{ t.analytics }}</span>
           </div>
           <div class="menu-item" @click="router.push('/map')">
             <i class='bx bx-map-alt menu-icon'></i>
-            <span class="menu-label">Map</span>
+            <span class="menu-label">{{ t.map }}</span>
           </div>
           <div class="menu-item" @click="router.push('/livefeed')">
             <i class='bx bx-video menu-icon'></i>
-            <span class="menu-label">Live Feed</span>
+            <span class="menu-label">{{ t.liveFeed }}</span>
           </div>
           <div class="menu-item" @click="router.push('/feedback')">
             <i class='bx bx-message-square-dots menu-icon'></i>
-            <span class="menu-label">Feedback</span>
+            <span class="menu-label">{{ t.feedback }}</span>
           </div>
           <div class="menu-item" @click="router.push('/setting')">
             <i class='bx bx-cog menu-icon'></i>
-            <span class="menu-label">Settings</span>
+            <span class="menu-label">{{ t.settings }}</span>
           </div>
         </nav>
       </div>
@@ -40,8 +40,8 @@
       <div class="user-card">
         <div class="user-avatar">A</div>
         <div class="user-info">
-          <p class="user-name">Admin User</p>
-          <p class="user-role">Operational Lead</p>
+          <p class="user-name">{{ t.adminUser }}</p>
+          <p class="user-role">{{ t.operationalLead }}</p>
         </div>
       </div>
     </aside>
@@ -52,10 +52,10 @@
       <!-- TOPBAR (เหมือน Analytics) -->
       <header class="top-header">
         <div class="header-left">
-          <h2 class="header-title">Live Feed</h2>
+          <h2 class="header-title">{{ t.pageTitle }}</h2>
           <div class="search-bar">
             <i class='bx bx-search search-icon'></i>
-            <input class="search-input" type="text" placeholder="Search stations or buses..." />
+            <input class="search-input" type="text" :placeholder="t.searchPlaceholder" />
           </div>
         </div>
 
@@ -64,7 +64,7 @@
             <TopbarNotification />
             <div class="lang-switcher" @click="toggleLanguage">
               <i class='bx bx-globe'></i>
-              <span class="lang-text">{{ language }}</span>
+              <span class="lang-text">{{ t.languageName }}</span>
               <i class='bx bx-chevron-down'></i>
             </div>
           </div>
@@ -74,7 +74,7 @@
               <i class='bx bxs-user'></i>
             </div>
             <div class="dropdown-menu" v-show="isDropdownOpen">
-              <div class="dropdown-item logout-item" @click="logout"><i class='bx bx-log-out'></i> Log out</div>
+              <div class="dropdown-item logout-item" @click="logout"><i class='bx bx-log-out'></i> {{ t.logout }}</div>
             </div>
           </div>
         </div>
@@ -86,8 +86,8 @@
         <!-- Section header -->
         <div class="section-header">
           <div>
-            <h1 class="section-title">Terminal A - South Wing</h1>
-            <p class="section-sub">Live monitoring of Gates 12–24 and Security Checkpoints</p>
+            <h1 class="section-title">{{ t.sectionTitle }}</h1>
+            <p class="section-sub">{{ t.sectionSubtitle }}</p>
           </div>
           <div class="view-btns">
             <button v-for="btn in viewButtons" :key="btn.id" @click="activeView = btn.id" class="view-btn"
@@ -109,10 +109,10 @@
             <!-- Monitoring Zones -->
             <div class="panel">
               <div class="panel-head">
-                <div class="panel-label">Monitoring Zones</div>
+                <div class="panel-label">{{ t.monitoringZones }}</div>
                 <span class="ai-status" :class="{ 'ai-status-live': aiRunning }">
                   <span class="ai-status-dot"></span>
-                  {{ aiRunning ? 'AI Live' : 'AI Offline' }}
+                  {{ aiRunning ? t.aiLive : t.aiOffline }}
                 </span>
               </div>
               <div class="zones-list">
@@ -126,8 +126,8 @@
                 </div>
               </div>
               <div class="ai-meta">
-                <span>{{ aiRunning ? `${activeCameraCount} camera AI active` : 'Waiting for detector updates' }}</span>
-                <span v-if="detectionLastSeen">Last signal {{ detectionLastSeen }}</span>
+                <span>{{ aiRunning ? t.cameraAiActive(activeCameraCount) : t.waitingForUpdates }}</span>
+                <span v-if="detectionLastSeen">{{ t.lastSignal(detectionLastSeen) }}</span>
               </div>
             </div>
 
@@ -151,7 +151,7 @@
                 <div class="ai-stream-veil"></div>
                 <div class="ai-stream-prompt">
                   <i :class="cam.running ? 'bx bx-show' : 'bx bx-video-off'"></i>
-                  <span>{{ cam.running ? 'Click to view camera' : 'Camera offline' }}</span>
+                  <span>{{ cam.running ? t.clickToView : t.cameraOffline }}</span>
                 </div>
               </div>
 
@@ -159,7 +159,7 @@
                 <div class="cam-top-left">
                   <span class="cam-status-badge" :class="cam.running ? 'badge-live' : 'badge-standby'">
                     <span v-if="cam.running" class="rec-dot"></span>
-                    {{ cam.running ? 'AI ACTIVE' : 'OFFLINE' }}
+                    {{ cam.running ? t.aiActiveBadge : t.offlineBadge }}
                   </span>
                   <span class="cam-id-label">{{ cam.deviceId }} | {{ cameraDisplayName(cam) }}</span>
                 </div>
@@ -176,10 +176,10 @@
       <section class="stream-modal" role="dialog" aria-modal="true" aria-label="AI camera live feed">
         <header class="stream-modal-head">
           <div>
-            <p class="stream-modal-kicker">{{ selectedCamera?.deviceId }} | HUMAN DETECTOR</p>
-            <h3 class="stream-modal-title">{{ cameraDisplayName(selectedCamera) || 'Live Camera Feed' }}</h3>
+            <p class="stream-modal-kicker">{{ selectedCamera?.deviceId }} | {{ t.humanDetector }}</p>
+            <h3 class="stream-modal-title">{{ cameraDisplayName(selectedCamera) || t.liveCameraFeed }}</h3>
           </div>
-          <button type="button" class="stream-close-btn" aria-label="Close live feed" @click="closeAiStream">
+          <button type="button" class="stream-close-btn" :aria-label="t.closeLiveFeed" @click="closeAiStream">
             <i class='bx bx-x'></i>
           </button>
         </header>
@@ -204,21 +204,21 @@
                 :style="boxStyle(person.bbox)"
               >
                 <span class="stream-detection-label">
-                  Person {{ formatConfidence(person.confidence) }} {{ person.dwellSeconds ? `${Math.floor(person.dwellSeconds)}s` : '' }}
+                  {{ t.person }} {{ formatConfidence(person.confidence) }} {{ person.dwellSeconds ? `${Math.floor(person.dwellSeconds)}s` : '' }}
                 </span>
               </div>
             </div>
           </div>
           <div v-else class="stream-modal-empty">
             <i class='bx bx-video-off'></i>
-            <span>Live stream unavailable</span>
+            <span>{{ t.streamUnavailable }}</span>
           </div>
         </div>
 
         <footer class="stream-modal-foot">
-          <span class="cam-status-badge badge-live"><span class="rec-dot"></span> LIVE</span>
-          <span>{{ selectedDetection.count }} pax counted</span>
-          <span>Runtime {{ selectedDetectionElapsed }}</span>
+          <span class="cam-status-badge badge-live"><span class="rec-dot"></span> {{ t.liveBadge }}</span>
+          <span>{{ t.paxCounted(selectedDetection.count) }}</span>
+          <span>{{ t.runtime(selectedDetectionElapsed) }}</span>
         </footer>
       </section>
     </div>
@@ -235,13 +235,90 @@ const router = useRouter()
 const activeView = ref('grid')
 const liveTime = ref('')
 const isDropdownOpen = ref(false)
-const language = ref('English')
+const language = ref('en')
 const isAiStreamOpen = ref(false)
 const cameras = ref([])
 const selectedCamera = ref(null)
 
+const translations = {
+  en: {
+    dashboard: 'Dashboard',
+    analytics: 'Analytics',
+    map: 'Map',
+    liveFeed: 'Live Feed',
+    feedback: 'Feedback',
+    settings: 'Settings',
+    adminUser: 'Admin User',
+    operationalLead: 'Operational Lead',
+    logout: 'Log out',
+    languageName: 'English',
+    searchPlaceholder: 'Search stations or buses...',
+    pageTitle: 'Live Feed',
+    sectionTitle: 'Terminal A - South Wing',
+    sectionSubtitle: 'Live monitoring of Gates 12–24 and Security Checkpoints',
+    viewGrid: 'Grid',
+    viewFocus: 'Focus',
+    monitoringZones: 'Monitoring Zones',
+    aiLive: 'AI Live',
+    aiOffline: 'AI Offline',
+    cameraAiActive: (count) => `${count} camera AI active`,
+    waitingForUpdates: 'Waiting for detector updates',
+    lastSignal: (time) => `Last signal ${time}`,
+    clickToView: 'Click to view camera',
+    cameraOffline: 'Camera offline',
+    aiActiveBadge: 'AI ACTIVE',
+    offlineBadge: 'OFFLINE',
+    humanDetector: 'HUMAN DETECTOR',
+    liveCameraFeed: 'Live Camera Feed',
+    closeLiveFeed: 'Close live feed',
+    person: 'Person',
+    streamUnavailable: 'Live stream unavailable',
+    liveBadge: 'LIVE',
+    paxCounted: (count) => `${count} pax counted`,
+    runtime: (time) => `Runtime ${time}`,
+  },
+  th: {
+    dashboard: 'แดชบอร์ด',
+    analytics: 'การวิเคราะห์',
+    map: 'แผนที่',
+    liveFeed: 'ฟีดสด',
+    feedback: 'ข้อเสนอแนะ',
+    settings: 'การตั้งค่า',
+    adminUser: 'ผู้ดูแลระบบ',
+    operationalLead: 'หัวหน้าฝ่ายปฏิบัติการ',
+    logout: 'ออกจากระบบ',
+    languageName: 'ไทย',
+    searchPlaceholder: 'ค้นหาสถานีหรือรถบัส...',
+    pageTitle: 'ฟีดสด',
+    sectionTitle: 'อาคารผู้โดยสาร A - ปีกใต้',
+    sectionSubtitle: 'การตรวจสอบสดของประตู 12–24 และจุดตรวจความปลอดภัย',
+    viewGrid: 'ตาราง',
+    viewFocus: 'โฟกัส',
+    monitoringZones: 'โซนที่ตรวจสอบ',
+    aiLive: 'AI ทำงานอยู่',
+    aiOffline: 'AI ออฟไลน์',
+    cameraAiActive: (count) => `AI กล้อง ${count} ตัวทำงานอยู่`,
+    waitingForUpdates: 'กำลังรอการอัปเดตจากตัวตรวจจับ',
+    lastSignal: (time) => `สัญญาณล่าสุด ${time}`,
+    clickToView: 'คลิกเพื่อดูกล้อง',
+    cameraOffline: 'กล้องออฟไลน์',
+    aiActiveBadge: 'AI ทำงาน',
+    offlineBadge: 'ออฟไลน์',
+    humanDetector: 'ตัวตรวจจับบุคคล',
+    liveCameraFeed: 'ฟีดสดจากกล้อง',
+    closeLiveFeed: 'ปิดฟีดสด',
+    person: 'บุคคล',
+    streamUnavailable: 'ไม่สามารถใช้งานฟีดสดได้',
+    liveBadge: 'สด',
+    paxCounted: (count) => `นับแล้ว ${count} คน`,
+    runtime: (time) => `รันไทม์ ${time}`,
+  }
+};
+
+const t = computed(() => translations[language.value]);
+
 const toggleLanguage = () => {
-  language.value = language.value === 'English' ? 'Thai' : 'English'
+  language.value = language.value === 'en' ? 'th' : 'en';
 }
 
 const closeDropdown = (e) => {
@@ -250,17 +327,13 @@ const closeDropdown = (e) => {
 
 const viewButtons = [
   {
-    id: 'grid', label: 'Grid',
+    id: 'grid', label: computed(() => t.value.viewGrid),
     icon: `<svg width="11" height="11" fill="none" viewBox="0 0 11 11"><rect x="0.5" y="0.5" width="4" height="4" rx="0.5" stroke="currentColor" stroke-width="1.2"/><rect x="6.5" y="0.5" width="4" height="4" rx="0.5" stroke="currentColor" stroke-width="1.2"/><rect x="0.5" y="6.5" width="4" height="4" rx="0.5" stroke="currentColor" stroke-width="1.2"/><rect x="6.5" y="6.5" width="4" height="4" rx="0.5" stroke="currentColor" stroke-width="1.2"/></svg>`
   },
   {
-    id: 'focus', label: 'Focus',
+    id: 'focus', label: computed(() => t.value.viewFocus),
     icon: `<svg width="11" height="11" fill="none" viewBox="0 0 11 11"><rect x="0.5" y="0.5" width="10" height="10" rx="1" stroke="currentColor" stroke-width="1.2"/><rect x="3" y="3" width="5" height="5" rx="0.5" fill="currentColor" opacity="0.4"/></svg>`
   }
-]
-
-const staticZones = [
-
 ]
 
 const displayNameFrom = (value, fallback = '') => {
@@ -284,14 +357,13 @@ const displayNameFrom = (value, fallback = '') => {
 const cameraDisplayName = (camera) => displayNameFrom(camera?.name, camera?.deviceId || '')
 const zoneDisplayName = (zone, camera) => displayNameFrom(zone?.name, cameraDisplayName(camera) || 'Counting Zone')
 
-const zones = computed(() => [
-  ...cameras.value.map(camera => ({
+const zones = computed(() => (
+  cameras.value.map(camera => ({
     name: cameraDisplayName(camera),
     pax: camera.detection?.running ? Number(camera.detection.count) || 0 : 0,
     color: camera.detection?.running ? '#16a34a' : '#9ca3af'
-  })),
-  ...staticZones
-])
+  }))
+))
 
 const aiRunning = computed(() => cameras.value.some(camera => camera.detection?.running))
 const activeCameraCount = computed(() => cameras.value.filter(camera => camera.detection?.running).length)
@@ -478,8 +550,6 @@ const logout = () => {
   justify-content: space-between;
   flex-shrink: 0;
 }
-
-.sidebar-top {}
 
 .logo-title {
   font-family: 'Inter', sans-serif;

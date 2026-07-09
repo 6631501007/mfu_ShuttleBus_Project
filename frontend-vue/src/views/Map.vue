@@ -10,27 +10,27 @@
         <nav class="menu">
           <div class="menu-item" @click="router.push('/dashboard')">
             <i class='bx bx-grid-alt menu-icon'></i>
-            <span class="menu-label">Dashboard</span>
+            <span class="menu-label">{{ t.dashboard }}</span>
           </div>
           <div class="menu-item" @click="router.push('/analytics')">
             <i class='bx bx-line-chart menu-icon'></i>
-            <span class="menu-label">Analytics</span>
+            <span class="menu-label">{{ t.analytics }}</span>
           </div>
           <div class="menu-item" @click="router.push('/map')">
             <i class='bx bx-map-alt menu-icon'></i>
-            <span class="menu-label">Map</span>
+            <span class="menu-label">{{ t.map }}</span>
           </div>
           <div class="menu-item" @click="router.push('/livefeed')">
             <i class='bx bx-video menu-icon'></i>
-            <span class="menu-label">Live Feed</span>
+            <span class="menu-label">{{ t.liveFeed }}</span>
           </div>
           <div class="menu-item" @click="router.push('/feedback')">
             <i class='bx bx-message-square-dots menu-icon'></i>
-            <span class="menu-label">Feedback</span>
+            <span class="menu-label">{{ t.feedback }}</span>
           </div>
           <div class="menu-item" @click="router.push('/setting')">
             <i class='bx bx-cog menu-icon'></i>
-            <span class="menu-label">Settings</span>
+            <span class="menu-label">{{ t.settings }}</span>
           </div>
         </nav>
       </div>
@@ -38,8 +38,8 @@
       <div class="user-card">
         <div class="user-avatar">A</div>
         <div class="user-info">
-          <p class="user-name">Admin User</p>
-          <p class="user-role">Operational Lead</p>
+          <p class="user-name">{{ t.adminUser }}</p>
+          <p class="user-role">{{ t.operationalLead }}</p>
         </div>
       </div>
     </aside>
@@ -47,7 +47,7 @@
     <main class="main-content">
       <header class="top-header">
         <div class="header-left">
-          <h2 class="header-title">Map</h2>
+          <h2 class="header-title">{{ t.mapTitle }}</h2>
           <div class="search-bar">
             <i class='bx bx-search search-icon'></i>
             <input class="search-input" type="text" placeholder="Search stations or buses..." />
@@ -59,7 +59,7 @@
             <TopbarNotification />
             <div class="lang-switcher" @click="toggleLanguage">
               <i class='bx bx-globe'></i>
-              <span class="lang-text">{{ language }}</span>
+              <span class="lang-text">{{ t.languageName }}</span>
               <i class='bx bx-chevron-down'></i>
             </div>
           </div>
@@ -69,7 +69,7 @@
               <i class='bx bxs-user'></i>
             </div>
             <div class="dropdown-menu" v-show="isDropdownOpen">
-              <div class="dropdown-item logout-item" @click="logout"><i class='bx bx-log-out'></i> Log out</div>
+              <div class="dropdown-item logout-item" @click="logout"><i class='bx bx-log-out'></i> {{ t.logout }}</div>
             </div>
           </div>
         </div>
@@ -82,7 +82,7 @@
           type="button"
           @click="toggleLine"
         >
-          <span class="legend-label">Line {{ activeLine }}</span>
+          <span class="legend-label">{{ t.line }} {{ activeLine }}</span>
         </button>
       </div>
 
@@ -94,7 +94,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
@@ -102,9 +102,44 @@ import TopbarNotification from '../components/TopbarNotification.vue'
 import { apiFetch } from '../service/api'
 import { getStationMarkerColor } from '../lib/stationAlert'
 
+const translations = {
+  en: {
+    dashboard: 'Dashboard',
+    analytics: 'Analytics',
+    map: 'Map',
+    liveFeed: 'Live Feed',
+    feedback: 'Feedback',
+    settings: 'Settings',
+    adminUser: 'Admin User',
+    operationalLead: 'Operational Lead',
+    languageName: 'English',
+    logout: 'Log out',
+    mapTitle: 'Map',
+    searchPlaceholder: 'Search stations or buses...',
+    line: 'Line',
+    peopleWaitingNow: 'People waiting now:',
+  },
+  th: {
+    dashboard: 'แดชบอร์ด',
+    analytics: 'การวิเคราะห์',
+    map: 'แผนที่',
+    liveFeed: 'ฟีดสด',
+    feedback: 'ข้อเสนอแนะ',
+    settings: 'การตั้งค่า',
+    adminUser: 'ผู้ดูแลระบบ',
+    operationalLead: 'หัวหน้าฝ่ายปฏิบัติการ',
+    languageName: 'ไทย',
+    logout: 'ออกจากระบบ',
+    mapTitle: 'แผนที่',
+    searchPlaceholder: 'ค้นหาสถานีหรือรถบัส...',
+    line: 'สาย',
+    peopleWaitingNow: 'จำนวนคนรอขณะนี้:',
+  }
+};
+
 const router = useRouter()
 const isDropdownOpen = ref(false)
-const language = ref('English')
+const language = ref('en')
 const stations = ref([])
 const activeLine = ref(1)
 let map = null
@@ -116,6 +151,8 @@ let animFrame1 = null
 let animFrame2 = null
 const markerShadowUrl = new URL('leaflet/dist/images/marker-shadow.png', import.meta.url).href
 
+const t = computed(() => translations[language.value]);
+
 const closeDropdown = (e) => {
   if (!e.target.closest('.profile-dropdown-container')) {
     isDropdownOpen.value = false
@@ -123,7 +160,8 @@ const closeDropdown = (e) => {
 }
 
 const toggleLanguage = () => {
-  language.value = language.value === 'English' ? 'Thai' : 'English'
+  language.value = language.value === 'en' ? 'th' : 'en';
+  refreshMapText();
 }
 
 const logout = () => {
@@ -160,6 +198,16 @@ const createStationIcon = (waitingPassengers) => {
     shadowSize: [41, 41],
   })
 }
+
+const refreshMapText = () => {
+  if (!map) return;
+  map.eachLayer(layer => {
+    if (layer instanceof L.Marker && layer.getPopup()) {
+      const station = stations.value.find(s => s.name === layer.getPopup().getContent().match(/<b>(.*?)<\/b>/)?.[1]);
+      if (station) layer.setPopupContent(getStationPopupHtml(station));
+    }
+  });
+};
 
 const setLayerVisibility = (layer, shouldShow) => {
   if (!map || !layer) return
@@ -339,6 +387,17 @@ const animateBus = (marker, coords, speed, startOffset = 0) => {
   return requestAnimationFrame(step)
 }
 
+const getStationPopupHtml = (station) => {
+  const markerColor = getStationMarkerColor(station.waitingPassengers);
+  return `
+      <div style="font-family: 'Inter', sans-serif; font-size: 13px;">
+        <b style="color: ${markerColor};">${station.name}</b><br>
+        ${t.value.peopleWaitingNow} ${station.waitingPassengers}<br>
+        <span style="color: #6b7280; font-size: 12px;">${station.incomingBuses}</span>
+      </div>
+    `;
+};
+
 const createMap = () => {
   if (map) {
     map.remove()
@@ -376,18 +435,10 @@ const createMap = () => {
 
   // Station markers from API
   validStations.forEach((station) => {
-    const markerColor = getStationMarkerColor(station.waitingPassengers)
     const marker = L.marker([station.location.lat, station.location.lng], {
       icon: createStationIcon(station.waitingPassengers),
     }).addTo(map)
-
-    marker.bindPopup(`
-      <div style="font-family: 'Inter', sans-serif; font-size: 13px;">
-        <b style="color: ${markerColor};">${station.name}</b><br>
-        People waiting now: ${station.waitingPassengers}<br>
-        <span style="color: #6b7280; font-size: 12px;">${station.incomingBuses}</span>
-      </div>
-    `)
+    marker.bindPopup(getStationPopupHtml(station));
 
     marker.on('mouseover', () => marker.openPopup())
     marker.on('mouseout', () => marker.closePopup())
@@ -398,14 +449,14 @@ const createMap = () => {
     icon: createBusIcon(),
     zIndexOffset: 1000,
   })
-  busMarker1.bindTooltip('Line 1', { permanent: false, direction: 'top' })
+  busMarker1.bindTooltip(`${t.value.line} 1`, { permanent: false, direction: 'top' })
 
   // Bus marker Line 2
   busMarker2 = L.marker(line2Coords[0], {
     icon: createBusIcon(),
     zIndexOffset: 1000,
   })
-  busMarker2.bindTooltip('Line 2', { permanent: false, direction: 'top' })
+  busMarker2.bindTooltip(`${t.value.line} 2`, { permanent: false, direction: 'top' })
 
   syncLineVisibility()
 

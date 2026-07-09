@@ -22,7 +22,7 @@
 
             <i class='bx bx-grid-alt menu-icon'></i>
 
-            <span class="menu-label">Dashboard</span>
+            <span class="menu-label">{{ t.dashboard }}</span>
 
           </div>
 
@@ -30,7 +30,7 @@
 
             <i class='bx bx-line-chart menu-icon'></i>
 
-            <span class="menu-label">Analytics</span>
+            <span class="menu-label">{{ t.analytics }}</span>
 
           </div>
 
@@ -38,7 +38,7 @@
 
             <i class='bx bx-map-alt menu-icon'></i>
 
-            <span class="menu-label">Map</span>
+            <span class="menu-label">{{ t.map }}</span>
 
           </div>
 
@@ -46,7 +46,7 @@
 
             <i class='bx bx-video menu-icon'></i>
 
-            <span class="menu-label">Live Feed</span>
+            <span class="menu-label">{{ t.liveFeed }}</span>
 
           </div>
 
@@ -54,7 +54,7 @@
 
             <i class='bx bx-message-square-dots menu-icon'></i>
 
-            <span class="menu-label">Feedback</span>
+            <span class="menu-label">{{ t.feedback }}</span>
 
           </div>
 
@@ -62,7 +62,7 @@
 
             <i class='bx bx-cog menu-icon'></i>
 
-            <span class="menu-label">Settings</span>
+            <span class="menu-label">{{ t.settings }}</span>
 
           </div>
 
@@ -78,9 +78,9 @@
 
         <div>
 
-          <p class="user-name">Admin User</p>
+          <p class="user-name">{{ t.adminUser }}</p>
 
-          <p class="user-role">Operational Lead</p>
+          <p class="user-role">{{ t.operationalLead }}</p>
 
         </div>
 
@@ -96,13 +96,13 @@
 
         <div class="header-left">
 
-          <h2 class="header-title">Analytics</h2>
+          <h2 class="header-title">{{ t.analytics }}</h2>
 
           <div class="search-bar">
 
             <i class='bx bx-search search-icon'></i>
 
-            <input class="search-input" type="text" placeholder="Search analytics..." />
+            <input class="search-input" type="text" :placeholder="t.searchPlaceholder" />
 
           </div>
 
@@ -120,7 +120,7 @@
 
               <i class='bx bx-globe'></i>
 
-              <span class="lang-text">{{ language }}</span>
+              <span class="lang-text">{{ t.languageName }}</span>
 
               <i class='bx bx-chevron-down'></i>
 
@@ -140,7 +140,7 @@
 
             <div class="dropdown-menu" v-show="isDropdownOpen">
 
-              <div class="dropdown-item logout-item" @click="logout"><i class='bx bx-log-out'></i> Log out</div>
+              <div class="dropdown-item logout-item" @click="logout"><i class='bx bx-log-out'></i> {{ t.logout }}</div>
 
             </div>
 
@@ -158,14 +158,14 @@
 
           <div>
 
-            <h1>Historical Performance</h1>
+            <h1>{{ t.pageTitle }}</h1>
 
-            <p>Analyze trends and spatial occupancy patterns from AI cameras</p>
+            <p>{{ t.pageSubtitle }}</p>
 
           </div>
           <button class="export-btn" @click="exportReport">
             <i class='bx bx-download'></i>
-            Export Report
+            {{ t.exportReport }}
           </button>
 
         </section>
@@ -176,7 +176,7 @@
 
           <div class="filter-group">
 
-            <label>DATE RANGE</label>
+            <label>{{ t.dateRangeLabel.toUpperCase() }}</label>
 
             <div class="date-filter-wrapper">
 
@@ -184,7 +184,7 @@
 
                 <i class='bx bx-calendar'></i>
 
-                <select v-model="selectedDateRange" @change="handleDateChange">
+                <select v-model="selectedDateRange" @change="handleDateChange" :aria-label="t.dateRangeLabel">
 
                   <option v-for="range in dateOptions" :key="range.value" :value="range.value">
 
@@ -202,7 +202,7 @@
 
               <div v-if="selectedDateRange === 'custom'" class="custom-dates">
 
-                <input type="date" v-model="startDate" @change="loadData" class="date-input" />
+                <input type="date" v-model="startDate" @change="loadData" class="date-input" :aria-label="t.startDateAriaLabel" />
 
                 <span class="date-sep">to</span>
 
@@ -218,9 +218,9 @@
 
           <div class="filter-group">
 
-            <label>STATION FILTER</label>
+            <label>{{ t.stationFilterLabel.toUpperCase() }}</label>
 
-            <div class="select-box">
+            <div class="select-box" :aria-label="t.stationFilterLabel">
 
               <select v-model="selectedTerminal" @change="loadData">
 
@@ -274,9 +274,9 @@
 
               <div>
 
-                <h3>Passenger Flow Trends</h3>
+                <h3>{{ t.flowTrendsTitle }}</h3>
 
-                <p>Daily volume across all stations based on Hourly Analytics</p>
+                <p>{{ t.flowTrendsSubtitle }}</p>
 
               </div>
 
@@ -306,9 +306,9 @@
 
               <div>
 
-                <h3>Wait Time Analysis</h3>
+                <h3>{{ t.waitAnalysisTitle }}</h3>
 
-                <p>Average wait time distribution (seconds)</p>
+                <p>{{ t.waitAnalysisSubtitle }}</p>
 
               </div>
 
@@ -316,7 +316,7 @@
 
             <div class="peak-chart">
 
-              <apexchart type="bar" height="200" :options="peakChartOptions" :series="peakSeries" />
+              <apexchart type="bar" height="200" :options="peakChartOptions" :series="peakSeries" :key="language" />
 
             </div>
 
@@ -324,7 +324,7 @@
 
               <div class="circle"></div>
 
-              Shuttle frequency increase recommended during peak hours
+              {{ t.recommendation }}
 
             </div>
 
@@ -342,9 +342,9 @@
 
               <div>
 
-                <h3>Congestion Heat Map</h3>
+                <h3>{{ t.heatMapTitle }}</h3>
 
-                <p>Live spatial density</p>
+                <p>{{ t.heatMapSubtitle }}</p>
 
               </div>
 
@@ -360,7 +360,7 @@
 
             <div class="density">
 
-              Top Congested Stations
+              {{ t.topCongestedTitle }}
 
               <div class="density-bar"></div>
 
@@ -370,8 +370,7 @@
 
             <div class="rank-list">
 
-              <div v-if="rankedStations.length === 0" style="color: #999; margin-top: 20px; font-size: 13px;">No data
-                available</div>
+              <div v-if="rankedStations.length === 0" style="color: #999; margin-top: 20px; font-size: 13px;">{{ t.noData }}</div>
 
 
 
@@ -383,8 +382,7 @@
 
                   <h4>{{ station.name }}</h4>
 
-                  <p>{{ getPercentage(station.waitingPassengers, station.capacity) }}% Full / {{
-                    station.waitingPassengers || 0 }} Pax</p>
+                  <p>{{ getPercentage(station.waitingPassengers, station.capacity) }}% {{ t.full }} / {{ station.waitingPassengers || 0 }} {{ t.pax }}</p>
 
                 </div>
 
@@ -398,7 +396,7 @@
 
             <button class="audit-btn hide-on-print" @click="router.push('/dashboard')">
 
-              VIEW DASHBOARD DETAILS
+              {{ t.viewDashboardBtn }}
 
             </button>
 
@@ -438,8 +436,7 @@ import html2pdf from 'html2pdf.js';
 const router = useRouter();
 
 const isDropdownOpen = ref(false);
-
-const language = ref('English');
+const language = ref('en');
 
 
 
@@ -456,6 +453,101 @@ const selectedTerminal = ref('all');
 const overview = ref({ avgPassengerFlow: 0, peakOccupancy: '0%', avgWaitTime: '0m', totalEntries: 0 });
 
 
+
+const translations = {
+  en: {
+    dashboard: 'Dashboard',
+    analytics: 'Analytics',
+    map: 'Map',
+    liveFeed: 'Live Feed',
+    feedback: 'Feedback',
+    settings: 'Settings',
+    adminUser: 'Admin User',
+    operationalLead: 'Operational Lead',
+    searchPlaceholder: 'Search analytics...',
+    exportReport: 'Export Report',
+    languageName: 'English',
+    logout: 'Log out',
+    pageTitle: 'Historical Performance',
+    pageSubtitle: 'Analyze trends and spatial occupancy patterns from AI cameras',
+    dateRangeLabel: 'DATE RANGE',
+    stationFilterLabel: 'STATION FILTER',
+    startDateAriaLabel: 'Start Date',
+    endDateAriaLabel: 'End Date',
+    allStations: 'All Stations',
+    totalPassengers: 'TOTAL PASSENGERS',
+    peakDensity: 'PEAK DENSITY',
+    avgWaitTime: 'AVG WAIT TIME',
+    dailyAverage: 'DAILY AVERAGE',
+    totalVolume: 'Total volume in range',
+    highestCapacity: 'Highest capacity reached',
+    avgDuration: 'Average queue duration',
+    estimatedFlow: 'Estimated daily flow',
+    period: 'Period',
+    max: 'Max',
+    updated: 'Updated',
+    trending: '+Trending',
+    flowTrendsTitle: 'Passenger Flow Trends',
+    flowTrendsSubtitle: 'Daily volume across all stations based on Hourly Analytics',
+    waitAnalysisTitle: 'Wait Time Analysis',
+    waitAnalysisSubtitle: 'Average wait time distribution (seconds)',
+    recommendation: 'Shuttle frequency increase recommended during peak hours',
+    heatMapTitle: 'Congestion Heat Map',
+    heatMapSubtitle: 'Live spatial density',
+    topCongestedTitle: 'Top Congested Stations',
+    noData: 'No data available',
+    full: 'Full',
+    pax: 'Pax',
+    viewDashboardBtn: 'VIEW DASHBOARD DETAILS',
+  },
+  th: {
+    dashboard: 'แดชบอร์ด',
+    analytics: 'การวิเคราะห์',
+    map: 'แผนที่',
+    liveFeed: 'ฟีดสด',
+    feedback: 'ข้อเสนอแนะ',
+    settings: 'การตั้งค่า',
+    adminUser: 'ผู้ดูแลระบบ',
+    operationalLead: 'หัวหน้าฝ่ายปฏิบัติการ',
+    searchPlaceholder: 'ค้นหาข้อมูลวิเคราะห์...',
+    exportReport: 'ส่งออกรายงาน',
+    languageName: 'ไทย',
+    logout: 'ออกจากระบบ',
+    pageTitle: 'ประสิทธิภาพย้อนหลัง',
+    pageSubtitle: 'วิเคราะห์แนวโน้มและรูปแบบความหนาแน่นเชิงพื้นที่จากกล้อง AI',
+    dateRangeLabel: 'ช่วงวันที่',
+    stationFilterLabel: 'ตัวกรองสถานี',
+    startDateAriaLabel: 'วันที่เริ่มต้น',
+    endDateAriaLabel: 'วันที่สิ้นสุด',
+    allStations: 'ทุกสถานี',
+    totalPassengers: 'ผู้โดยสารทั้งหมด',
+    peakDensity: 'ความหนาแน่นสูงสุด',
+    avgWaitTime: 'เวลารอเฉลี่ย',
+    dailyAverage: 'เฉลี่ยรายวัน',
+    totalVolume: 'ปริมาณรวมในช่วงเวลา',
+    highestCapacity: 'ความจุสูงสุดที่เคยถึง',
+    avgDuration: 'ระยะเวลารอคิวโดยเฉลี่ย',
+    estimatedFlow: 'ประมาณการสัญจรรายวัน',
+    period: 'ช่วงเวลา',
+    max: 'สูงสุด',
+    updated: 'อัปเดต',
+    trending: '+แนวโน้ม',
+    flowTrendsTitle: 'แนวโน้มการสัญจรของผู้โดยสาร',
+    flowTrendsSubtitle: 'ปริมาณรายวันจากทุกสถานีตามการวิเคราะห์รายชั่วโมง',
+    waitAnalysisTitle: 'การวิเคราะห์เวลารอ',
+    waitAnalysisSubtitle: 'การกระจายตัวของเวลารอโดยเฉลี่ย (วินาที)',
+    recommendation: 'แนะนำให้เพิ่มความถี่ของรถเวียนในช่วงเวลาเร่งด่วน',
+    heatMapTitle: 'แผนที่ความร้อนความแออัด',
+    heatMapSubtitle: 'ความหนาแน่นเชิงพื้นที่แบบสด',
+    topCongestedTitle: 'สถานีที่แออัดที่สุด',
+    noData: 'ไม่มีข้อมูล',
+    full: 'เต็ม',
+    pax: 'คน',
+    viewDashboardBtn: 'ดูรายละเอียดแดชบอร์ด',
+  }
+};
+
+const t = computed(() => translations[language.value]);
 
 // ── Date Range States ──
 
@@ -499,16 +591,13 @@ const exportReport = () => {
 // ── Data Processing ──
 
 const statsDisplay = computed(() => [
-
-  { title: 'TOTAL PASSENGERS', icon: 'bx bx-group', val: overview.value.totalEntries.toLocaleString(), trend: 'Period', color: 'green', desc: 'Total volume in range' },
-
-  { title: 'PEAK DENSITY', icon: 'bx bx-line-chart', val: overview.value.peakOccupancy, trend: 'Max', color: 'red', desc: 'Highest capacity reached' },
-
-  { title: 'AVG WAIT TIME', icon: 'bx bx-time-five', val: overview.value.avgWaitTime, trend: 'Updated', color: 'green', desc: 'Average queue duration' },
-
-  { title: 'DAILY AVERAGE', icon: 'bx bx-transfer', val: overview.value.avgPassengerFlow.toLocaleString(), trend: '+Trending', color: 'green', desc: 'Estimated daily flow' }
-
+  { title: t.value.totalPassengers.toUpperCase(), icon: 'bx bx-group', val: overview.value.totalEntries.toLocaleString(), trend: t.value.period, color: 'green', desc: t.value.totalVolume },
+  { title: t.value.peakDensity.toUpperCase(), icon: 'bx bx-line-chart', val: overview.value.peakOccupancy, trend: t.value.max, color: 'red', desc: t.value.highestCapacity },
+  { title: t.value.avgWaitTime.toUpperCase(), icon: 'bx bx-time-five', val: overview.value.avgWaitTime, trend: t.value.updated, color: 'green', desc: t.value.avgDuration },
+  { title: t.value.dailyAverage.toUpperCase(), icon: 'bx bx-transfer', val: overview.value.avgPassengerFlow.toLocaleString(), trend: t.value.trending, color: 'green', desc: t.value.estimatedFlow }
 ]);
+
+
 
 
 
@@ -829,9 +918,8 @@ const closeDropdown = (e) => {
 };
 
 const toggleLanguage = () => {
-
-  language.value = language.value === 'English' ? 'Thai' : 'English';
-
+  language.value = language.value === 'en' ? 'th' : 'en';
+  loadData(); // Reload data to update "All Stations" text if needed
 };
 
 

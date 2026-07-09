@@ -159,6 +159,14 @@
       <i class='bx bx-target-lock locate-icon'></i>
     </div>
 
+    <!-- 4. ปุ่มยกเลิกการนำทาง -->
+    <transition name="dropdown-fade">
+      <div class="cancel-navigation-btn shadow" v-if="isNavigationActive" @click="cancelNavigation">
+        <i class='bx bx-x'></i>
+        <span class="cancel-navigation-text">{{ t.cancelNavigation }}</span>
+      </div>
+    </transition>
+
     <div class="marker-legend shadow-sm">
       <div class="legend-title">{{ t.markerStatus }}</div>
       <div class="legend-item">
@@ -210,6 +218,7 @@ const feedbackSuccess = ref('')
 const isSubmittingFeedback = ref(false)
 const selectedDestination = ref('')
 
+const isNavigationActive = ref(false)
 const translations = {
   en: {
     languageLabel: 'English',
@@ -241,6 +250,7 @@ const translations = {
     waiting9Plus: '9+ people waiting',
     peopleWaitingNow: 'People waiting now:',
     loading: 'Loading...',
+    cancelNavigation: 'Cancel Navigation',
     user: 'USER'
   },
   th: {
@@ -273,6 +283,7 @@ const translations = {
     waiting9Plus: 'มีคนรอ 9 คนขึ้นไป',
     peopleWaitingNow: 'จำนวนคนรอขณะนี้:',
     loading: 'กำลังโหลด...',
+    cancelNavigation: 'ยกเลิกการนำทาง',
     user: 'ผู้ใช้'
   }
 }
@@ -569,6 +580,11 @@ const logout = () => {
   window.location.href = '/'
 }
 
+const cancelNavigation = () => {
+  clearNavigation()
+  centerMap()
+}
+
 // ===== Functions ดึงข้อมูลจาก API =====
 const loadData = async () => {
   try {
@@ -859,6 +875,19 @@ const clearNavigation = () => {
   navAnimFrame = null
   if (navigatorMarker) { try { map.removeLayer(navigatorMarker) } catch (e) {} navigatorMarker = null }
   if (routeLayer) { try { map.removeLayer(routeLayer) } catch (e) {} routeLayer = null }
+
+  if (selectedStationMarker) {
+    const previousEntry = stationMarkers.find((entry) => entry.marker === selectedStationMarker)
+    if (previousEntry) {
+      const previousColor = getStationMarkerColor(previousEntry.station.waitingPassengers || 0)
+      previousEntry.marker.setIcon(createStationIcon(previousColor, false))
+    }
+    selectedStationMarker = null
+  }
+
+  selectedDestination.value = ''
+  updateStationMarkerVisibility(null)
+  isNavigationActive.value = false
 }
 
 const getInterpolatedRoute = (start, end, segments = 120) => {
@@ -899,6 +928,7 @@ const startNavigation = async (station) => {
   if (!map || !station || !station.location) return
   clearNavigation()
 
+  isNavigationActive.value = true
   const destLat = parseFloat(station.location.lat)
   const destLng = parseFloat(station.location.lng)
 
@@ -1499,6 +1529,26 @@ onUnmounted(() => {
 
 .locate-icon { font-size: 24px; color: #ff3b3b; }
 
+.cancel-navigation-btn {
+  position: absolute;
+  bottom: 92px;
+  right: 24px;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #ef4444;
+  color: #ffffff;
+  padding: 10px 16px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.25s ease-out;
+}
+
+.cancel-navigation-btn i { font-size: 20px; }
+
 /* ================== MAP WRAPPER ================== */
 .marker-legend {
   position: absolute;
@@ -1551,6 +1601,7 @@ onUnmounted(() => {
   .floating-panel { top: 16px; left: 16px; }
   .profile-container { top: 16px; right: 16px; }
   .floating-btn { bottom: 24px; right: 16px; }
+  .cancel-navigation-btn { bottom: 84px; right: 16px; }
   .marker-legend { bottom: 16px; left: 16px; padding: 10px 12px; }
   
   .profile-dropdown {
@@ -1582,5 +1633,10 @@ onUnmounted(() => {
   .line-selector:hover { background: #f0f0f0; }
   .lang-toggle-btn:hover { background: #f5f5f5; }
   .floating-btn:hover { background: #f0f0f0; }
+  .cancel-navigation-btn:hover {
+    background: #dc2626;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(220, 38, 38, 0.3);
+  }
 }
 </style>
