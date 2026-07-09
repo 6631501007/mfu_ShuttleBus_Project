@@ -28,9 +28,21 @@
 
     <!-- 2. มุมขวาบน: รูปโปรไฟล์และ Dropdown Menu -->
     <div class="profile-container top-right">
-      <div class="floating-profile shadow" @click="toggleProfileMenu">
-        <!-- ดึงรูปจาก Database (ถ้ามี) -->
-        <img :src="userAvatar" alt="Profile" />
+      <div class="profile-control-row">
+        <button
+          class="lang-toggle-btn shadow-sm"
+          type="button"
+          @click.stop="toggleLanguage"
+          :title="language === 'en' ? 'Switch to Thai' : 'Switch to English'"
+          :aria-label="language === 'en' ? 'Switch to Thai' : 'Switch to English'"
+        >
+          <i class='bx bx-globe'></i>
+        </button>
+
+        <div class="floating-profile shadow" @click="toggleProfileMenu">
+          <!-- ดึงรูปจาก Database (ถ้ามี) -->
+          <img :src="userAvatar" alt="Profile" />
+        </div>
       </div>
 
       <!-- เมนู Dropdown แบบแยกการ์ด (อิงจากภาพอ้างอิง) -->
@@ -41,12 +53,6 @@
           <div class="menu-card user-info-card shadow-sm">
             <div class="user-name">{{ userName }}</div>
             <div class="user-email">{{ userEmail }}</div>
-          </div>
-          
-          <!-- ปุ่มเปลี่ยนภาษา -->
-          <div class="menu-card action-card lang-card shadow-sm" @click="toggleLanguage">
-            <span class="emoji-icon">{{ languageFlag }}</span>
-            <span class="card-label">{{ languageLabel }}</span>
           </div>
           
           <!-- ปุ่ม Feedback -->
@@ -980,6 +986,32 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
+  gap: 8px;
+}
+
+.profile-control-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.lang-toggle-btn {
+  width: 42px;
+  height: 42px;
+  border: none;
+  border-radius: 50%;
+  background: #ffffff;
+  color: #111827;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 19px;
+  transition: transform 0.2s, background 0.2s;
+}
+
+.lang-toggle-btn:active {
+  transform: scale(0.95);
 }
 
 .floating-profile {
@@ -998,7 +1030,6 @@ onUnmounted(() => {
 .floating-profile img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
 
 .profile-dropdown {
-  margin-top: 8px; /* ระยะห่างจากรูปโปรไฟล์ */
   display: flex;
   flex-direction: column;
   gap: 10px; 
@@ -1046,7 +1077,6 @@ onUnmounted(() => {
 .user-email { font-size: 12px; color: #999; text-align: center; word-break: break-all; }
 
 /* สีพื้นหลังการ์ดต่างๆ แบบในรูปต้นฉบับ */
-.lang-card { background: #fff8e1; } /* สีเหลืองอ่อน */
 .feedback-card { background: #f8f9fa; } /* สีขาวเทา */
 .dest-card { background: #eaf4fd; } /* สีฟ้าอ่อน */
 .logout-card { background: #fce4e4; } /* สีแดงอ่อน */
@@ -1345,6 +1375,12 @@ onUnmounted(() => {
     overflow-y: auto;
     padding-bottom: 10px; 
   }
+
+  .lang-toggle-btn {
+    width: 40px;
+    height: 40px;
+    font-size: 18px;
+  }
   
   /* ปรับลูกศรให้ตรงกับรูปโปรไฟล์บนจอเล็ก */
   .user-info-card::before { right: 12px; }
@@ -1360,6 +1396,7 @@ onUnmounted(() => {
 @media (hover: hover) and (pointer: fine) {
   .action-card:hover { transform: translateY(-2px); filter: brightness(0.95); }
   .line-selector:hover { background: #f0f0f0; }
+  .lang-toggle-btn:hover { background: #f5f5f5; }
   .floating-btn:hover { background: #f0f0f0; }
 }
 </style>

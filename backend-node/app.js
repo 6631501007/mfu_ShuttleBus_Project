@@ -18,6 +18,7 @@ const Analytics = require('./models/analytics');
 const HourlyAnalytics = require('./models/hourlyAnalytics');
 const Setting = require('./models/setting');
 const dns = require('dns');
+dns.setServers(['8.8.8.8', '8.8.4.4'])
 
 const app = express();
 app.use(cors());
@@ -51,21 +52,47 @@ const DETECTOR_SCRIPT_PATH = process.env.DETECTOR_SCRIPT_PATH
   ? path.resolve(__dirname, process.env.DETECTOR_SCRIPT_PATH)
   : path.join(__dirname, '..', 'AI', 'detect_humans_live-api.py');
 const resolveDetectorPythonBin = () => {
-  if (process.env.DETECTOR_PYTHON_BIN) {
-    const configuredBin = process.env.DETECTOR_PYTHON_BIN;
+  const getCommandAvailability = (candidate) => {
+    try {
+      const result = spawnSync(candidate, ['--version'], { stdio: 'ignore' });
+      return result.status === 0 || result.error == null;
+    } catch {
+      return false;
+    }
+  };
+
+  const configuredBin = (process.env.DETECTOR_PYTHON_BIN || process.env.PYTHON_CMD || '').trim();
+  if (configuredBin) {
     const looksLikePath =
       path.isAbsolute(configuredBin) ||
       configuredBin.startsWith(`.${path.sep}`) ||
       configuredBin.startsWith(`..${path.sep}`) ||
       configuredBin.includes(path.sep);
-    return looksLikePath ? path.resolve(__dirname, configuredBin) : configuredBin;
+    const resolvedConfiguredBin = looksLikePath ? path.resolve(__dirname, configuredBin) : configuredBin;
+    if (looksLikePath ? fs.existsSync(resolvedConfiguredBin) : getCommandAvailability(resolvedConfiguredBin)) {
+      return resolvedConfiguredBin;
+    }
   }
 
-  const candidates = [
-    path.join(__dirname, '..', 'AI', '.venv', 'bin', 'python'),
-    path.join(__dirname, '..', '.venv', 'bin', 'python'),
-  ];
-  return candidates.find(candidate => fs.existsSync(candidate)) || 'python3';
+  const localCandidates = process.platform === 'win32'
+    ? [
+        path.join(__dirname, '..', 'AI', '.venv', 'Scripts', 'python.exe'),
+        path.join(__dirname, '..', '.venv', 'Scripts', 'python.exe'),
+      ]
+    : [
+        path.join(__dirname, '..', 'AI', '.venv', 'bin', 'python'),
+        path.join(__dirname, '..', '.venv', 'bin', 'python'),
+      ];
+
+  const existingLocal = localCandidates.find(candidate => fs.existsSync(candidate));
+  if (existingLocal) return existingLocal;
+
+  const fallbackCandidates = process.platform === 'win32'
+    ? ['py', 'python', 'python3']
+    : ['python3', 'python'];
+
+  const availableCandidate = fallbackCandidates.find(candidate => getCommandAvailability(candidate));
+  return availableCandidate || (process.platform === 'win32' ? 'py' : 'python3');
 };
 const DETECTOR_PYTHON_BIN = resolveDetectorPythonBin();
 const DETECTOR_BASE_PORT = Number(process.env.DETECTOR_BASE_PORT) || 8090;
