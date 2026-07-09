@@ -1,21 +1,21 @@
-# NewSystem Agent Operating Model
+# MFUSHUTTLEBUSAIBasePassengerCountingAndAnalysisInCampusBusStop Agent Operating Model
 
-อัปเดตจาก source repo `NewSystem` ณ วันที่ 2026-05-28
+อัปเดตจาก source repo `MFUSHUTTLEBUSAIBasePassengerCountingAndAnalysisInCampusBusStop` ณ วันที่ 2026-06-04
 
-เอกสารชุดนี้คือ operating manual สำหรับใช้ agents พัฒนาและดูแล NewSystem. ทุก agent ต้องยึด `docs/AI-WORKFLOW.md`, source code ปัจจุบัน, route mount จริง, frontend route/API จริง และ permission model ที่มีอยู่ ไม่ใช่ prompt ทั่วไป.
+เอกสารชุดนี้คือ operating manual สำหรับใช้ agents พัฒนาและดูแล MFUSHUTTLEBUSAIBasePassengerCountingAndAnalysisInCampusBusStop. ทุก agent ต้องยึด `docs/AI-WORKFLOW.md`, source code ปัจจุบัน, route mount จริง, frontend route/API จริง และ permission model ที่มีอยู่ ไม่ใช่ prompt ทั่วไป.
 
 ## Source Documents
 
 | Source | Purpose |
 |---|---|
 | `docs/AI-WORKFLOW.md` | workflow, gates, T1-T20, no-guessing/test/PRD rules |
-| `docs/prd/PRD-NewSystem.md` | product requirement baseline |
+| `docs/prd/PRD-MFUSHUTTLEBUSAIBasePassengerCountingAndAnalysisInCampusBusStop.md` | product requirement baseline |
 | `README.md` | project overview |
 | `ENVIRONMENTS.md` | environment contract |
 | `DEPLOY-UBUNTU.md` | deployment notes |
 | `docs/IAM-UPGRADE.md` | IAM integration notes |
-| `backend-node/server/routes/app.routes.js` | mounted backend route truth |
-| `backend-node/server/Project/*/*.routes.js` | module route implementation |
+| `backend-node/app.js` | mounted backend route truth |
+| `backend-node/app.js route handlers` | module route implementation |
 | `frontend-vue/src/router/index.js` | frontend route truth |
 | `frontend-vue/src/service/api.js` | frontend API wrapper, must be verified against backend |
 
@@ -58,7 +58,7 @@ Backend and Frontend may run in parallel only after Product Owner and Data Model
 
 | Work type | Required agents |
 |---|---|
-| new NewSystem feature | Orchestrator, PO, Data Model, Backend, Frontend, Security, QA, Release |
+| new MFUSHUTTLEBUSAIBasePassengerCountingAndAnalysisInCampusBusStop feature | Orchestrator, PO, Data Model, Backend, Frontend, Security, QA, Release |
 | backend-only route fix | Orchestrator, Backend, Security if protected/sensitive, QA |
 | frontend-only UI fix | Orchestrator, Frontend, QA, Security if permission/sensitive data is visible |
 | schema/model change | Orchestrator, PO, Data Model, Backend, QA, Release |
@@ -71,7 +71,7 @@ Backend and Frontend may run in parallel only after Product Owner and Data Model
 - Follow `docs/AI-WORKFLOW.md` before role-specific instructions.
 - Use source code as source of truth.
 - Do not guess route, field, permission, test, component, or behavior from names alone.
-- Verify backend route is mounted in `backend-node/server/routes/app.routes.js` before documenting or implementing a frontend API method.
+- Verify backend route is mounted in `backend-node/app.js` before documenting or implementing a frontend API method.
 - Every protected route must have authentication and permission decision.
 - Every target-account flow must evaluate data scope.
 - Preserve existing route/request/response behavior unless the FR explicitly changes it.
@@ -79,19 +79,19 @@ Backend and Frontend may run in parallel only after Product Owner and Data Model
 - Separate `decision`, `assumption`, `risk`, `blocker`, and `open question`.
 - Do not turn agent output into vague advice. Every output must be executable by the next role.
 - Use T1-T20 format for change docs and handoffs.
-- Update `docs/prd/PRD-NewSystem.md` when behavior, API, UI, data, permission, test, or release contract changes.
+- Update `docs/prd/PRD-MFUSHUTTLEBUSAIBasePassengerCountingAndAnalysisInCampusBusStop.md` when behavior, API, UI, data, permission, test, or release contract changes.
 - Run scoped tests/verification before marking implementation done.
 
-## NewSystem Source Map For Agents
+## MFUSHUTTLEBUSAIBasePassengerCountingAndAnalysisInCampusBusStop Source Map For Agents
 
 | Domain | Backend source | Frontend source |
 |---|---|---|
-| Auth/session/2FA/trusted device | `backend-node/server/Project/accounts` | `frontend-vue/src/store/modules/Authen`, `src/views/pages/Login.vue` |
-| Account directory/lifecycle | `backend-node/server/Project/accounts` | `src/store/modules/Accounts`, `src/projects/views/accounts` |
-| NewSystem document registry | `backend-node/server/Project/newSystem` | `src/projects/views/newSystem`, `Service.newSystemDocuments` |
-| Security/RBAC/audit | `backend-node/server/Project/security` | `src/store/modules/Security`, `src/projects/views/security` |
-| Settings/runtime/backup/email/HR | `backend-node/server/Project/settings` | `src/store/modules/Setting`, `src/projects/views/setting` |
-| Frontend operations page | confirm backend route before API work | `src/projects/views/operations` |
+| Auth/session/2FA/trusted device | `backend-node/app.js and backend-node/models` | `frontend-vue/src/router/index.js and localStorage-backed view state/Authen`, `src/views/pages/Login.vue` |
+| Account directory/lifecycle | `backend-node/app.js and backend-node/models` | `src/router/index.js and localStorage-backed view state/Accounts`, `src/views/accounts` |
+| MFUSHUTTLEBUSAIBasePassengerCountingAndAnalysisInCampusBusStop document registry | `backend-node/app.js and backend-node/models` | `src/views/mfushuttlebusaibasepassengercountingandanalysis`, `Service.mfushuttlebusaibasepassengercountingandanalysisDocuments` |
+| Security/RBAC/audit | `backend-node/app.js and backend-node/models` | `src/router/index.js and localStorage-backed view state/Security`, `src/views/security` |
+| Settings/runtime/backup/email/HR | `backend-node/app.js and backend-node/models` | `src/router/index.js and localStorage-backed view state/Setting`, `src/views/setting` |
+| Frontend operations page | confirm backend route before API work | `src/views/operations` |
 | Deploy/ops | `docker-compose*.yml`, `server.sh`, `ENVIRONMENTS.md` | build env in `frontend-vue/package.json` |
 
 ## Shared Handoff Contract
@@ -134,19 +134,19 @@ A task is done only when it has:
 
 - `../AI-WORKFLOW.md`: master AI workflow and gates
 - `../templates/T1-T20-change-document.md`: required change documentation template
-- `orchestrator-example.md`: end-to-end example using the NewSystem document registry flow
+- `orchestrator-example.md`: end-to-end example using the MFUSHUTTLEBUSAIBasePassengerCountingAndAnalysisInCampusBusStop document registry flow
 - `sprint-task-template.md`: reusable task/sprint/handoff template
 
 ## Quick Prompt
 
 ```txt
-ทำงานตาม NewSystem agent workflow
+ทำงานตาม MFUSHUTTLEBUSAIBasePassengerCountingAndAnalysisInCampusBusStop agent workflow
 Requirement: [describe request]
 Source docs:
 - docs/AI-WORKFLOW.md
-- docs/prd/PRD-NewSystem.md
+- docs/prd/PRD-MFUSHUTTLEBUSAIBasePassengerCountingAndAnalysisInCampusBusStop.md
 - docs/agents/README.md
-- backend-node/server/routes/app.routes.js
+- backend-node/app.js
 - frontend-vue/src/router/index.js
 - frontend-vue/src/service/api.js
 

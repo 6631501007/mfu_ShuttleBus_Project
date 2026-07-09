@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tasklist Progress</title>
+  <style>
+    body { font-family: Arial, sans-serif; line-height: 1.5; margin: 32px; color: #172033; }
+    h1 { font-size: 28px; margin-bottom: 16px; }
+    h2 { font-size: 20px; margin-top: 28px; border-bottom: 1px solid #d9e1ec; padding-bottom: 6px; }
+    table { border-collapse: collapse; width: 100%; margin: 12px 0 20px; font-size: 14px; }
+    th, td { border: 1px solid #d9e1ec; padding: 8px 10px; text-align: left; vertical-align: top; }
+    th { background: #f5f7fb; }
+    code { background: #eef2f7; padding: 1px 4px; border-radius: 4px; }
+  </style>
+</head>
+<body>
+<h1>Tasklist: MFU SHUTTLE BUS AI Base Passenger Counting And Analysis In Campus Bus Stop System Progress And Readiness</h1>
+<table>
+<thead><tr><th>Field</th><th>Value</th></tr></thead>
+<tbody>
+<tr><td>Date</td><td>2026-07-08</td></tr>
+<tr><td>Project</td><td>MFU SHUTTLE BUS AI Base Passenger Counting And Analysis In Campus Bus Stop</td></tr>
+<tr><td>Module / Feature</td><td>system progress and readiness</td></tr>
+<tr><td>Requirement</td><td>Track actual project system progress from source and verification evidence</td></tr>
+<tr><td>Active Change Record</td><td><code>docs/changes/2026-07-08-project-folder-restructure.md</code></td></tr>
+<tr><td>Overall Status</td><td>docs_prd</td></tr>
+<tr><td>Overall Progress</td><td>45%</td></tr>
+<tr><td>Progress Type</td><td>Evidence-backed readiness score, not final product completion</td></tr>
+</tbody></table>
+<h2>T1. Source Evidence</h2>
+<table>
+<thead><tr><th>Area</th><th>Source Evidence</th></tr></thead>
+<tbody>
+<tr><td>API mount points</td><td><code>backend-node/app.js</code></td></tr>
+<tr><td>Backend scripts</td><td><code>backend-node/package.json</code></td></tr>
+<tr><td>Frontend routes</td><td><code>frontend-vue/src/router/index.js</code></td></tr>
+<tr><td>Frontend API client</td><td><code>frontend-vue/src/service/api.js</code></td></tr>
+<tr><td>Docs control</td><td><code>docs/AI-WORKFLOW.md</code>, <code>docs/AI-DOCS-INDEX.md</code>, <code>docs/tasks/README.md</code>, <code>docs/templates/T1-T20-change-document.md</code></td></tr>
+<tr><td>Module docs</td><td><code>docs/modules/*</code> when present</td></tr>
+<tr><td>Environment config</td><td>static key check only; do not document secret values</td></tr>
+</tbody></table>
+<h2>T2. Progress Calculation</h2>
+<p>Adjust weights per project, but keep them evidence-backed.</p>
+<table>
+<thead><tr><th>Readiness Area</th><th>Weight</th><th>Earned</th><th>Basis</th></tr></thead>
+<tbody>
+<tr><td>Backend API/services verified</td><td>35</td><td>10</td><td>Source path, package scripts, and syntax checks passed; runtime smoke still pending env/database.</td></tr>
+<tr><td>Integration/auth verified</td><td>15</td><td>0</td><td>Not verified yet.</td></tr>
+<tr><td>Frontend route/API mapped</td><td>20</td><td>20</td><td>Frontend folder renamed, API helper moved to <code>frontend-vue/src/service/api.js</code>, and frontend build passed.</td></tr>
+<tr><td>Environment/static config checked</td><td>10</td><td>0</td><td>Not verified yet.</td></tr>
+<tr><td>Release verification</td><td>15</td><td>0</td><td>Not verified yet.</td></tr>
+<tr><td>Tasklist and handoff</td><td>5</td><td>5</td><td>Active tasklist and change record created for folder restructure.</td></tr>
+<tr><td><strong>Total</strong></td><td><strong>100</strong></td><td><strong>50</strong></td><td>Folder restructure is complete; broader backend/release readiness still needs env-backed verification.</td></tr>
+</tbody></table>
+<h2>T3. Active Tasklist</h2>
+<table>
+<thead><tr><th>Task ID</th><th>Task</th><th>Agent</th><th>Owner</th><th>Depends On</th><th>Status</th><th>Progress %</th><th>Progress Basis</th><th>Source Evidence</th><th>Tests Evidence</th><th>Blocker</th><th>Next Action</th><th>Output</th></tr></thead>
+<tbody>
+<tr><td>mfu-shuttle-bus-ai-base-passenger-counting-and-analysis-SYS-001</td><td>Map API surface</td><td>Orchestrator</td><td>AI</td><td>none</td><td>pending</td><td>0</td><td>not started</td><td></td><td></td><td>none</td><td>read route truth</td><td>source map</td></tr>
+<tr><td>mfu-shuttle-bus-ai-base-passenger-counting-and-analysis-SYS-002</td><td>Verify backend readiness</td><td>Backend</td><td>AI</td><td>mfu-shuttle-bus-ai-base-passenger-counting-and-analysis-SYS-001</td><td>pending</td><td>0</td><td>not started</td><td></td><td></td><td>none</td><td>run backend tests</td><td>backend readiness evidence</td></tr>
+<tr><td>mfu-shuttle-bus-ai-base-passenger-counting-and-analysis-SYS-003</td><td>Verify frontend readiness</td><td>Frontend</td><td>AI</td><td>mfu-shuttle-bus-ai-base-passenger-counting-and-analysis-SYS-001</td><td>pending</td><td>0</td><td>not started</td><td></td><td></td><td>none</td><td>run frontend verification</td><td>frontend readiness evidence</td></tr>
+<tr><td>mfu-shuttle-bus-ai-base-passenger-counting-and-analysis-SYS-004</td><td>Verify release readiness</td><td>Release/Ops</td><td>AI</td><td>mfu-shuttle-bus-ai-base-passenger-counting-and-analysis-SYS-002,mfu-shuttle-bus-ai-base-passenger-counting-and-analysis-SYS-003</td><td>pending</td><td>0</td><td>not started</td><td></td><td></td><td>none</td><td>run smoke/e2e</td><td>release readiness evidence</td></tr>
+<tr><td>mfu-shuttle-bus-ai-base-passenger-counting-and-analysis-FOLDER-001</td><td>Align project folder structure with docs</td><td>Orchestrator</td><td>AI</td><td>none</td><td>done</td><td>100</td><td>discovery, implementation, verification, docs update, and handoff complete</td><td><code>docs/AI-WORKFLOW.md</code>, <code>README.md</code>, <code>backend-node/app.js</code>, <code>frontend-vue/src/router/index.js</code>, <code>frontend-vue/src/service/api.js</code></td><td>backend <code>node -c</code> checks passed; <code>npm run build</code> in <code>frontend-vue</code> passed; <code>node scripts/render-tasklist-progress-html.js .</code> passed</td><td>none</td><td>none</td><td>renamed folders and updated docs</td></tr>
+</tbody></table>
+<h2>T4. Verification Log</h2>
+<table>
+<thead><tr><th>Command / Check</th><th>Result</th><th>Evidence</th></tr></thead>
+<tbody>
+<tr><td>backend syntax check</td><td>pass</td><td><code>node -c app.js</code>; <code>node -c models/*.js</code> in <code>backend-node</code></td></tr>
+<tr><td>backend runtime smoke</td><td>not run</td><td>Requires configured <code>backend-node/.env</code> and MongoDB.</td></tr>
+<tr><td>frontend lint/test/build</td><td>pass</td><td><code>npm run build</code> in <code>frontend-vue</code></td></tr>
+<tr><td>live smoke/e2e</td><td>not run</td><td></td></tr>
+<tr><td>docs progress render</td><td>pass</td><td><code>node scripts/render-tasklist-progress-html.js .</code></td></tr>
+</tbody></table>
+<h2>T5. Blockers And Risks</h2>
+<table>
+<thead><tr><th>ID</th><th>Type</th><th>Status</th><th>Evidence</th><th>Impact</th><th>Next Action</th></tr></thead>
+<tbody>
+<tr><td>B-001</td><td>blocker</td><td>closed</td><td>No active blocker for folder restructure.</td><td>none</td><td>none</td></tr>
+<tr><td>R-001</td><td>risk</td><td>open</td><td>Backend has no test script and requires configured env/database for runtime smoke.</td><td>Backend readiness cannot be fully verified from scripts alone.</td><td>Run backend start/smoke with real env when available.</td></tr>
+</tbody></table>
+<h2>T6. Decision</h2>
+<p>Project folder restructure is complete. Source folders now use <code>backend-node/</code> and <code>frontend-vue/</code>; backend runtime and release readiness still need environment-backed verification.</p>
+</body>
+</html>

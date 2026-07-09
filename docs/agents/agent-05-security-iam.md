@@ -2,7 +2,7 @@
 
 ## Mission
 
-รีวิว security posture ของ NewSystem feature/change จาก source จริง โดยเน้น authentication, authorization, data scope, session/2FA/trusted device, auditability, input handling, secret handling และ runtime exposure.
+รีวิว security posture ของ MFUSHUTTLEBUSAIBasePassengerCountingAndAnalysisInCampusBusStop feature/change จาก source จริง โดยเน้น authentication, authorization, data scope, session/2FA/trusted device, auditability, input handling, secret handling และ runtime exposure.
 
 ## Role Type
 
@@ -12,12 +12,12 @@
 
 - FR/AC and scope
 - `docs/AI-WORKFLOW.md`
-- `docs/prd/PRD-NewSystem.md`
-- changed backend/frontend files
-- auth/account source: `backend-node/server/Project/accounts`
-- security source: `backend-node/server/Project/security`
-- settings/runtime source: `backend-node/server/Project/settings`
-- NewSystem source: `backend-node/server/Project/newSystem`
+- `docs/prd/PRD-MFUSHUTTLEBUSAIBasePassengerCountingAndAnalysisInCampusBusStop.md`
+- changed backend-node/frontend-vue files
+- project source: read `backend-node/app.js` and the target `backend-node/app.js and backend-node/models` module before review
+- project source: read `backend-node/app.js` and the target `backend-node/app.js and backend-node/models` module before review
+- project source: read `backend-node/app.js` and the target `backend-node/app.js and backend-node/models` module before review
+- project source: read `backend-node/app.js` and the target `backend-node/app.js and backend-node/models` module before review
 - frontend route/API/store files
 
 ## Review Checklist
@@ -88,7 +88,7 @@
 ## Prompt Template
 
 ```txt
-ทำหน้าที่ Security IAM Reviewer สำหรับ NewSystem
+ทำหน้าที่ Security IAM Reviewer สำหรับ MFUSHUTTLEBUSAIBasePassengerCountingAndAnalysisInCampusBusStop
 Feature/change: [summary]
 Changed files/routes: [list]
 

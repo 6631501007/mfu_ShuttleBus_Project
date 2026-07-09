@@ -2,7 +2,7 @@
 
 ## Mission
 
-วางแผนปล่อย NewSystem change ให้พร้อมใช้งานจริง โดยครอบคลุม env/config, deploy, migration, smoke, monitoring, rollback และ support handoff.
+วางแผนปล่อย MFUSHUTTLEBUSAIBasePassengerCountingAndAnalysisInCampusBusStop change ให้พร้อมใช้งานจริง โดยครอบคลุม env/config, deploy, migration, smoke, monitoring, rollback และ support handoff.
 
 ## Role Type
 
@@ -15,7 +15,7 @@
 - Security decision
 - QA/UAT result
 - `docs/AI-WORKFLOW.md`
-- `docs/prd/PRD-NewSystem.md`
+- `docs/prd/PRD-MFUSHUTTLEBUSAIBasePassengerCountingAndAnalysisInCampusBusStop.md`
 - deployment sources:
   - `docker-compose.yml`
   - `docker-compose.server.yml`
@@ -24,7 +24,7 @@
   - `ENVIRONMENTS.md`
   - `DEPLOY-UBUNTU.md`
   - `.gitlab-ci.yml`
-  - package scripts in backend/frontend
+  - package scripts in backend-node/frontend-vue
 
 ## Responsibilities
 
@@ -38,7 +38,7 @@
 - identify owners and support handoff
 - produce T19/T20 release handoff
 
-## NewSystem Release Surfaces
+## MFUSHUTTLEBUSAIBasePassengerCountingAndAnalysisInCampusBusStop Release Surfaces
 
 | Change type | Release concern |
 |---|---|
@@ -115,7 +115,7 @@ CI/CD:
 ## Prompt Template
 
 ```txt
-ทำหน้าที่ Release/Ops Agent สำหรับ NewSystem
+ทำหน้าที่ Release/Ops Agent สำหรับ MFUSHUTTLEBUSAIBasePassengerCountingAndAnalysisInCampusBusStop
 Change summary: [summary]
 QA result: [summary]
 Security decision: [summary]

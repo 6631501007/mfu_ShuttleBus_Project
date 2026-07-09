@@ -1,6 +1,6 @@
-# AI-WORKFLOW: NewSystem
+# AI-WORKFLOW: MFU SHUTTLE BUS AI Base Passenger Counting And Analysis In Campus Bus Stop
 
-อัปเดตจาก source repo `NewSystem` ณ วันที่ 2026-05-28
+อัปเดตจาก source repo `mfu-shuttle-bus-ai-base-passenger-counting-and-analysis` ณ วันที่ 2026-06-18
 
 เอกสารนี้เป็น workflow หลักสำหรับ AI/agents ทุกตัวใน repo นี้. `docs/agents/*` คือ role instructions ส่วน `AI-WORKFLOW.md` คือ sequence, gates, evidence, test, PRD และเอกสารส่งมอบที่ทุก role ต้องทำตาม.
 
@@ -14,8 +14,11 @@ AI ห้ามคาดเดา. ทุก requirement, route, field, permissi
 2. เมื่อมีการพัฒนาหรือปรับปรุง ต้องทดสอบการทำงานก่อนสรุปว่างานเสร็จ.
 3. เอกสารการปรับปรุง, change note, handoff หรือ doc ใหม่ต้องใช้รูปแบบ `T1-T20`.
 4. เมื่อมีการเปลี่ยนแปลง behavior, requirement, API, UI, permission, data model หรือ release impact ต้องปรับปรุง PRD ที่เกี่ยวข้อง.
-5. การพัฒนาต้องเขียนตามรูปแบบเดิมของ repo ก่อนเสมอ ทั้ง backend และ frontend.
-6. Frontend ต้องเขียนเป็น component-based structure: page ทำหน้าที่ orchestration, UI ย่อยแยกเป็น components.
+5. การเปลี่ยนแปลงหน้า profile/account หรือ UI ที่แสดงข้อมูลส่วนบุคคลต้องบันทึก visible fields, hidden sensitive fields, stored/changed data และ PDPA/data-minimization decision ก่อน release.
+6. การพัฒนาต้องเขียนตามรูปแบบเดิมของ repo ก่อนเสมอ ทั้ง backend และ frontend.
+7. Frontend ต้องเขียนเป็น component-based structure: page ทำหน้าที่ orchestration, UI ย่อยแยกเป็น components.
+8. ทุก task ต้องมี active tasklist ใน `docs/tasks/` และต้องอัปเดต `status`, `progress_percent`, evidence, blocker และ next action ทุกครั้งที่เปลี่ยน gate หรือสถานะ.
+9. System progress ต้องอัปเดตไฟล์เดิม `docs/tasks/tasklist-progress.md` เสมอ ห้ามสร้าง root dated `*-system-progress.md` ไฟล์ใหม่.
 
 ## 3. Source Truth Order
 
@@ -25,17 +28,26 @@ AI ห้ามคาดเดา. ทุก requirement, route, field, permissi
 |---|---|---|
 | 1 | Source code ที่ mounted/ถูก import จริง | behavior truth |
 | 2 | Tests และ smoke scripts | expected behavior and regression coverage |
-| 3 | `docs/prd/PRD-NewSystem.md` | product requirement truth |
+| 3 | `docs/prd/PRD-mfu-shuttle-bus-ai-base-passenger-counting-and-analysis.md` | product requirement truth |
 | 4 | `docs/agents/*` | role operating instructions |
 | 5 | `README.md`, `ENVIRONMENTS.md`, `DEPLOY-UBUNTU.md` | environment and delivery notes |
-| 6 | older docs เช่น `backend-node/docs/IAM_PRD.md` | historical/reference only unless reconciled with source |
+| 6 | older docs | historical/reference only unless reconciled with source |
 
 Route truth:
 
-- Backend mounted route truth: `backend-node/server/routes/app.routes.js`
-- Backend route implementation: `backend-node/server/Project/*/*.routes.js`
+- Backend mounted route truth: `backend-node/app.js`
+- Backend route implementation: `backend-node/app.js route handlers`
 - Frontend route truth: `frontend-vue/src/router/index.js`
 - Frontend API wrapper: `frontend-vue/src/service/api.js`
+
+Execution truth:
+
+- System progress truth: `docs/tasks/tasklist-progress.md`
+- Feature/change tasklist truth: `docs/tasks/2026-06-18-<topic>.md`
+- Docs control index: `docs/AI-DOCS-INDEX.md`
+- Tasklist operating guide: `docs/tasks/README.md`
+- Sprint/task template: `docs/agents/sprint-task-template.md`
+- Final T1-T20 handoff/change record: `docs/changes/2026-06-18-<topic>.md`
 
 ## 4. Workflow And Agent Integration
 
@@ -43,9 +55,11 @@ Route truth:
 Requirement
   -> T1-T4 Source Discovery
   -> Agent 00 Orchestrator
+  -> Active Tasklist in docs/tasks
   -> Agent 01 Product Owner
   -> Agent 02 Data Model
   -> Agent 03 Backend + Agent 04 Frontend
+  -> Tasklist progress update at every gate
   -> T15 Implementation Summary
   -> T16 Tests / Verification
   -> Agent 05 Security IAM
@@ -69,193 +83,165 @@ Before implementation, the acting agent must read and record the relevant files.
 
 Backend change minimum:
 
-- `backend-node/server/routes/app.routes.js`
-- target `*.routes.js`
-- target `service/*.js`
-- target `controller/*.js` when applicable
-- target `models/*.js` when applicable
+- `backend-node/app.js`
+- target `*.routes.js` or equivalent mounted route file
+- target service files
+- target controller files when applicable
+- target model/schema files when applicable
+- privacy/PDPA impact when endpoint reads or writes personal data
 - relevant tests and package scripts
 
 Frontend change minimum:
 
 - `frontend-vue/src/router/index.js`
 - `frontend-vue/src/service/api.js`
-- target view under `frontend-vue/src/projects/views`
-- relevant components under `frontend-vue/src/projects/views/<domain>/components`
-- relevant Vuex module under `frontend-vue/src/store/modules`
+- target page/view file
+- relevant components under target domain components directory
+- relevant store/state module
+- visible fields and hidden sensitive fields when the UI displays profile/account or other personal data
 - relevant tests and package scripts
 
 Docs/process change minimum:
 
-- `AGENTS.md`
+- `AGENTS.md` when present; if missing, record it as source evidence instead of guessing
 - `docs/AI-WORKFLOW.md`
 - `docs/agents/README.md`
+- `docs/tasks/README.md`
 - relevant role file under `docs/agents`
 - relevant PRD or template
+- relevant privacy, compliance, security, or risk document when personal data behavior changes
 
-## 6. Backend Development Pattern
+## 5.1 Tasklist And Progress Tracking
 
-Backend uses Express + CommonJS + Mongoose.
+Every feature, fix, docs/process change, readiness review, or release workflow must create or update one active tasklist before implementation starts.
 
-Normal simple CRUD route style follows `backend-node/server/Project/category/category.routes.js`:
+Every feature, fix, docs/process change, readiness review, or release workflow must also update `docs/tasks/tasklist-progress.md` when it affects system readiness, release readiness, verification state, blockers, or deploy state. After changing that Markdown source, regenerate `docs/tasks/tasklist-progress.html`.
 
-- start with `'use strict';`
-- `const express = require('express');`
-- `const router = express.Router();`
-- import `account`, `authorization`, local service
-- declare permission middleware before route declarations
-- call `router.use(account.onCheckAuthorization);`
-- route order: list, one, create, update, delete
-- keep route file thin: auth -> permission -> service handler
-- export `module.exports = router;`
-
-Permission mapping:
+Tasklist location:
 
 ```txt
-GET     -> view
-POST    -> edit
-PUT     -> edit
-DELETE  -> delete
-special -> action/logs only when source/PRD requires it
+docs/tasks/2026-06-18-<topic>.md
 ```
 
-Service/controller/model pattern:
+Tasklist files are active execution records. Completed or handed-off changes must also create or update a T1-T20 change record under:
 
-- legacy settings/category modules use service handlers named `onQuerys`, `onQuery`, `onCreate`, `onUpdate`, `onDelete`
-- simple controllers often wrap `backend-node/helpers/base.service.js`
-- NewSystem document service uses explicit domain functions: `list`, `stats`, `create`, `update`, `remove`, `seedDemo`
-- preserve the response envelope already used by the module
-- do validation/sanitization in service, not route
-
-## 7. Frontend Development Pattern
-
-Frontend uses Vue 2 + CoreUI + Vuex + centralized Axios wrapper.
-
-Required pattern:
-
-- routes live in `frontend-vue/src/router/index.js`
-- protected routes use `meta.permission`
-- API calls go through `frontend-vue/src/service/api.js`
-- Vuex modules live under `frontend-vue/src/store/modules`
-- shared project components live under `frontend-vue/src/projects/components`
-- domain components live under `frontend-vue/src/projects/views/<domain>/components`
-- pages should orchestrate data loading and component composition
-- tables, modals, forms, sections, and repeated UI must be components
-- new frontend work must prefer components over adding large monolithic page blocks
-
-Current reusable patterns to prefer:
-
-- section header: `src/projects/components/layout/AppSectionHero.vue`
-- setting tables: `src/projects/views/setting/components/ManagementTableBase.vue`
-- security tables: `src/projects/views/security/components/*Table.vue`
-- modals/forms: domain `components/*Modal.vue`
-- permission helpers: `src/projects/mixins/securityAccess.js`
-- notifications: `src/projects/utils/notify`
-- i18n labels through `$t(...)` where the surrounding module already uses i18n
-
-If touching a legacy/monolithic page such as `NewSystemRegistry.vue`, keep the fix scoped, but new sizeable UI blocks must be extracted into domain components.
-
-## 8. Testing Gate
-
-No implementation is complete until tests or verification are run.
-
-Minimum verification by scope:
-
-Backend:
-
-```bash
-cd backend-node
-npm test
-npm run test:iam-sdk
-npm run test:contracts
-npm run test:all
+```txt
+docs/changes/2026-06-18-<topic>.md
 ```
 
-Frontend:
+Required tasklist columns:
 
-```bash
-cd frontend-vue
-npm run lint
-npm run test:unit
-npm run test:e2e
-npm run build:prod
-```
+| Column | Required content |
+|---|---|
+| Task ID | stable ID such as `mfu-shuttle-bus-ai-base-passenger-counting-and-analysis-TASK-001` |
+| Task | concise work item |
+| Agent | responsible role |
+| Owner | person/team/agent owner |
+| Depends On | prerequisite task IDs |
+| Status | one of the approved status values |
+| Progress % | evidence-based numeric progress |
+| Progress Basis | gate(s) completed, not a guess |
+| Source Evidence | repo files/routes/tests/docs read |
+| Tests Evidence | commands/smoke/verification result, or not-run reason |
+| Blocker | blocker ID or `none` |
+| Next Action | concrete next step |
+| Output | expected or produced artifact |
 
-Docs-only change:
+Approved task statuses:
 
-- verify links/paths by reading generated docs
-- grep/check references for stale paths
-- no app test required unless behavior contract changes
+- `pending`
+- `discovery`
+- `ready`
+- `in_progress`
+- `verifying`
+- `docs_prd`
+- `blocked`
+- `done`
 
-If a test cannot run, final output must state:
+Progress is calculated from gates, not estimates:
 
-- command not run
-- exact reason
-- risk left open
-- owner/next action required
+| Gate | Weight | Minimum evidence |
+|---|---:|---|
+| Discovery evidence | 20% | T1-T4 source evidence recorded |
+| Implementation or docs change | 30% | files changed or doc/process update drafted |
+| Tests / smoke / verification evidence | 30% | T16 command results or docs-only verification |
+| PRD / docs decision | 10% | T17 PRD/doc update or reason not needed |
+| T1-T20 handoff | 10% | T20 final handoff with open items |
 
-## 9. PRD Update Gate
+Rules:
 
-Update `docs/prd/PRD-NewSystem.md` when any of these change:
+- Do not set `Progress %` to `100` or `Status` to `done` without T16 verification evidence, unless the task is docs-only and docs-only verification has passed.
+- If a test cannot run, keep the task below `100%`, set `Status` to `blocked` or `docs_prd` as appropriate, and record command, reason, risk, owner, and next action.
+- Update the tasklist when source discovery completes, implementation starts, implementation finishes, verification starts, verification finishes, PRD/docs are updated, a blocker appears, or handoff is complete.
+- Update `docs/tasks/tasklist-progress.md` in place when status changes to `discovery`, `in_progress`, `verifying`, `blocked`, `docs_prd`, or `done`.
+- Regenerate `docs/tasks/tasklist-progress.html` after changing `docs/tasks/tasklist-progress.md`.
+- During development or bug fixing, status updates are allowed and required as soon as evidence changes; do not wait for final handoff.
+- If task progress is unknown, write `0` or the last evidence-backed percentage and record the uncertainty as an `Open Question`, `Assumption`, or `Blocker`.
 
-- business requirement or acceptance criteria
-- API endpoint, request, response, error behavior
-- UI route, state, permission visibility, user workflow
-- data schema, migration, seed, index, rollback
-- permission path/action/data scope
-- release behavior, env/config, operational process
+## 5.2 Docs Control Set
 
-Do not update PRD for purely internal refactors unless behavior or contract changes.
+New generated projects must include only the docs controls that are used by this workflow.
 
-Historical `backend-node/docs/IAM_PRD.md` can be used as background only. If it conflicts with current source, current source wins and PRD must be reconciled.
+Required docs control files:
 
-## 10. T1-T20 Change Document Format
+| File | Purpose |
+|---|---|
+| `docs/AI-WORKFLOW.md` | Main source-first workflow and delivery gates. |
+| `docs/AI-DOCS-INDEX.md` | Inventory of active docs and control docs. |
+| `docs/tasks/README.md` | Tasklist columns, progress gates, statuses, and update rules. |
+| `docs/tasks/tasklist-progress.md` | Canonical system readiness/progress dashboard from project source and verification evidence. Update this same file every time system progress changes. |
+| `docs/tasks/2026-06-18-<topic>.md` | One active tasklist per feature, fix, docs/process change, readiness review, or release workflow. |
+| `docs/changes/2026-06-18-<topic>.md` | T1-T20 change note and final handoff. |
+| `docs/templates/T1-T20-change-document.md` | Required T1-T20 format. |
+| `docs/prd/PRD-mfu-shuttle-bus-ai-base-passenger-counting-and-analysis.md` | Product requirement truth, or replace with the actual project PRD path. |
 
-Every change note, implementation handoff, or docs update must use these sections.
+Optional docs, create only when the project actually uses them:
 
-| T | Section | Required content |
-|---|---|---|
-| T1 | Change Title | concise name, module, date |
-| T2 | Requirement | user request and business goal |
-| T3 | Source Evidence | repo files/routes/tests read before decision |
-| T4 | Current Behavior | what source currently does |
-| T5 | Impacted Agents | required agents and why |
-| T6 | Scope | in scope, out of scope |
-| T7 | Functional Requirements | FR IDs |
-| T8 | Acceptance Criteria | AC IDs in Given/When/Then |
-| T9 | API Contract | endpoints, request, response, errors |
-| T10 | Data Model / Migration | schema, seed, index, rollback |
-| T11 | Backend Plan / Changes | routes, guards, services, tests |
-| T12 | Frontend Plan / Changes | routes, API wrapper, Vuex, components |
-| T13 | Security / Permission | auth, permission, data scope, audit |
-| T14 | Test Plan | test matrix and commands |
-| T15 | Implementation Summary | files changed and behavior changed |
-| T16 | Tests Run / Evidence | exact commands and result |
-| T17 | PRD / Docs Updated | PRD/doc files changed or reason not needed |
-| T18 | Risks / Blockers / Assumptions / Decisions | separated and owned |
-| T19 | Release / Rollback | deploy, smoke, rollback, monitoring |
-| T20 | Final Handoff | status, next owner, open items |
+- `docs/agents/*` for role-specific instructions beyond this workflow.
+- `docs/modules/*` for stable module API/UI/permission/operation docs.
+- `docs/runbooks/*` for repeated operation, migration, deploy, smoke, or rollback procedures.
+- `docs/contracts/*` for integration contracts.
+- `docs/defect/*` or `docs/issue/*` for QA/stakeholder tracking.
 
-Template file: `docs/templates/T1-T20-change-document.md`
+Do not create these by default:
 
-## 11. Done Criteria
+- enterprise T01-T20 document sets
+- infographics
+- historical source review summaries
+- additional HTML dashboards beyond `docs/tasks/tasklist-progress.html`
+- copied IAM-specific progress, evidence, or handoff documents
 
-A task is done only when:
+When a new project is generated, replace placeholders and verify:
 
-- source evidence is recorded
-- implementation follows repo style
-- tests/verification are run and documented
-- PRD/doc update decision is recorded
-- Security/QA/Release gates are completed or explicitly marked not applicable
-- T1-T20 final handoff is complete
+- no unresolved `MFU SHUTTLE BUS AI Base Passenger Counting And Analysis In Campus Bus Stop`, `mfu-shuttle-bus-ai-base-passenger-counting-and-analysis`, route, package, or PRD placeholders remain in control docs
+- active tasklist cites target project source paths, not IAM paths
+- progress values come from target project verification, not copied values
+- T1-T20 change record includes T16 verification and T20 handoff
 
-## 12. Blocker Rules
+## 6. Development Pattern
 
-Stop and ask for clarification when:
+Follow the current repo style before adding abstractions. Record the actual backend, frontend, and testing patterns from source in the project-specific copy of this workflow.
 
-- required source file is missing
-- backend route and frontend API wrapper disagree and compatibility cannot be proven
-- permission path/action is unknown
-- schema/migration impact cannot be determined from source
-- tests cannot run and the change is high risk
-- user request conflicts with security or release rules
+Minimum project-specific sections to fill:
+
+- Backend framework and route pattern
+- Frontend framework and component pattern
+- Permission path/action pattern
+- API response envelope
+- Test commands
+- Build commands
+- Release/smoke commands
+
+## 7. Done Criteria
+
+Work is not done until:
+
+- active tasklist is updated with final status and evidence
+- `docs/tasks/tasklist-progress.md` is updated when system/release readiness changed
+- `docs/tasks/tasklist-progress.html` is regenerated from the Markdown source
+- source evidence is cited
+- implementation/doc changes are summarized
+- scoped verification is run or blocked with reason
+- PRD/docs decision is recorded
+- T1-T20 change record is updated
+- open risks/blockers have owner and next action

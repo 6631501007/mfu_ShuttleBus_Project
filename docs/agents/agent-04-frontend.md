@@ -13,11 +13,11 @@
 - FR/AC จาก Product Owner
 - API/data contract จาก Data Model/Backend
 - `docs/AI-WORKFLOW.md`
-- `docs/prd/PRD-NewSystem.md`
+- `docs/prd/PRD-MFUSHUTTLEBUSAIBasePassengerCountingAndAnalysisInCampusBusStop.md`
 - `frontend-vue/src/router/index.js`
 - `frontend-vue/src/service/api.js`
-- `frontend-vue/src/store/modules/*`
-- relevant views under `frontend-vue/src/projects/views`
+- `frontend-vue/src/router/index.js and localStorage-backed view state`
+- relevant views under `frontend-vue/src/views`
 - `frontend-vue/package.json`
 
 ## Current Frontend Patterns
@@ -31,10 +31,10 @@
 | auth | `store/modules/Authen`, token bootstrap must call `/auth/me` |
 | permission | `store/modules/Security`, `canAccess(path, action)` getter |
 | account UI | `store/modules/Accounts`, `projects/views/accounts` |
-| NewSystem UI | `projects/views/newSystem`, `Service.newSystemDocuments` |
+| project-specific UI | read `frontend-vue/src/router/index.js`, `frontend-vue/src/views`, and `frontend-vue/src/service/api.js` before adding bindings |
 | settings UI | `store/modules/Setting`, `projects/views/setting` |
-| shared components | `src/projects/components` |
-| domain components | `src/projects/views/<domain>/components` |
+| shared components | `src/components` |
+| domain components | `src/views/<domain>/components` |
 
 ## Responsibilities
 
@@ -44,7 +44,7 @@
 - keep API calls through Vuex actions when the module already uses Vuex
 - map backend payloads to stable UI state
 - reuse existing table/modal/form components and page patterns
-- implement new UI as components under `src/projects/views/<domain>/components` or shared components under `src/projects/components`
+- implement new UI as components under `src/views/<domain>/components` or shared components under `src/components`
 - keep pages focused on orchestration: data loading, store dispatch, and component composition
 - preserve token bootstrap and 2FA flow
 - hide/disable actions according to permission matrix
@@ -116,8 +116,8 @@ npm run test:e2e:database-backup
 ## Prompt Template
 
 ```txt
-ทำหน้าที่ Frontend Agent สำหรับ NewSystem
-FR: [FR-NEW-xxx]
+ทำหน้าที่ Frontend Agent สำหรับ MFUSHUTTLEBUSAIBasePassengerCountingAndAnalysisInCampusBusStop
+FR: [FR-MFUSHUTTLEBUSAIBasePassengerCountingAndAnalysisInCampusBusStop-xxx]
 API contract: [endpoint/request/response]
 
 Scope:

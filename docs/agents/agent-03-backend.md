@@ -13,10 +13,10 @@
 - FR/AC จาก Product Owner
 - data contract/migration note จาก Data Model
 - `docs/AI-WORKFLOW.md`
-- `docs/prd/PRD-NewSystem.md`
-- `backend-node/server/routes/app.routes.js`
+- `docs/prd/PRD-MFUSHUTTLEBUSAIBasePassengerCountingAndAnalysisInCampusBusStop.md`
+- `backend-node/app.js`
 - relevant route/service/controller/model files
-- `backend-node/server/Project/category/category.routes.js` as the simple CRUD route style reference
+- `backend-node/app.js and backend-node/models.routes.js` as the simple CRUD route style reference
 - `backend-node/package.json`
 
 ## Current Backend Patterns
@@ -24,28 +24,28 @@
 | Layer | Pattern |
 |---|---|
 | route | Express router maps path to handlers and guards |
-| mounted route truth | `backend-node/server/routes/app.routes.js` |
+| mounted route truth | `backend-node/app.js` |
 | simple CRUD route | `category.routes.js` pattern |
 | auth guard | `account.onCheckAuthorization` / `Account.onCheckAuthorization` for protected human endpoints |
 | permission guard | `authorization.requirePermission(path, action, options)` |
 | service | route handlers and business logic |
 | controller | base CRUD wrapper around Mongoose model via `helpers/base.service.js` |
 | model | Mongoose schema |
-| response | legacy modules often use settings message response service; `newSystem` routes use direct `{ code, message, data }` JSON |
+| response | legacy modules often use settings message response service; `mfushuttlebusaibasepassengercountingandanalysis` routes use direct `{ code, message, data }` JSON |
 | tests | Node test runner through package scripts |
 
 ## Mounted Route Truth
 
 | Mount | Module |
 |---|---|
-| `/api/v1/newSystem` | `Project/newSystem/newSystem.routes.js` |
+| `/api/v1/mfushuttlebusaibasepassengercountingandanalysis` | `Project/mfushuttlebusaibasepassengercountingandanalysis/mfushuttlebusaibasepassengercountingandanalysis.routes.js` |
 | `/api/v1/setting` | `Project/settings/settings.routes.js` |
 | `/api/v1/security` | `Project/security/security.routes.js` |
 | `/api/v1` | `Project/accounts/accounts.routes.js` |
 
 If a route file is not mounted here, it is not reachable until mount is added.
 
-Note: `frontend-vue/src/service/api.js` currently calls the document API with lowercase `/api/v1/newsystem`. Verify Express case-sensitivity and preserve compatibility before changing route casing.
+Note: `frontend-vue/src/service/api.js` currently calls the document API with lowercase `/api/v1/mfushuttlebusaibasepassengercountingandanalysis`. Verify Express case-sensitivity and preserve compatibility before changing route casing.
 
 ## Responsibilities
 
@@ -78,7 +78,7 @@ High-risk examples:
 - audit read: `view` on `/security/audit`
 - runtime access update: `edit/action`
 - backup restore/download/run: `action`
-- document registry mutation: `edit/delete` on `/newsystem/registry`
+- document registry mutation: `edit/delete` on `/mfu-shuttle-bus-ai-base-passenger-counting-and-analysis/registry`
 
 ## Simple CRUD Route Rules
 
@@ -139,18 +139,17 @@ Pick by scope:
 
 ```bash
 cd backend-node
-npm test
-npm run test:iam-sdk
-npm run test:contracts
-npm run test:all
-npm run smoke:live:user
+node -c app.js
 ```
+
+The current backend package does not define automated test scripts. Runtime smoke requires a configured `.env` and MongoDB.
 
 For syntax-only checks on touched files:
 
 ```bash
 cd backend-node
-node -c server/Project/<module>/<file>.js
+node -c app.js
+node -c models/<file>.js
 ```
 
 ## Output
@@ -178,8 +177,8 @@ node -c server/Project/<module>/<file>.js
 ## Prompt Template
 
 ```txt
-ทำหน้าที่ Backend Agent สำหรับ NewSystem
-FR: [FR-NEW-xxx]
+ทำหน้าที่ Backend Agent สำหรับ MFUSHUTTLEBUSAIBasePassengerCountingAndAnalysisInCampusBusStop
+FR: [FR-MFUSHUTTLEBUSAIBasePassengerCountingAndAnalysisInCampusBusStop-xxx]
 Data contract: [summary]
 
 Scope:

@@ -12,15 +12,15 @@
 
 - user/business requirement
 - `docs/AI-WORKFLOW.md`
-- `docs/prd/PRD-NewSystem.md`
+- `docs/prd/PRD-MFUSHUTTLEBUSAIBasePassengerCountingAndAnalysisInCampusBusStop.md`
 - `docs/agents/README.md`
 - current route/UI/source map from Orchestrator
-- current permission paths from `frontend-vue/src/router/index.js`, `backend-node/scripts/bootstrap-newSystem-permissions.js`, and backend route guards
+- current permission paths from `frontend-vue/src/router/index.js`, `backend-node/scripts/bootstrap-mfushuttlebusaibasepassengercountingandanalysis-permissions.js`, and backend route guards
 
 ## Responsibilities
 
 - define goal, business value, in scope, out of scope
-- write testable FR IDs เช่น `FR-NEW-001`
+- write testable FR IDs เช่น `FR-MFUSHUTTLEBUSAIBasePassengerCountingAndAnalysisInCampusBusStop-001`
 - write acceptance criteria in Given/When/Then
 - define actor/role matrix
 - identify permission path/action/data scope
@@ -31,12 +31,12 @@
 - identify whether PRD must be updated
 - produce or update T7/T8/T17 sections in T1-T20 handoff
 
-## NewSystem Product Guardrails
+## MFUSHUTTLEBUSAIBasePassengerCountingAndAnalysisInCampusBusStop Product Guardrails
 
 - Every protected UI/API feature must map to a permission path used by backend and frontend.
 - Every target-account feature must specify expected `dataScope`: `self`, `unit`, or `org` when applicable.
 - Every admin mutation must specify action flag: `edit`, `delete`, `action`, or `logs`.
-- Document registry features must specify whether they affect `/newsystem/registry`, `/newsystem/reports`, or both.
+- Document registry features must specify whether they affect `/mfu-shuttle-bus-ai-base-passenger-counting-and-analysis/registry`, `/mfu-shuttle-bus-ai-base-passenger-counting-and-analysis/reports`, or both.
 - Runtime/backup/security changes require explicit risk and release gate.
 
 ## Writing Conditions
@@ -79,13 +79,13 @@
 ## Prompt Template
 
 ```txt
-ทำหน้าที่ Product Owner สำหรับ NewSystem
+ทำหน้าที่ Product Owner สำหรับ MFUSHUTTLEBUSAIBasePassengerCountingAndAnalysisInCampusBusStop
 Requirement: [รายละเอียด]
 
 ช่วยแตกเป็น:
 1) Goal
 2) In Scope / Out Of Scope
-3) FR-NEW-xxx
+3) FR-MFUSHUTTLEBUSAIBasePassengerCountingAndAnalysisInCampusBusStop-xxx
 4) Acceptance Criteria แบบ Given/When/Then
 5) Role and permission matrix
 6) API/UI/Data impact

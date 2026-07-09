@@ -9,6 +9,7 @@
 | Date | |
 | Owner / Agent | |
 | Status | Draft / In Progress / Done / Blocked |
+| Active Tasklist | `docs/tasks/2026-06-18-<topic>.md` |
 
 ## T2 Requirement
 
@@ -20,10 +21,11 @@
 
 | Area | Source path / route / command | What was verified |
 |---|---|---|
-| Backend route truth | `backend-node/server/routes/app.routes.js` | |
+| Backend route truth | `backend-node/app.js` | |
 | Backend module | | |
 | Frontend route | `frontend-vue/src/router/index.js` | |
 | Frontend API | `frontend-vue/src/service/api.js` | |
+| Privacy / PDPA | visible fields, hidden fields, stored data, export behavior | |
 | Tests | | |
 | PRD/docs | | |
 
@@ -33,6 +35,7 @@
 - Current UI behavior:
 - Current data behavior:
 - Current permission behavior:
+- Current privacy/PDPA behavior:
 
 ## T5 Impacted Agents
 
@@ -61,17 +64,31 @@ Out of scope:
 
 | FR ID | Requirement | Actor | Priority |
 |---|---|---|---|
-| FR-NEW-001 | | | Must |
+| FR-IAM-001 | | | Must |
+
+Privacy / PDPA requirements:
+
+- Personal data displayed:
+- Personal data hidden:
+- Personal data stored or changed:
+- Data export/download behavior:
+- Production data-minimization decision:
 
 ## T8 Acceptance Criteria
 
 | AC ID | FR ID | Given | When | Then |
 |---|---|---|---|---|
-| AC-NEW-001 | FR-NEW-001 | | | |
+| AC-IAM-001 | FR-IAM-001 | | | |
 
 ## T9 API Contract
 
 | Method | Endpoint | Permission | Request | Response | Error behavior |
+|---|---|---|---|---|---|
+| | | | | | |
+
+Self-service / profile API contract:
+
+| Method | Endpoint | Actor | Data changed | Sensitive fields excluded | Audit / cache behavior |
 |---|---|---|---|---|---|
 | | | | | | |
 
@@ -100,6 +117,8 @@ Out of scope:
 - Vuex module:
 - Page:
 - Components:
+- Visible profile/account fields:
+- Hidden sensitive fields:
 - Tests:
 
 ## T13 Security / Permission
@@ -112,6 +131,8 @@ Out of scope:
 | Audit | |
 | Input validation | |
 | Error/secret leakage | |
+| Privacy / PDPA | |
+| Profile/account data minimization | |
 
 ## T14 Test Plan
 
@@ -127,6 +148,12 @@ Out of scope:
 | File | Change |
 |---|---|
 | | |
+
+Tasklist progress:
+
+| Task ID | Status | Progress % | Progress Basis | Blocker / Next Action |
+|---|---|---:|---|---|
+| | | | | |
 
 ## T16 Tests Run / Evidence
 
@@ -144,7 +171,8 @@ Commands not run:
 
 | Document | Updated? | Reason |
 |---|---|---|
-| `docs/prd/PRD-NewSystem.md` | yes/no | |
+| `docs/prd/PRD-IAM.md` | yes/no | |
+| Template docs | yes/no | |
 | Other docs | yes/no | |
 
 ## T18 Risks / Blockers / Assumptions / Decisions
@@ -169,6 +197,9 @@ Commands not run:
 ```txt
 Feature:
 Status:
+Active tasklist:
+Task IDs:
+Progress:
 Changed files:
 Routes:
 UI routes:
@@ -177,6 +208,7 @@ Data migration:
 Tests run:
 PRD/docs:
 Security decision:
+Privacy/PDPA decision:
 QA decision:
 Release decision:
 Open risks:

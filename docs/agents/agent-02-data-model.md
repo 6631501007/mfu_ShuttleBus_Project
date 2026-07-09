@@ -2,7 +2,7 @@
 
 ## Mission
 
-ควบคุม schema, data contract, migration, seed, index และ compatibility ของ NewSystem ให้รองรับ feature ใหม่โดยไม่ทำลาย behavior เดิม.
+ควบคุม schema, data contract, migration, seed, index และ compatibility ของ MFUSHUTTLEBUSAIBasePassengerCountingAndAnalysisInCampusBusStop ให้รองรับ feature ใหม่โดยไม่ทำลาย behavior เดิม.
 
 ## Role Type
 
@@ -12,18 +12,18 @@
 
 - FR/AC จาก Product Owner
 - `docs/AI-WORKFLOW.md`
-- `docs/prd/PRD-NewSystem.md`
+- `docs/prd/PRD-MFUSHUTTLEBUSAIBasePassengerCountingAndAnalysisInCampusBusStop.md`
 - current models:
-  - `backend-node/server/Project/accounts/models/*.js`
-  - `backend-node/server/Project/newSystem/models/*.js`
-  - `backend-node/server/Project/security/models/*.js`
-  - `backend-node/server/Project/settings/models/*.js`
-  - `backend-node/server/Project/category/models/*.js`
+  - `backend-node/app.js and backend-node/models*.js`
+  - `backend-node/app.js and backend-node/models*.js`
+  - `backend-node/app.js and backend-node/models*.js`
+  - `backend-node/app.js and backend-node/models*.js`
+  - `backend-node/app.js and backend-node/models*.js`
 - controllers/services that normalize payload:
   - `backend-node/helpers/base.service.js`
-  - `backend-node/server/Project/newSystem/service/newSystem_document.js`
-  - `backend-node/server/Project/accounts/service/account.js`
-  - `backend-node/server/Project/settings/service/*.js`
+  - `backend-node/app.js and backend-node/models.js`
+  - `backend-node/app.js and backend-node/models.js`
+  - `backend-node/app.js and backend-node/models*.js`
 - migration/seed scripts in `backend-node/scripts`
 
 ## Responsibilities
@@ -39,12 +39,12 @@
 - produce T9/T10 sections for T1-T20 handoff
 - identify PRD updates for schema/data contract changes
 
-## Current NewSystem Data Areas
+## Current MFUSHUTTLEBUSAIBasePassengerCountingAndAnalysisInCampusBusStop Data Areas
 
 | Domain | Main collections/models |
 |---|---|
 | Accounts | `accounts/models/account.model.js` |
-| NewSystem documents | `newSystem/models/newSystem_document.model.js` |
+| MFUSHUTTLEBUSAIBasePassengerCountingAndAnalysisInCampusBusStop documents | `mfushuttlebusaibasepassengercountingandanalysis/models/mfushuttlebusaibasepassengercountingandanalysis_document.model.js` |
 | Simple category CRUD | `category/models/category.model.js` |
 | Security | `security/models/type|menu|group|permission|assignment|audit_event.model.js` |
 | Settings | `settings/models/*.model.js` |
@@ -92,8 +92,8 @@
 ## Prompt Template
 
 ```txt
-ทำหน้าที่ Data Model Agent สำหรับ NewSystem
-FR: [FR-NEW-xxx]
+ทำหน้าที่ Data Model Agent สำหรับ MFUSHUTTLEBUSAIBasePassengerCountingAndAnalysisInCampusBusStop
+FR: [FR-MFUSHUTTLEBUSAIBasePassengerCountingAndAnalysisInCampusBusStop-xxx]
 
 ช่วยวิเคราะห์:
 1) current schema/data shape
@@ -105,7 +105,7 @@ FR: [FR-NEW-xxx]
 7) test data fixtures
 
 Constraints:
-- ยึด model เดิมของ NewSystem
+- ยึด model เดิมของ MFUSHUTTLEBUSAIBasePassengerCountingAndAnalysisInCampusBusStop
 - เปลี่ยนเฉพาะ field ที่ FR ต้องใช้
 - ระบุ impact ต่อ Backend, Frontend, QA, Release
 ```

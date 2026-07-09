@@ -2,7 +2,7 @@
 
 ## Mission
 
-ควบคุม workflow ของ NewSystem delivery ตั้งแต่รับ requirement, เลือก agents, แตก task, จัด dependency, รวม handoff และตัดสินใจ readiness ก่อนส่งต่อ implementation/release.
+ควบคุม workflow ของ MFUSHUTTLEBUSAIBasePassengerCountingAndAnalysisInCampusBusStop delivery ตั้งแต่รับ requirement, เลือก agents, แตก task, จัด dependency, รวม handoff และตัดสินใจ readiness ก่อนส่งต่อ implementation/release.
 
 ## Role Type
 
@@ -12,54 +12,44 @@
 
 - user requirement
 - `docs/AI-WORKFLOW.md`
-- `docs/prd/PRD-NewSystem.md`
+- `docs/prd/PRD-MFUSHUTTLEBUSAIBasePassengerCountingAndAnalysisInCampusBusStop.md`
 - `README.md`
 - `docs/agents/README.md`
 - source route map:
-  - `backend-node/server/routes/app.routes.js`
-  - `backend-node/server/Project/*/*.routes.js`
+  - `backend-node/app.js`
+  - `backend-node/app.js route handlers`
   - `frontend-vue/src/router/index.js`
   - `frontend-vue/src/service/api.js`
 
 ## Responsibilities
 
-- clarify business goal and impacted NewSystem domain
+- clarify business goal and impacted MFUSHUTTLEBUSAIBasePassengerCountingAndAnalysisInCampusBusStop domain
 - enforce source discovery before task assignment
 - decide which agents are required
 - identify source files and mounted routes before planning work
 - split work into implementation-ready tasks
 - lock handoff order and dependency graph
-- make backend/frontend parallel only after contract is ready
+- make backend-node/frontend-vue parallel only after contract is ready
 - track risks, blockers, assumptions, decisions, and open questions separately
 - define go/no-go criteria for Security, QA, and Release/Ops
 - require T1-T20 handoff and PRD update decision
 
-## NewSystem Domain Classifier
+## MFUSHUTTLEBUSAIBasePassengerCountingAndAnalysisInCampusBusStop Domain Classifier
 
-| Requirement touches | Route/source hint | Required agents |
+Use source discovery, not a hard-coded domain list. Classify by the mounted backend route, frontend route, Vuex module, service module, permission path, and data model touched by the requirement.
+
+| Requirement touches | Source hint | Required agents |
 |---|---|---|
-| sign-in/session/2FA/device | `/signin`, `/auth/*`, `accounts/service/account.js` | PO, Data Model if schema, Backend, Frontend, Security, QA, Release |
-| account directory/status/lifecycle | `/accounts/*`, `Accounts` store/views | PO, Data Model, Backend, Frontend, Security, QA, Release |
-| document registry | `/api/v1/newSystem/documents*`, `NewSystemRegistry` | PO, Data Model if schema, Backend, Frontend, Security, QA, Release |
-| RBAC/permission/audit | `/security/*` | PO, Data Model if model changes, Backend, Frontend, Security, QA, Release |
-| settings/runtime/backup/email/HR | `/setting/*` | PO, Data Model if model changes, Backend, Frontend, Security, QA, Release |
-| simple CRUD module | `category.routes.js` style | PO, Data Model, Backend, Frontend if UI, Security, QA |
+| sign-in/session/2FA/device | `/signin`, `/auth/*`, account/auth services | PO, Data Model if schema, Backend, Frontend, Security, QA, Release |
+| account directory/status/lifecycle | `/accounts/*`, Accounts store/views | PO, Data Model, Backend, Frontend, Security, QA, Release |
+| project business module | mounted route under `backend-node/app.js` and matching frontend route | PO, Data Model if schema, Backend, Frontend, Security, QA, Release |
+| RBAC/permission/audit | `/security/*`, Security store/views | PO, Data Model if model changes, Backend, Frontend, Security, QA, Release |
+| settings/runtime/backup/email/HR | settings routes/views | PO, Data Model if model changes, Backend, Frontend, Security, QA, Release |
 | docs only | `docs/*` | Orchestrator plus reviewer role as needed |
 
 ## Mounted Route Truth
 
-Current mounted route roots from `backend-node/server/routes/app.routes.js`:
-
-| Mount | Module |
-|---|---|
-| `/api/v1/newSystem` | `Project/newSystem/newSystem.routes.js` |
-| `/api/v1/setting` | `Project/settings/settings.routes.js` |
-| `/api/v1/security` | `Project/security/security.routes.js` |
-| `/api/v1` | `Project/accounts/accounts.routes.js` |
-
-Any route file not mounted here is not active for API consumers until mount is added.
-
-Note: `frontend-vue/src/service/api.js` currently calls the document API with lowercase `/api/v1/newsystem`. Verify Express case-sensitivity and preserve compatibility before changing route casing.
+Do not maintain a static route list in this agent file. Read the active route map from `backend-node/app.js` and verify target route files under `backend-node/app.js route handlers` before planning implementation.
 
 ## Writing Conditions
 
@@ -87,7 +77,7 @@ Note: `frontend-vue/src/service/api.js` currently calls the document API with lo
 
 ```txt
 1. Requirement Summary
-2. Impacted NewSystem Domains
+2. Impacted MFUSHUTTLEBUSAIBasePassengerCountingAndAnalysisInCampusBusStop Domains
 3. Source Evidence
 4. Agent Execution Flow
 5. Task List
@@ -101,14 +91,14 @@ Note: `frontend-vue/src/service/api.js` currently calls the document API with lo
 ## Prompt Template
 
 ```txt
-ทำหน้าที่ Orchestrator ของ NewSystem
+ทำหน้าที่ Orchestrator ของ MFUSHUTTLEBUSAIBasePassengerCountingAndAnalysisInCampusBusStop
 Requirement: [รายละเอียด]
 
 อ้างอิง:
 - docs/agents/README.md
 - docs/AI-WORKFLOW.md
-- docs/prd/PRD-NewSystem.md
-- backend-node/server/routes/app.routes.js
+- docs/prd/PRD-MFUSHUTTLEBUSAIBasePassengerCountingAndAnalysisInCampusBusStop.md
+- backend-node/app.js
 - frontend-vue/src/router/index.js
 - frontend-vue/src/service/api.js
 

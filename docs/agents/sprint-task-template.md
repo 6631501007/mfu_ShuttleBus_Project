@@ -1,6 +1,6 @@
-# NewSystem Sprint Task Template
+# MFUSHUTTLEBUSAIBasePassengerCountingAndAnalysisInCampusBusStop Sprint Task Template
 
-Use this template for any NewSystem feature/change that needs agent handoff.
+Use this template for any MFUSHUTTLEBUSAIBasePassengerCountingAndAnalysisInCampusBusStop feature/change that needs agent handoff.
 
 This template complements `docs/AI-WORKFLOW.md`. Any implementation/change handoff must also complete the T1-T20 format in `docs/templates/T1-T20-change-document.md`.
 
@@ -29,25 +29,25 @@ This template complements `docs/AI-WORKFLOW.md`. Any implementation/change hando
 | Existing tests | |
 | Existing docs | |
 | AI workflow | `docs/AI-WORKFLOW.md` |
-| PRD | `docs/prd/PRD-NewSystem.md` |
+| PRD | `docs/prd/PRD-MFUSHUTTLEBUSAIBasePassengerCountingAndAnalysisInCampusBusStop.md` |
 
 ## 3. Functional Requirements
 
 | FR ID | Requirement | Actor | Priority | Notes |
 |---|---|---|---|---|
-| FR-NEW-001 | | | Must | |
+| FR-MFUSHUTTLEBUSAIBasePassengerCountingAndAnalysisInCampusBusStop-001 | | | Must | |
 
 ## 4. Acceptance Criteria
 
 | AC ID | FR ID | Given | When | Then |
 |---|---|---|---|---|
-| AC-NEW-001 | FR-NEW-001 | | | |
+| AC-MFUSHUTTLEBUSAIBasePassengerCountingAndAnalysisInCampusBusStop-001 | FR-MFUSHUTTLEBUSAIBasePassengerCountingAndAnalysisInCampusBusStop-001 | | | |
 
 ## 5. Permission And Role Matrix
 
 | Role / User | Path | Action | Data scope | Allowed? | Notes |
 |---|---|---|---|---|---|
-| NewSystem Admin | | `view/edit/delete/action/logs` | `self/unit/org` | | |
+| project role | | `view/edit/delete/action/logs` | `self/unit/org` | | |
 
 ## 6. Data Contract
 

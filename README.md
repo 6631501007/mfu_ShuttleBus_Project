@@ -48,9 +48,9 @@ Camera / RTSP / Webcam
 ```text
 .
 ├── AI/
-├── backend/
+├── backend-node/
 ├── docs/
-├── frontend/
+├── frontend-vue/
 ├── README.md
 └── .gitignore
 ```
@@ -59,14 +59,15 @@ Camera / RTSP / Webcam
 | --- | --- |
 | `AI/` | Python live camera human detection service. Contains `detect_humans_live-api.py` and `requirements.txt`. |
 | `AI/output/` | Generated output directory. **TODO:** Verify intended usage. |
-| `backend/` | Express API server, Socket.IO server, MongoDB connection, auth logic, detector process management, and Mongoose models. |
-| `backend/models/` | Mongoose schemas for users, stations, buses, feedback, settings, analytics, and hourly analytics. |
-| `frontend/` | Vue 3 + Vite application. |
-| `frontend/src/views/` | Main UI pages: login, dashboard, home, map, live feed, settings, analytics, and feedback. |
-| `frontend/src/lib/` | Frontend API wrapper and station alert utilities. |
-| `frontend/src/router/` | Vue Router route definitions and client-side auth guards. |
-| `frontend/src/components/` | Shared Vue component(s), currently top-bar notification UI. |
-| `frontend/public/` | Static frontend assets. |
+| `backend-node/` | Express API server, Socket.IO server, MongoDB connection, auth logic, detector process management, and Mongoose models. |
+| `backend-node/models/` | Mongoose schemas for users, stations, buses, feedback, settings, analytics, and hourly analytics. |
+| `frontend-vue/` | Vue 3 + Vite application. |
+| `frontend-vue/src/views/` | Main UI pages: login, dashboard, home, map, live feed, settings, analytics, and feedback. |
+| `frontend-vue/src/service/` | Frontend API wrapper. |
+| `frontend-vue/src/lib/` | Frontend utility modules such as station alert helpers. |
+| `frontend-vue/src/router/` | Vue Router route definitions and client-side auth guards. |
+| `frontend-vue/src/components/` | Shared Vue component(s), currently top-bar notification UI. |
+| `frontend-vue/public/` | Static frontend assets. |
 | `docs/` | Project notes, AI workflow documents, PRD/change templates, and agent guidance. Some docs reference source paths not present in this repo. |
 
 # Prerequisites
@@ -97,12 +98,12 @@ cd demo
 Install backend, frontend, and AI dependencies separately.
 
 ```bash
-cd backend
+cd backend-node
 npm install
 ```
 
 ```bash
-cd ../frontend
+cd ../frontend-vue
 npm install
 ```
 
@@ -129,18 +130,18 @@ pip install -r requirements.txt
 Create backend and frontend `.env` files from the examples.
 
 ```bash
-cp backend/.env.example backend/.env
-cp frontend/.env.example frontend/.env
+cp backend-node/.env.example backend-node/.env
+cp frontend-vue/.env.example frontend-vue/.env
 ```
 
 On Windows PowerShell:
 
 ```powershell
-copy backend\.env.example backend\.env
-copy frontend\.env.example frontend\.env
+copy backend-node\.env.example backend-node\.env
+copy frontend-vue\.env.example frontend-vue\.env
 ```
 
-Edit `backend/.env` and set at least:
+Edit `backend-node/.env` and set at least:
 
 ```env
 PORT=3000
@@ -150,7 +151,7 @@ LIVEFEED_SOURCE_STREAM_URL=http://localhost:8090/stream
 LIVEFEED_PUBLIC_STREAM_URL=/api/livefeed/stream
 ```
 
-Edit `frontend/.env`:
+Edit `frontend-vue/.env`:
 
 ```env
 VITE_API_BASE_URL=http://localhost:3000
@@ -161,14 +162,14 @@ VITE_API_BASE_URL=http://localhost:3000
 ### 4. Install Backend Dependencies
 
 ```bash
-cd backend
+cd backend-node
 npm install
 ```
 
 ### 5. Install Frontend Dependencies
 
 ```bash
-cd frontend
+cd frontend-vue
 npm install
 ```
 
@@ -197,7 +198,7 @@ There are no migration or seed scripts in the repository. Data is created throug
 ### 8. Run Backend
 
 ```bash
-cd backend
+cd backend-node
 npm run dev
 ```
 
@@ -210,7 +211,7 @@ http://localhost:3000
 ### 9. Run Frontend
 
 ```bash
-cd frontend
+cd frontend-vue
 npm run dev
 ```
 
@@ -275,14 +276,14 @@ db.users.updateOne(
 
 | Service | Default Port | Source |
 | --- | ---: | --- |
-| Backend API / Socket.IO | `3000` | `backend/.env.example`, `backend/app.js` |
+| Backend API / Socket.IO | `3000` | `backend-node/.env.example`, `backend-node/app.js` |
 | Frontend dev server | `5173` | Vite default |
 | AI MJPEG stream | `8090` | `AI/detect_humans_live-api.py` |
-| Auto-started per-camera detectors | `DETECTOR_BASE_PORT + index + 1` | `backend/app.js` |
+| Auto-started per-camera detectors | `DETECTOR_BASE_PORT + index + 1` | `backend-node/app.js` |
 
 ### 14. Troubleshooting
 
-- Backend exits immediately: verify `JWT_SECRET` and `MONGO_URI` exist in `backend/.env`.
+- Backend exits immediately: verify `JWT_SECRET` and `MONGO_URI` exist in `backend-node/.env`.
 - Frontend receives HTML instead of JSON: verify `VITE_API_BASE_URL` points to the backend, not the frontend dev server.
 - Login succeeds but admin pages redirect to `/home`: the account role is not `admin`.
 - Live feed is offline: start the AI service or configure an online camera hardware entry with a valid RTSP URL.
@@ -302,12 +303,12 @@ cd demo
 โปรเจกต์นี้แยก dependencies เป็น 3 ส่วน: backend, frontend และ AI service
 
 ```bash
-cd backend
+cd backend-node
 npm install
 ```
 
 ```bash
-cd ../frontend
+cd ../frontend-vue
 npm install
 ```
 
@@ -334,18 +335,18 @@ pip install -r requirements.txt
 สร้างไฟล์ `.env` จากไฟล์ตัวอย่าง
 
 ```bash
-cp backend/.env.example backend/.env
-cp frontend/.env.example frontend/.env
+cp backend-node/.env.example backend-node/.env
+cp frontend-vue/.env.example frontend-vue/.env
 ```
 
 ถ้าใช้ Windows PowerShell:
 
 ```powershell
-copy backend\.env.example backend\.env
-copy frontend\.env.example frontend\.env
+copy backend-node\.env.example backend-node\.env
+copy frontend-vue\.env.example frontend-vue\.env
 ```
 
-แก้ไข `backend/.env` อย่างน้อยให้มีค่าต่อไปนี้:
+แก้ไข `backend-node/.env` อย่างน้อยให้มีค่าต่อไปนี้:
 
 ```env
 PORT=3000
@@ -355,7 +356,7 @@ LIVEFEED_SOURCE_STREAM_URL=http://localhost:8090/stream
 LIVEFEED_PUBLIC_STREAM_URL=/api/livefeed/stream
 ```
 
-แก้ไข `frontend/.env`:
+แก้ไข `frontend-vue/.env`:
 
 ```env
 VITE_API_BASE_URL=http://localhost:3000
@@ -366,14 +367,14 @@ VITE_API_BASE_URL=http://localhost:3000
 ### 4. ติดตั้ง Backend Dependencies
 
 ```bash
-cd backend
+cd backend-node
 npm install
 ```
 
 ### 5. ติดตั้ง Frontend Dependencies
 
 ```bash
-cd frontend
+cd frontend-vue
 npm install
 ```
 
@@ -402,7 +403,7 @@ repository นี้ไม่มี migration script หรือ seed script �
 ### 8. รัน Backend
 
 ```bash
-cd backend
+cd backend-node
 npm run dev
 ```
 
@@ -415,7 +416,7 @@ http://localhost:3000
 ### 9. รัน Frontend
 
 ```bash
-cd frontend
+cd frontend-vue
 npm run dev
 ```
 
@@ -480,14 +481,14 @@ db.users.updateOne(
 
 | Service | Default Port | Source |
 | --- | ---: | --- |
-| Backend API / Socket.IO | `3000` | `backend/.env.example`, `backend/app.js` |
+| Backend API / Socket.IO | `3000` | `backend-node/.env.example`, `backend-node/app.js` |
 | Frontend dev server | `5173` | Vite default |
 | AI MJPEG stream | `8090` | `AI/detect_humans_live-api.py` |
-| detector รายกล้องที่ backend สั่งเปิด | `DETECTOR_BASE_PORT + index + 1` | `backend/app.js` |
+| detector รายกล้องที่ backend สั่งเปิด | `DETECTOR_BASE_PORT + index + 1` | `backend-node/app.js` |
 
 ### 14. Troubleshooting
 
-- backend ปิดทันทีตอนเริ่มรัน: ตรวจว่า `backend/.env` มี `JWT_SECRET` และ `MONGO_URI`
+- backend ปิดทันทีตอนเริ่มรัน: ตรวจว่า `backend-node/.env` มี `JWT_SECRET` และ `MONGO_URI`
 - frontend ได้ HTML แทน JSON: ตรวจว่า `VITE_API_BASE_URL` ชี้ไป backend ไม่ใช่ Vite dev server
 - login ได้แต่เข้า admin page แล้วถูกส่งไป `/home`: user ยังไม่ใช่ role `admin`
 - live feed offline: ต้องเปิด AI service หรือเพิ่ม hardware กล้องที่ online และมี RTSP URL ถูกต้อง
@@ -773,7 +774,7 @@ No pull request template or CI workflow was found.
 
 ## Linting
 
-No lint scripts are defined in `backend/package.json` or `frontend/package.json`.
+No lint scripts are defined in `backend-node/package.json` or `frontend-vue/package.json`.
 
 ## Formatting
 
@@ -784,27 +785,27 @@ No formatting scripts are defined.
 Frontend production build:
 
 ```bash
-cd frontend
+cd frontend-vue
 npm run build
 ```
 
 Frontend preview:
 
 ```bash
-cd frontend
+cd frontend-vue
 npm run preview
 ```
 
 Backend runtime:
 
 ```bash
-cd backend
+cd backend-node
 npm start
 ```
 
 # Testing
 
-No first-party unit, integration, or end-to-end test scripts were found in `backend/package.json`, `frontend/package.json`, or the source tree.
+No first-party unit, integration, or end-to-end test scripts were found in `backend-node/package.json`, `frontend-vue/package.json`, or the source tree.
 
 | Test Type | Command | Status |
 | --- | --- | --- |
@@ -817,12 +818,12 @@ No first-party unit, integration, or end-to-end test scripts were found in `back
 Manual smoke checks:
 
 ```bash
-cd backend
+cd backend-node
 npm run dev
 ```
 
 ```bash
-cd frontend
+cd frontend-vue
 npm run dev
 ```
 
@@ -834,7 +835,7 @@ curl http://localhost:3000/health
 
 ## Port Already in Use
 
-Change the backend port in `backend/.env`:
+Change the backend port in `backend-node/.env`:
 
 ```env
 PORT=3001
@@ -857,7 +858,7 @@ python detect_humans_live-api.py --mjpeg-port 8091
 The backend exits if `JWT_SECRET` or `MONGO_URI` is missing.
 
 ```bash
-cp backend/.env.example backend/.env
+cp backend-node/.env.example backend-node/.env
 ```
 
 ## Database Connection Failed
@@ -928,12 +929,12 @@ git checkout -b feature/short-description
 4. Run available build/smoke checks.
 
 ```bash
-cd frontend
+cd frontend-vue
 npm run build
 ```
 
 ```bash
-cd backend
+cd backend-node
 npm run dev
 ```
 
@@ -957,7 +958,7 @@ docs: update setup guide
 
 No root `LICENSE` file was found.
 
-`backend/package.json` declares:
+`backend-node/package.json` declares:
 
 ```json
 {

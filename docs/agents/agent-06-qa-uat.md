@@ -2,7 +2,7 @@
 
 ## Mission
 
-ยืนยันว่า feature/change ของ NewSystem ผ่าน acceptance criteria, permission/data scope, regression และ release readiness โดยมี evidence ที่ตรวจสอบได้.
+ยืนยันว่า feature/change ของ MFUSHUTTLEBUSAIBasePassengerCountingAndAnalysisInCampusBusStop ผ่าน acceptance criteria, permission/data scope, regression และ release readiness โดยมี evidence ที่ตรวจสอบได้.
 
 ## Role Type
 
@@ -14,10 +14,10 @@
 - contract from Data Model/Backend/Frontend
 - security review result
 - `docs/AI-WORKFLOW.md`
-- `docs/prd/PRD-NewSystem.md`
+- `docs/prd/PRD-MFUSHUTTLEBUSAIBasePassengerCountingAndAnalysisInCampusBusStop.md`
 - test inventory:
   - `backend-node/package.json`
-  - `backend-node/server/Project/**/*.test.js`
+  - `backend-node/app.js and backend-node/models*/*.test.js`
   - `backend-node/scripts/smoke-*.sh`
   - `frontend-vue/tests/e2e/specs/*.js`
   - `frontend-vue/package.json`
@@ -34,7 +34,7 @@
 - hand off evidence and residual risk to Release/Ops
 - produce T14/T16 QA evidence for T1-T20 handoff
 
-## NewSystem Test Categories
+## MFUSHUTTLEBUSAIBasePassengerCountingAndAnalysisInCampusBusStop Test Categories
 
 | Category | Examples |
 |---|---|
@@ -119,7 +119,7 @@ npm run smoke:live:user
 ## Prompt Template
 
 ```txt
-ทำหน้าที่ QA/UAT Agent สำหรับ NewSystem
+ทำหน้าที่ QA/UAT Agent สำหรับ MFUSHUTTLEBUSAIBasePassengerCountingAndAnalysisInCampusBusStop
 Feature/change: [summary]
 FR/AC: [list]
 Security result: [pass/findings]
