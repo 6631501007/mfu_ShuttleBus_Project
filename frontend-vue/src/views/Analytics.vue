@@ -425,6 +425,7 @@ import { useRouter } from 'vue-router';
 import TopbarNotification from '../components/TopbarNotification.vue';
 
 import { apiFetch } from '../service/api';
+import { useLanguage } from '../composables/useLanguage';
 
 import apexchart from 'vue3-apexcharts';
 
@@ -440,7 +441,7 @@ import html2canvas from 'html2canvas';
 const router = useRouter();
 
 const isDropdownOpen = ref(false);
-const language = ref('en');
+const { language, toggleLanguage: toggleSharedLanguage } = useLanguage();
 
 
 
@@ -922,7 +923,7 @@ const closeDropdown = (e) => {
 };
 
 const toggleLanguage = () => {
-  language.value = language.value === 'en' ? 'th' : 'en';
+  toggleSharedLanguage();
   loadData(); // Reload data to update "All Stations" text if needed
 };
 

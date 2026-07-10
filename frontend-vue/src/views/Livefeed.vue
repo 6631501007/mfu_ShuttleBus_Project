@@ -230,12 +230,13 @@ import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import TopbarNotification from '../components/TopbarNotification.vue'
 import { apiFetch, apiUrl } from '../service/api'
+import { useLanguage } from '../composables/useLanguage'
 
 const router = useRouter()
 const activeView = ref('grid')
 const liveTime = ref('')
 const isDropdownOpen = ref(false)
-const language = ref('en')
+const { language, toggleLanguage } = useLanguage()
 const isAiStreamOpen = ref(false)
 const cameras = ref([])
 const selectedCamera = ref(null)
@@ -316,10 +317,6 @@ const translations = {
 };
 
 const t = computed(() => translations[language.value]);
-
-const toggleLanguage = () => {
-  language.value = language.value === 'en' ? 'th' : 'en';
-}
 
 const closeDropdown = (e) => {
   if (!e.target.closest('.profile-dropdown-container')) isDropdownOpen.value = false

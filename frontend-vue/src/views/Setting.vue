@@ -383,12 +383,13 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import TopbarNotification from '../components/TopbarNotification.vue'
 import { apiFetch } from '../service/api'
+import { useLanguage } from '../composables/useLanguage'
 
 const router = useRouter();
 
 // ── UI state ──────────────────────────────────────────────
 const isDropdownOpen = ref(false);
-const language = ref('en');
+const { language, toggleLanguage } = useLanguage();
 const hasUnsavedChanges = ref(false); 
 let isFetching = false; 
 const dirtyGeneralSettings = ref(false);
@@ -584,10 +585,6 @@ const t = computed(() => translations[language.value]);
 // ─────────────────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────────────────
-const toggleLanguage = () => {
-  language.value = language.value === 'en' ? 'th' : 'en';
-};
-
 const getPercentage = (current, limit) => {
   if (!limit || limit <= 0) return 0;
   return Math.min(100, Math.round(((current ?? 0) / limit) * 100));

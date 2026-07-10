@@ -101,6 +101,7 @@ import 'leaflet/dist/leaflet.css'
 import TopbarNotification from '../components/TopbarNotification.vue'
 import { apiFetch } from '../service/api'
 import { getStationMarkerColor } from '../lib/stationAlert'
+import { useLanguage } from '../composables/useLanguage'
 
 const translations = {
   en: {
@@ -139,7 +140,7 @@ const translations = {
 
 const router = useRouter()
 const isDropdownOpen = ref(false)
-const language = ref('en')
+const { language, toggleLanguage: toggleSharedLanguage } = useLanguage()
 const stations = ref([])
 const activeLine = ref(1)
 let map = null
@@ -160,7 +161,7 @@ const closeDropdown = (e) => {
 }
 
 const toggleLanguage = () => {
-  language.value = language.value === 'en' ? 'th' : 'en';
+  toggleSharedLanguage();
   refreshMapText();
 }
 

@@ -215,10 +215,11 @@ import { useRouter } from 'vue-router'
 import TopbarNotification from '../components/TopbarNotification.vue'
 import { apiFetch } from '../service/api'
 import { createRedStationNotification, isRedStation } from '../lib/stationAlert'
+import { useLanguage } from '../composables/useLanguage'
 
 const router = useRouter()
 const isDropdownOpen = ref(false);
-const language = ref('en');
+const { language, toggleLanguage } = useLanguage();
 
 const activePassengerView = ref('weekly');
 const selectedChartIndex = ref(null); // เพิ่มตัวแปรสำหรับเก็บ Index ของแท่งกราฟที่ถูกเลือก
@@ -436,10 +437,6 @@ const loadDashboard = async () => {
 
 const closeDropdown = (e) => {
   if (!e.target.closest('.profile-dropdown-container')) isDropdownOpen.value = false;
-};
-
-const toggleLanguage = () => {
-  language.value = language.value === 'en' ? 'th' : 'en';
 };
 
 onMounted(() => {

@@ -183,10 +183,11 @@ import { reactive, ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import TopbarNotification from '../components/TopbarNotification.vue'
 import { apiFetch } from '../service/api'
+import { useLanguage } from '../composables/useLanguage'
 
 const router = useRouter()
 const isDropdownOpen = ref(false)
-const language = ref('en')
+const { language, toggleLanguage } = useLanguage()
 const feedbacks = ref([])
 const summary = ref({ unresolved: 0, resolved: 0 })
 const statusFilter = ref('')
@@ -281,10 +282,6 @@ const closeDropdown = (e) => {
   if (!e.target.closest('.profile-dropdown-container')) {
     isDropdownOpen.value = false
   }
-}
-
-const toggleLanguage = () => {
-  language.value = language.value === 'en' ? 'th' : 'en';
 }
 
 const loadFeedbacks = async () => {
