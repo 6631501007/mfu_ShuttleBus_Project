@@ -163,7 +163,7 @@
             <p>{{ t.pageSubtitle }}</p>
 
           </div>
-          <button class="export-btn" @click="exportReport">
+          <button class="export-btn" @click="exportPdf">
             <i class='bx bx-download'></i>
             {{ t.exportReport }}
           </button>
@@ -202,7 +202,8 @@
 
               <div v-if="selectedDateRange === 'custom'" class="custom-dates">
 
-                <input type="date" v-model="startDate" @change="loadData" class="date-input" :aria-label="t.startDateAriaLabel" />
+                <input type="date" v-model="startDate" @change="loadData" class="date-input"
+                  :aria-label="t.startDateAriaLabel" />
 
                 <span class="date-sep">to</span>
 
@@ -316,7 +317,7 @@
 
             <div class="peak-chart">
 
-              <apexchart type="bar" height="200" :options="peakChartOptions" :series="peakSeries" :key="language" />
+              <apexchart type="bar" height="300" :options="peakChartOptions" :series="peakSeries" :key="language" />
 
             </div>
 
@@ -370,7 +371,8 @@
 
             <div class="rank-list">
 
-              <div v-if="rankedStations.length === 0" style="color: #999; margin-top: 20px; font-size: 13px;">{{ t.noData }}</div>
+              <div v-if="rankedStations.length === 0" style="color: #999; margin-top: 20px; font-size: 13px;">{{
+                t.noData }}</div>
 
 
 
@@ -382,7 +384,8 @@
 
                   <h4>{{ station.name }}</h4>
 
-                  <p>{{ getPercentage(station.waitingPassengers, station.capacity) }}% {{ t.full }} / {{ station.waitingPassengers || 0 }} {{ t.pax }}</p>
+                  <p>{{ getPercentage(station.waitingPassengers, station.capacity) }}% {{ t.full }} / {{
+                    station.waitingPassengers || 0 }} {{ t.pax }}</p>
 
                 </div>
 
@@ -430,6 +433,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
 import html2pdf from 'html2pdf.js';
+import html2canvas from 'html2canvas';
 
 
 
@@ -659,7 +663,7 @@ const peakChartOptions = ref({
 
   chart: { type: 'bar', toolbar: { show: false }, animations: { enabled: false } },
 
-  plotOptions: { bar: { borderRadius: 6, columnWidth: '45%' } },
+  plotOptions: { bar: { borderRadius: 6, columnWidth: '60%' } },
 
   fill: { type: 'gradient', gradient: { type: 'vertical', colorStops: [{ offset: 0, color: '#d72660', opacity: 1 }, { offset: 100, color: '#ff8cae', opacity: 1 }] } },
 
@@ -923,6 +927,186 @@ const toggleLanguage = () => {
 };
 
 
+
+const exportPdf = async () => {
+  try {
+    const scale = 2;
+    const flowNode = document.querySelector('.graph-area');
+    const peakNode = document.querySelector('.peak-chart');
+    const mapNode = document.getElementById('analytics-map');
+
+    if (flowNode) {
+      flowNode.style.width = '100%';
+      flowNode.style.maxWidth = '100%';
+      flowNode.style.overflow = 'hidden';
+      flowNode.style.height = '240px';
+    }
+    if (peakNode) {
+      peakNode.style.width = '100%';
+      peakNode.style.maxWidth = '100%';
+      peakNode.style.overflow = 'hidden';
+      peakNode.style.height = '360px';
+    }
+    if (mapNode) {
+      mapNode.style.width = '100%';
+      mapNode.style.maxWidth = '100%';
+      mapNode.style.height = '240px';
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    window.dispatchEvent(new Event('resize'));
+
+    const toDataUrl = async (node) => {
+      if (!node) return null;
+      const canvas = await html2canvas(node, {
+        scale,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        scrollX: 0,
+        scrollY: 0,
+        windowWidth: 1200
+      });
+      return canvas.toDataURL('image/png');
+    };
+
+    const flowImg = await toDataUrl(flowNode);
+    const peakImg = await toDataUrl(peakNode);
+    const mapImg = await toDataUrl(mapNode);
+
+    const container = document.createElement('div');
+    container.style.width = '100%';
+    container.style.maxWidth = '180mm';
+    container.style.background = '#fff';
+    container.style.padding = '15mm';
+    container.style.boxSizing = 'border-box';
+    container.style.margin = '0 auto';
+    container.style.fontFamily = 'Inter, Arial, sans-serif';
+    container.style.overflowX = 'hidden';
+    container.style.overflowY = 'visible';
+
+    const reportPeriod = selectedDateRange.value === 'custom' ? `${startDate.value || ''} to ${endDate.value || ''}` : selectedDateRange.value;
+    const stationName = (terminals.value.find(t => t.id === selectedTerminal.value) || {}).name || t.value.allStations;
+    const generatedDate = new Date().toLocaleString();
+    const totalPassengers = overview.value.totalEntries || 0;
+    const avgDaily = overview.value.avgPassengerFlow || 0;
+    const peakOccupancy = overview.value.peakOccupancy || '0%';
+    const avgWaitTime = overview.value.avgWaitTime || '0m';
+
+    const execParagraph = `This report summarizes passenger analytics collected from AI camera systems during the selected period. Total passengers recorded: ${totalPassengers}. Average daily passengers: ${avgDaily}. Peak occupancy: ${peakOccupancy}. Average waiting time: ${avgWaitTime}. Passenger congestion reached its highest level during peak operating hours. Additional shuttle frequency is recommended to reduce waiting time.`;
+
+    const recs = [];
+    if (parseInt(String(peakOccupancy).replace('%', '')) >= 85) recs.push('Monitor stations exceeding 85% occupancy and allocate resources.');
+    recs.push('Increase shuttle frequency during peak hours.');
+    recs.push('Allocate additional buses during congestion.');
+    recs.push('Continue monitoring passenger flow trends.');
+
+    const tableRows = rankedStations.value.map((s, i) => {
+      const waiting = s.waitingPassengers || 0;
+      const capacity = s.capacity || 0;
+      const occupancy = capacity ? Math.round((waiting / capacity) * 100) : 0;
+      return `<tr><td style="padding:8px;border:1px solid #e6e6e6;text-align:center;white-space:nowrap">${i + 1}</td><td style="padding:8px;border:1px solid #e6e6e6;word-break:break-word;overflow-wrap:break-word">${s.name || ''}</td><td style="padding:8px;border:1px solid #e6e6e6;text-align:right">${waiting}</td><td style="padding:8px;border:1px solid #e6e6e6;text-align:right">${capacity}</td><td style="padding:8px;border:1px solid #e6e6e6;text-align:right">${occupancy}%</td></tr>`;
+    }).join('');
+
+    container.innerHTML = `
+      <style>
+        * { box-sizing: border-box; }
+        .report-root { width: 100%; max-width: 180mm; margin: 0 auto; overflow-x: hidden; }
+        .report-section { width: 100%; overflow: hidden; page-break-inside: avoid; break-inside: avoid; break-after: auto; }
+        .report-title { text-align: center; margin-bottom: 12px; }
+        .report-title h2 { color: #d72660; margin: 0; font-size: 22px; }
+        .report-title h1 { margin: 6px 0 0; font-size: 28px; }
+        .report-info p { margin: 4px 0 0; color: #666; font-size: 12px; }
+        .exec-text { color: #444; font-size: 13px; line-height: 1.6; word-break: break-word; overflow-wrap: break-word; }
+        .kpi-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; width: 100%; }
+        .kpi-card { border: 1px solid #eee; padding: 8px; text-align: center; min-width: 0; }
+        .kpi-card .label { font-size: 11px; color: #777; line-height: 1.4; word-break: break-word; overflow-wrap: break-word; }
+        .kpi-card .value { font-size: 18px; font-weight: 700; margin-top: 6px; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .chart-image, .map-image { width: 100%; max-width: 100%; height: auto; display: block; border: 1px solid #f0f0f0; }
+        .chart-caption { font-size: 11px; color: #666; margin-top: 6px; }
+        .table-wrap { width: 100%; overflow-x: hidden; }
+        table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 12px; }
+        th, td { padding: 8px; border: 1px solid #e6e6e6; word-break: break-word; overflow-wrap: break-word; }
+        th { text-align: left; background: #fafafa; }
+        .recommend-list { color: #444; font-size: 13px; line-height: 1.6; margin-left: 16px; }
+        @media (max-width: 680px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
+      </style>
+      <div class="report-root">
+        <section class="report-section report-title">
+          <h2>BusStop Passenger Intelligence System</h2>
+          <h1>Passenger Analytics Report</h1>
+          <div class="report-info">
+            <p>Report Period: ${reportPeriod}</p>
+            <p>Station: ${stationName}</p>
+            <p>Generated Date: ${generatedDate}</p>
+          </div>
+        </section>
+        <hr style="border:none;height:1px;background:#e6e6e6;margin:12px 0" />
+        <section class="report-section">
+          <h3 style="margin:0 0 6px 0;color:#333;font-size:16px">Executive Summary</h3>
+          <div class="exec-text">${execParagraph}</div>
+        </section>
+        <section class="report-section" style="margin-top:12px;margin-bottom:12px;">
+          <div class="kpi-grid">
+            <div class="kpi-card"><div class="label">Total Passengers</div><div class="value">${totalPassengers.toLocaleString()}</div></div>
+            <div class="kpi-card"><div class="label">Peak Density</div><div class="value">${peakOccupancy}</div></div>
+            <div class="kpi-card"><div class="label">Average Wait Time</div><div class="value">${avgWaitTime}</div></div>
+            <div class="kpi-card"><div class="label">Daily Average</div><div class="value">${avgDaily.toLocaleString()}</div></div>
+          </div>
+        </section>
+        <section class="report-section" style="margin-top:12px;margin-bottom:12px;">
+          <h4 style="margin:0 0 6px 0;color:#333">Figure 1<br/>Passenger Flow Trend</h4>
+          ${flowImg ? `<img class="chart-image" src="${flowImg}" />` : '<div style="color:#999">Chart not available</div>'}
+          <div class="chart-caption">Daily passenger flow across the selected period.</div>
+        </section>
+        <section class="report-section" style="margin-top:12px;margin-bottom:12px;">
+          <h4 style="margin:0 0 6px 0;color:#333">Figure 2<br/>Average Waiting Time</h4>
+          ${peakImg ? `<img class="chart-image" src="${peakImg}" />` : '<div style="color:#999">Chart not available</div>'}
+          <div class="chart-caption">Analysis of average waiting times per period.</div>
+        </section>
+        <section class="report-section" style="margin-top:12px;margin-bottom:12px;">
+          <h4 style="margin:0 0 6px 0;color:#333">Figure 3<br/>Congestion Heat Map</h4>
+          ${mapImg ? `<img class="map-image" src="${mapImg}" />` : '<div style="color:#999">Map not available</div>'}
+          <div class="chart-caption">Heat colors indicate relative congestion: green &lt; moderate &lt; red = high congestion.</div>
+        </section>
+        <section class="report-section" style="margin-top:12px;margin-bottom:12px;">
+          <h4 style="margin:0 0 6px 0;color:#333">Top Congested Stations</h4>
+          <div class="table-wrap"><table><thead><tr><th>Rank</th><th>Station</th><th>Waiting Passengers</th><th>Capacity</th><th>Occupancy %</th></tr></thead><tbody>${tableRows}</tbody></table></div>
+        </section>
+        <section class="report-section" style="margin-top:12px;margin-bottom:12px;">
+          <h4 style="margin:0 0 6px 0;color:#333">Recommendations</h4>
+          <ul class="recommend-list">${recs.map((r) => `<li>${r}</li>`).join('')}</ul>
+        </section>
+        <footer style="position:relative;margin-top:20px;font-size:12px;color:#777;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap"><div>BusStop Passenger Intelligence System — Passenger Analytics Report — Generated automatically</div><div>Generated: ${new Date().toLocaleDateString()}</div></footer>
+      </div>`;
+
+    document.body.appendChild(container);
+
+    const filename = `Passenger_Analytics_Report_${new Date().toISOString().slice(0,10)}.pdf`;
+
+    const opt = {
+      margin: [15, 15, 15, 15],
+      filename,
+      image: { type: 'jpeg', quality: 1 },
+      html2canvas: {
+        scale,
+        useCORS: true,
+        scrollX: 0,
+        scrollY: 0,
+        windowWidth: 1200,
+        backgroundColor: '#ffffff'
+      },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+      pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+    };
+
+    await html2pdf().set(opt).from(container).save();
+
+    setTimeout(() => { try { document.body.removeChild(container); } catch (e) {} }, 1000);
+  } catch (err) {
+    console.error('Export Error', err);
+    alert('Failed to generate PDF report. See console for details.');
+  }
+}
 
 onMounted(() => {
 
@@ -1494,7 +1678,7 @@ const logout = () => {
 .graph-section {
   margin-top: 22px;
   display: grid;
-  grid-template-columns: 2fr 1fr;
+  grid-template-columns: 1.5fr 1fr;
   gap: 18px;
 }
 
