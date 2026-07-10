@@ -1,0 +1,47 @@
+{
+  "metadata": {
+    "name": "Sample MFU pedestrian graph",
+    "version": "1.0.0",
+    "description": "Small beginner-friendly walking graph. Replace or extend these nodes and edges with surveyed campus footpath data later.",
+    "defaultWalkingSpeedMetersPerMinute": 80
+  },
+  "nodes": [
+    { "id": "lamduan_2", "lat": 20.059122, "lng": 99.899575, "name": "Dormitory Lamduan 2", "type": "entrance" },
+    { "id": "lamduan_7_exit", "lat": 20.056669, "lng": 99.896634, "name": "Dormitory Lamduan 7 Exit", "type": "entrance" },
+    { "id": "staff_junction", "lat": 20.054205, "lng": 99.893265, "name": "Junction 3 Staff House", "type": "intersection" },
+    { "id": "museum_d2", "lat": 20.052887, "lng": 99.892432, "name": "Museum D2 Building", "type": "building" },
+    { "id": "international_dorm_in", "lat": 20.050270, "lng": 99.891078, "name": "International Dormitory Entrance", "type": "entrance" },
+    { "id": "chinese_center_in", "lat": 20.048902, "lng": 99.891344, "name": "Chinese Center Entrance", "type": "entrance" },
+    { "id": "f_courtyard", "lat": 20.047935, "lng": 99.892017, "name": "F Courtyard", "type": "plaza" },
+    { "id": "d1_building", "lat": 20.047054, "lng": 99.892170, "name": "D1 Building", "type": "building" },
+    { "id": "swimming_pool", "lat": 20.045901, "lng": 99.891629, "name": "Swimming Pool", "type": "building" },
+    { "id": "e2_entrance", "lat": 20.044235, "lng": 99.891513, "name": "E2 Building Entrance", "type": "entrance" },
+    { "id": "m_square", "lat": 20.043829, "lng": 99.893570, "name": "M-square Building", "type": "building" },
+    { "id": "lamduan_center", "lat": 20.043663, "lng": 99.894193, "name": "Lamduan Center", "type": "building" },
+    { "id": "pool_entrance", "lat": 20.043570, "lng": 99.895925, "name": "Swimming Pool Entrance", "type": "entrance" },
+    { "id": "canteen", "lat": 20.043180, "lng": 99.896656, "name": "Lamduan Canteen Center", "type": "building" },
+    { "id": "seven_lamduan", "lat": 20.041269, "lng": 99.894479, "name": "7-11 Lamduan", "type": "shop" },
+    { "id": "hospital", "lat": 20.041596, "lng": 99.893216, "name": "Mae Fah Luang University Hospital", "type": "building" }
+  ],
+  "edges": [
+    { "from": "lamduan_2", "to": "lamduan_7_exit", "permission": "walk", "pathType": "sidewalk" },
+    { "from": "lamduan_7_exit", "to": "staff_junction", "permission": "walk", "pathType": "sidewalk" },
+    { "from": "staff_junction", "to": "museum_d2", "permission": "walk", "pathType": "sidewalk" },
+    { "from": "museum_d2", "to": "international_dorm_in", "permission": "walk", "pathType": "covered_walkway" },
+    { "from": "international_dorm_in", "to": "chinese_center_in", "permission": "walk", "pathType": "sidewalk" },
+    { "from": "chinese_center_in", "to": "f_courtyard", "permission": "walk", "pathType": "plaza" },
+    { "from": "f_courtyard", "to": "d1_building", "permission": "walk", "pathType": "plaza" },
+    { "from": "d1_building", "to": "swimming_pool", "permission": "walk", "pathType": "sidewalk" },
+    { "from": "swimming_pool", "to": "e2_entrance", "permission": "walk", "pathType": "sidewalk" },
+    { "from": "e2_entrance", "to": "m_square", "permission": "walk", "pathType": "stairs", "penalty": 60 },
+    { "from": "m_square", "to": "lamduan_center", "permission": "walk", "pathType": "crossing", "penalty": 25 },
+    { "from": "lamduan_center", "to": "pool_entrance", "permission": "walk", "pathType": "sidewalk" },
+    { "from": "pool_entrance", "to": "canteen", "permission": "walk", "pathType": "sidewalk" },
+    { "from": "m_square", "to": "hospital", "permission": "walk", "pathType": "sidewalk" },
+    { "from": "hospital", "to": "seven_lamduan", "permission": "walk", "pathType": "sidewalk" },
+    { "from": "seven_lamduan", "to": "lamduan_center", "permission": "walk", "pathType": "crossing", "penalty": 35 },
+    { "from": "canteen", "to": "seven_lamduan", "permission": "walk", "pathType": "sidewalk" },
+    { "from": "staff_junction", "to": "international_dorm_in", "permission": "walk", "pathType": "shortcut", "penalty": 40 },
+    { "from": "f_courtyard", "to": "m_square", "permission": "walk", "pathType": "pedestrian_bridge", "penalty": 15 }
+  ]
+}

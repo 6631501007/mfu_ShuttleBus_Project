@@ -153,6 +153,36 @@
       <i class='bx bx-target-lock locate-icon'></i>
     </div>
 
+    <div class="route-panel shadow-sm">
+      <div class="route-panel-title">{{ t.walkingRoute }}</div>
+      <div class="route-mode-toggle">
+        <button type="button" :class="{ active: routeMode === 'start' }" @click="routeMode = 'start'">
+          {{ t.setStart }}
+        </button>
+        <button type="button" :class="{ active: routeMode === 'end' }" @click="routeMode = 'end'">
+          {{ t.setDestination }}
+        </button>
+      </div>
+      <div class="route-points">
+        <div><b>{{ t.start }}:</b> {{ routeStart ? formatPoint(routeStart) : t.clickMap }}</div>
+        <div><b>{{ t.end }}:</b> {{ routeEnd ? formatPoint(routeEnd) : t.clickMap }}</div>
+      </div>
+      <div class="route-actions">
+        <button type="button" @click="useCurrentLocation" :disabled="isLocating">
+          {{ isLocating ? t.locating : t.useGps }}
+        </button>
+        <button type="button" class="primary" @click="requestWalkingRoute" :disabled="!canRequestRoute || isRouting">
+          {{ isRouting ? t.calculatingRoute : t.calculateRoute }}
+        </button>
+        <button type="button" @click="clearWalkingRoute">{{ t.clear }}</button>
+      </div>
+      <p class="route-error" v-if="routeError">{{ routeError }}</p>
+      <div class="route-summary" v-if="routeResult">
+        <span>{{ routeDistanceText }}</span>
+        <span>{{ routeTimeText }}</span>
+      </div>
+    </div>
+
     <div class="marker-legend shadow-sm">
       <div class="legend-title">{{ t.markerStatus }}</div>
       <div class="legend-item">
@@ -203,6 +233,13 @@ const feedbackError = ref('')
 const feedbackSuccess = ref('')
 const isSubmittingFeedback = ref(false)
 const selectedDestination = ref('')
+const routeMode = ref('start')
+const routeStart = ref(null)
+const routeEnd = ref(null)
+const routeResult = ref(null)
+const routeError = ref('')
+const isRouting = ref(false)
+const isLocating = ref(false)
 
 const translations = {
   en: {
@@ -235,7 +272,19 @@ const translations = {
     waiting9Plus: '9+ people waiting',
     peopleWaitingNow: 'People waiting now:',
     loading: 'Loading...',
-    user: 'USER'
+    user: 'USER',
+    walkingRoute: 'Walking route',
+    setStart: 'Set start',
+    setDestination: 'Set destination',
+    start: 'Start',
+    end: 'End',
+    clickMap: 'Click map',
+    useGps: 'Use GPS',
+    locating: 'Locating...',
+    calculateRoute: 'Calculate',
+    calculatingRoute: 'Calculating...',
+    clear: 'Clear',
+    routeFailed: 'Unable to calculate walking route'
   },
   th: {
     languageLabel: 'ไทย',
@@ -267,7 +316,19 @@ const translations = {
     waiting9Plus: 'มีคนรอ 9 คนขึ้นไป',
     peopleWaitingNow: 'จำนวนคนรอขณะนี้:',
     loading: 'กำลังโหลด...',
-    user: 'ผู้ใช้'
+    user: 'ผู้ใช้',
+    walkingRoute: 'เส้นทางเดิน',
+    setStart: 'ตั้งจุดเริ่ม',
+    setDestination: 'ตั้งปลายทาง',
+    start: 'เริ่ม',
+    end: 'ปลายทาง',
+    clickMap: 'คลิกแผนที่',
+    useGps: 'ใช้ GPS',
+    locating: 'กำลังระบุตำแหน่ง...',
+    calculateRoute: 'คำนวณ',
+    calculatingRoute: 'กำลังคำนวณ...',
+    clear: 'ล้าง',
+    routeFailed: 'ไม่สามารถคำนวณเส้นทางเดินได้'
   }
 }
 
@@ -275,6 +336,16 @@ const t = computed(() => translations[language.value])
 const languageFlag = computed(() => t.value.languageFlag)
 const languageLabel = computed(() => t.value.languageLabel)
 const lineTitle = computed(() => `${t.value.line} ${activeLine.value}`)
+const canRequestRoute = computed(() => Boolean(routeStart.value && routeEnd.value))
+const routeDistanceText = computed(() => {
+  if (!routeResult.value) return ''
+  const meters = routeResult.value.distanceMeters || 0
+  return meters >= 1000 ? `${(meters / 1000).toFixed(2)} km` : `${meters} m`
+})
+const routeTimeText = computed(() => {
+  if (!routeResult.value) return ''
+  return `${routeResult.value.estimatedWalkingTimeMinutes || 1} min`
+})
 const lineInfoTitle = computed(() => {
   return language.value === 'th'
     ? `${t.value.info}${t.value.line} ${activeLine.value}`
@@ -296,6 +367,10 @@ let animFrame1 = null
 let animFrame2 = null
 let stationMarkers = []
 let selectedStationMarker = null
+let routeLayer = null
+let routeStartMarker = null
+let routeEndMarker = null
+let currentLocationMarker = null
 
 const defaultCenter = { lat: 20.0470, lng: 99.8940 }
 
@@ -681,6 +756,174 @@ const centerMap = () => {
   }
 }
 
+const formatPoint = (point) => {
+  return `${point.lat.toFixed(5)}, ${point.lng.toFixed(5)}`
+}
+
+const createRoutePointIcon = (label, color) => {
+  const iconSvg = encodeURIComponent(`
+    <svg xmlns="http://www.w3.org/2000/svg" width="30" height="42" viewBox="0 0 30 42">
+      <path fill="${color}" stroke="#ffffff" stroke-width="2" d="M15 1C7.3 1 1 7.3 1 15c0 10.2 14 26 14 26s14-15.8 14-26C29 7.3 22.7 1 15 1z"/>
+      <text x="15" y="20" text-anchor="middle" font-size="12" font-family="Arial" font-weight="700" fill="#ffffff">${label}</text>
+    </svg>
+  `)
+
+  return L.icon({
+    iconUrl: `data:image/svg+xml;charset=UTF-8,${iconSvg}`,
+    iconSize: [30, 42],
+    iconAnchor: [15, 42],
+    popupAnchor: [0, -38]
+  })
+}
+
+const setRoutePoint = (type, latlng) => {
+  const point = {
+    lat: Number(latlng.lat),
+    lng: Number(latlng.lng)
+  }
+
+  if (type === 'start') {
+    routeStart.value = point
+    routeMode.value = 'end'
+  } else {
+    routeEnd.value = point
+  }
+
+  routeError.value = ''
+  routeResult.value = null
+  if (routeLayer) {
+    routeLayer.remove()
+    routeLayer = null
+  }
+  drawRouteMarkers()
+}
+
+const drawRouteMarkers = () => {
+  if (!map) return
+
+  if (routeStartMarker) routeStartMarker.remove()
+  if (routeEndMarker) routeEndMarker.remove()
+
+  routeStartMarker = routeStart.value
+    ? L.marker([routeStart.value.lat, routeStart.value.lng], {
+      icon: createRoutePointIcon('A', '#2563eb'),
+      draggable: true
+    }).addTo(map)
+    : null
+
+  routeEndMarker = routeEnd.value
+    ? L.marker([routeEnd.value.lat, routeEnd.value.lng], {
+      icon: createRoutePointIcon('B', '#dc2626'),
+      draggable: true
+    }).addTo(map)
+    : null
+
+  if (routeStartMarker) {
+    routeStartMarker.on('dragend', (event) => setRoutePoint('start', event.target.getLatLng()))
+  }
+  if (routeEndMarker) {
+    routeEndMarker.on('dragend', (event) => setRoutePoint('end', event.target.getLatLng()))
+  }
+}
+
+const drawWalkingRoute = (coordinates) => {
+  if (!map) return
+  if (routeLayer) routeLayer.remove()
+
+  routeLayer = L.polyline(coordinates, {
+    color: '#2563eb',
+    weight: 6,
+    opacity: 0.9
+  }).addTo(map)
+
+  map.fitBounds(routeLayer.getBounds(), {
+    padding: [70, 70],
+    maxZoom: 18
+  })
+}
+
+const requestWalkingRoute = async () => {
+  if (!canRequestRoute.value) return
+
+  try {
+    isRouting.value = true
+    routeError.value = ''
+
+    const params = new URLSearchParams({
+      startLat: routeStart.value.lat,
+      startLng: routeStart.value.lng,
+      endLat: routeEnd.value.lat,
+      endLng: routeEnd.value.lng
+    })
+    const res = await apiFetch(`/api/route?${params.toString()}`)
+    const data = await res.json()
+
+    if (!res.ok) {
+      throw new Error(data.message || t.value.routeFailed)
+    }
+
+    routeResult.value = data
+    drawWalkingRoute(data.route.coordinates)
+  } catch (error) {
+    console.error(error)
+    routeError.value = error.message || t.value.routeFailed
+  } finally {
+    isRouting.value = false
+  }
+}
+
+const clearWalkingRoute = () => {
+  routeStart.value = null
+  routeEnd.value = null
+  routeResult.value = null
+  routeError.value = ''
+  routeMode.value = 'start'
+
+  if (routeLayer) routeLayer.remove()
+  if (routeStartMarker) routeStartMarker.remove()
+  if (routeEndMarker) routeEndMarker.remove()
+
+  routeLayer = null
+  routeStartMarker = null
+  routeEndMarker = null
+}
+
+const useCurrentLocation = () => {
+  if (!navigator.geolocation) {
+    routeError.value = 'GPS is not available in this browser'
+    return
+  }
+
+  isLocating.value = true
+  navigator.geolocation.getCurrentPosition(
+    (position) => {
+      const point = {
+        lat: position.coords.latitude,
+        lng: position.coords.longitude
+      }
+
+      setRoutePoint('start', point)
+
+      if (currentLocationMarker) currentLocationMarker.remove()
+      currentLocationMarker = L.circleMarker([point.lat, point.lng], {
+        radius: 8,
+        color: '#ffffff',
+        weight: 2,
+        fillColor: '#2563eb',
+        fillOpacity: 0.9
+      }).addTo(map)
+
+      map.flyTo([point.lat, point.lng], 17, { duration: 1.2 })
+      isLocating.value = false
+    },
+    (error) => {
+      routeError.value = error.message || 'Unable to read GPS location'
+      isLocating.value = false
+    },
+    { enableHighAccuracy: true, timeout: 10000 }
+  )
+}
+
 const getStationKey = (station) => {
   if (!station) return ''
   return station._id || station.id || station.name || `${station.location?.lat ?? ''}-${station.location?.lng ?? ''}`
@@ -727,6 +970,7 @@ const selectDestination = (station, marker = null) => {
     const lat = parseFloat(station.location?.lat)
     const lng = parseFloat(station.location?.lng)
     if (!Number.isNaN(lat) && !Number.isNaN(lng)) {
+      setRoutePoint('end', { lat, lng })
       map.flyTo([lat, lng], 17, { duration: 1.2 })
       matchedMarker.openPopup()
     }
@@ -766,6 +1010,10 @@ const animateBus = (marker, coords, speed, startOffset = 0) => {
   return requestAnimationFrame(step)
 }
 
+const handleMapClick = (event) => {
+  setRoutePoint(routeMode.value, event.latlng)
+}
+
 const createMap = () => {
   if (map) { map.remove(); map = null }
 
@@ -774,6 +1022,8 @@ const createMap = () => {
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; OpenStreetMap'
   }).addTo(map)
+
+  map.on('click', handleMapClick)
 
   lineLayer1 = L.polyline(line1Coords, { color: '#8b0000', weight: 3, opacity: 0.9 })
   lineLayer2 = L.polyline(line2Coords, { color: '#f1c40f', weight: 3, opacity: 0.9, dashArray: '8, 4' })
@@ -830,6 +1080,10 @@ const createMap = () => {
   // เริ่มแอนิเมชัน
   animFrame1 = animateBus(busMarker1, line1Coords, 0.003, 0)
   animFrame2 = animateBus(busMarker2, line2Coords, 0.004, 5)
+  drawRouteMarkers()
+  if (routeResult.value?.route?.coordinates?.length) {
+    drawWalkingRoute(routeResult.value.route.coordinates)
+  }
 }
 
 // ===== Lifecycle Hooks =====
@@ -1286,6 +1540,97 @@ onUnmounted(() => {
 .locate-icon { font-size: 24px; color: #ff3b3b; }
 
 /* ================== MAP WRAPPER ================== */
+.route-panel {
+  position: absolute;
+  top: 88px;
+  left: 24px;
+  z-index: 1000;
+  width: min(360px, calc(100vw - 48px));
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 14px;
+}
+
+.route-panel-title {
+  color: #111827;
+  font-size: 14px;
+  font-weight: 800;
+  margin-bottom: 10px;
+}
+
+.route-mode-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.route-mode-toggle button,
+.route-actions button {
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #374151;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 8px 10px;
+}
+
+.route-mode-toggle button.active {
+  border-color: #2563eb;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.route-points {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: #4b5563;
+  font-size: 12px;
+  margin-bottom: 10px;
+}
+
+.route-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr 0.7fr;
+  gap: 8px;
+}
+
+.route-actions button.primary {
+  border-color: #2563eb;
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.route-actions button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.route-error {
+  margin: 10px 0 0;
+  color: #dc2626;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.route-summary {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.route-summary span {
+  border-radius: 999px;
+  background: #f3f4f6;
+  color: #111827;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 6px 10px;
+}
+
 .marker-legend {
   position: absolute;
   bottom: 24px;
@@ -1337,6 +1682,8 @@ onUnmounted(() => {
   .floating-panel { top: 16px; left: 16px; }
   .profile-container { top: 16px; right: 16px; }
   .floating-btn { bottom: 24px; right: 16px; }
+  .route-panel { top: 70px; left: 16px; width: calc(100vw - 32px); }
+  .route-actions { grid-template-columns: 1fr; }
   .marker-legend { bottom: 16px; left: 16px; padding: 10px 12px; }
   
   .profile-dropdown {

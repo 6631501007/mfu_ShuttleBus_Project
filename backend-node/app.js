@@ -18,6 +18,7 @@ const Analytics = require('./models/analytics');
 const HourlyAnalytics = require('./models/hourlyAnalytics');
 const Setting = require('./models/setting');
 const dns = require('dns');
+const { calculateRoute } = require('./routing/routingEngine');
 
 const app = express();
 app.use(cors());
@@ -864,6 +865,27 @@ app.get('/health', (req, res) => {
       name: mongoose.connection.name || null
     }
   });
+});
+
+/////////////////// Pedestrian routing ///////////////////
+app.get('/api/route', (req, res) => {
+  try {
+    const routeResult = calculateRoute({
+      startLat: req.query.startLat,
+      startLng: req.query.startLng,
+      endLat: req.query.endLat,
+      endLng: req.query.endLng
+    });
+
+    res.json({
+      ...routeResult,
+      message: 'Route calculated with campus pedestrian graph and A* search'
+    });
+  } catch (error) {
+    res.status(error.statusCode || 400).json({
+      message: error.message || 'Unable to calculate route'
+    });
+  }
 });
 
 app.post('/register', dbMiddleware, async (req, res) => {
