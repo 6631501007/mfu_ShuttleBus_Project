@@ -518,22 +518,42 @@ db.users.updateOne(
 | `DETECTOR_JPEG_QUALITY` | MJPEG JPEG quality for backend-started detector processes. | No | `65` |
 | `DETECTOR_SOCKET_EMIT_INTERVAL` | Minimum seconds between AI Socket.IO emits for backend-started detectors. | No | `0.5` |
 | `ANALYTICS_TIMEZONE` | Time zone used for hourly analytics buckets and labels. | No | `Asia/Bangkok` |
-| `VITE_API_BASE_URL` | Frontend API base URL. | No | `http://localhost:3000` |
+| `VITE_API_BASE_URL` | Frontend API base URL. Development defaults to `http://localhost:3000`; production defaults to same-origin proxying. | No | Environment-dependent |
 
 > **Note:** The AI script is configured through CLI flags, not `.env` variables.
 
 # Running with Docker
 
-No `Dockerfile`, `docker-compose.yml`, or production container deployment files were found in this repository.
+The default Compose stack runs the Vue production build, Express backend,
+backend-managed CPU detector runtime, and MongoDB. Only the frontend is
+published; Nginx proxies API and Socket.IO traffic to the private backend.
 
-| Task | Status |
-| --- | --- |
-| Build | **TODO:** Verify this information. |
-| Run | **TODO:** Verify this information. |
-| Stop | **TODO:** Verify this information. |
-| Rebuild | **TODO:** Verify this information. |
-| Logs | **TODO:** Verify this information. |
-| Production deployment | **TODO:** Verify this information. |
+```bash
+cp .env.example .env
+# Replace JWT_SECRET in .env before starting.
+docker compose up --build -d
+docker compose ps
+docker compose logs -f backend
+```
+
+Open `http://localhost:8080`. Stop the stack without deleting MongoDB data or
+downloaded YOLO weights:
+
+```bash
+docker compose down
+```
+
+The backend starts one detector subprocess for each online RTSP camera saved in
+hardware settings. For a separately managed detector instead, set `AI_SOURCE`
+to a container-reachable RTSP URL and enable the optional profile:
+
+```bash
+docker compose --profile standalone-ai up --build -d
+```
+
+The detector defaults to CPU because the repository declares no CUDA version or
+GPU requirement. A CUDA deployment should use an NVIDIA-compatible PyTorch base,
+declare a matching host driver/runtime, and set the detector device explicitly.
 
 # API Overview
 

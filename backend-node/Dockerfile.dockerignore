@@ -1,0 +1,23 @@
+# This Dockerfile builds from the repository root because it needs the AI script.
+# Dockerfile-specific ignores keep that broad context small and secret-free.
+**
+!backend-node/
+backend-node/**
+!backend-node/package.json
+!backend-node/package-lock.json
+!backend-node/app.js
+!backend-node/models/
+!backend-node/models/**
+!AI/
+AI/**
+!AI/requirements.txt
+!AI/detect_humans_live-api.py
+
+# Defense in depth: never send credentials or private keys if future COPY rules grow.
+**/.env
+**/.env.*
+!**/.env.example
+**/*.pem
+**/*.key
+**/*.p12
+**/*.pfx

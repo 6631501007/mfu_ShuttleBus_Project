@@ -6,7 +6,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const path = require('path');
 const fs = require('fs');
-const { spawn } = require('child_process');
+const { spawn, spawnSync } = require('child_process');
 const { Readable } = require('stream');
 const { Server } = require('socket.io');
 require('dotenv').config();
@@ -883,10 +883,11 @@ app.get('/api/livefeed/config', dbMiddleware, async (req, res) => {
 
 /////////////////// Register ///////////////////
 app.get('/health', (req, res) => {
-  res.json({
-    status: 'ok',
+  const databaseConnected = isMongoConnected();
+  res.status(databaseConnected ? 200 : 503).json({
+    status: databaseConnected ? 'ok' : 'degraded',
     database: {
-      connected: isMongoConnected(),
+      connected: databaseConnected,
       state: mongoose.STATES[mongoose.connection.readyState] || 'unknown',
       name: mongoose.connection.name || null
     }

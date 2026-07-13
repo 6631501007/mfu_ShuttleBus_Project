@@ -1,0 +1,40 @@
+# Python caches, local environments, and generated inference artifacts.
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+output/
+runs/
+cache/
+
+# Large data and model files belong in runtime volumes, not immutable layers.
+datasets/
+dataset/
+training/
+weights/
+models/
+recordings/
+videos/
+captures/
+*.pt
+*.onnx
+*.engine
+
+# Secrets and local tooling metadata.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.log
+.git/
+.gitignore
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

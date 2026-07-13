@@ -1,0 +1,24 @@
+# Dependency caches and generated output are rebuilt inside the image.
+node_modules/
+.vite/
+dist/
+coverage/
+.nyc_output/
+
+# Local settings, credentials, logs, and editor metadata are never build inputs.
+.env
+.env.*
+!.env.example
+*.log
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.git/
+.gitignore
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Project documentation is not needed by the production frontend.
+README*

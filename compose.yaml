@@ -1,0 +1,119 @@
+# Production-oriented default stack. Only the frontend is published; Nginx
+# proxies API traffic while MongoDB remains isolated on the internal data network.
+name: busstop
+
+services:
+  frontend:
+    build:
+      context: ./frontend-vue
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-}
+    ports:
+      - "${FRONTEND_PORT:-8080}:8080"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - edge
+    restart: unless-stopped
+    init: true
+    logging: &default-logging
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  backend:
+    build:
+      # The root context is required because backend-managed detectors use AI/.
+      context: .
+      dockerfile: backend-node/Dockerfile
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in the shell or a root .env file}
+      MONGO_URI: ${MONGO_URI:-mongodb://mongo:27017/demo}
+      LIVEFEED_SOURCE_STREAM_URL: ${LIVEFEED_SOURCE_STREAM_URL:-http://ai:8090/stream}
+      LIVEFEED_PUBLIC_STREAM_URL: /api/livefeed/stream
+      DETECTOR_PYTHON_BIN: /opt/venv/bin/python
+      DETECTOR_SCRIPT_PATH: /app/AI/detect_humans_live-api.py
+      DETECTOR_MODEL: /models/${DETECTOR_MODEL:-yolov8s}
+      DETECTOR_BASE_PORT: "8090"
+      ANALYTICS_TIMEZONE: ${ANALYTICS_TIMEZONE:-Asia/Bangkok}
+    volumes:
+      # Persist downloaded YOLO weights across image/container rebuilds.
+      - model-cache:/models
+    depends_on:
+      mongo:
+        condition: service_healthy
+    expose:
+      - "3000"
+    networks:
+      - edge
+      - data
+    restart: unless-stopped
+    stop_grace_period: 15s
+    init: true
+    logging: *default-logging
+
+  mongo:
+    image: mongo:8.0
+    command: ["mongod", "--bind_ip_all", "--quiet"]
+    volumes:
+      - mongo-data:/data/db
+    expose:
+      - "27017"
+    networks:
+      - data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "quit(db.adminCommand('ping').ok ? 0 : 2)"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    logging: *default-logging
+
+  ai:
+    # Optional standalone detector. The default backend image already contains
+    # AI for dynamically managed cameras, so enable this only when desired:
+    # docker compose --profile standalone-ai up --build
+    profiles: ["standalone-ai"]
+    build:
+      context: ./AI
+      dockerfile: Dockerfile
+    command:
+      - --source
+      - ${AI_SOURCE:-0}
+      - --model
+      - /models/${DETECTOR_MODEL:-yolov8s}
+      - --device
+      - cpu
+      - --mjpeg-port
+      - "8090"
+      - --socketio-url
+      - http://backend:3000
+      - --config-url
+      - http://backend:3000/api/livefeed/config
+    volumes:
+      - model-cache:/models
+    depends_on:
+      backend:
+        condition: service_healthy
+    expose:
+      - "8090"
+    networks:
+      - edge
+    restart: unless-stopped
+    init: true
+    logging: *default-logging
+
+networks:
+  edge:
+  data:
+    internal: true
+
+volumes:
+  mongo-data:
+  model-cache:

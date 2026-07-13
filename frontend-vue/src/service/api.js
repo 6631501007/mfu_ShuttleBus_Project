@@ -1,4 +1,8 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+// Development keeps the existing direct API URL. Production defaults to the
+// same origin so the container's Nginx proxy can route API and Socket.IO calls.
+const API_BASE_URL = (
+  import.meta.env.VITE_API_BASE_URL || (import.meta.env.DEV ? 'http://localhost:3000' : '')
+).replace(/\/$/, '');
 
 export const apiUrl = (path) => `${API_BASE_URL}${path}`;
 
