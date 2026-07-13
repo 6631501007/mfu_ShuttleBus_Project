@@ -152,7 +152,7 @@
 
 
 
-      <div id="pdf-content">
+      <div>
 
         <section class="page-title">
 
@@ -167,7 +167,6 @@
             <i class='bx bx-download'></i>
             {{ t.exportReport }}
           </button>
-
         </section>
 
 
@@ -269,7 +268,7 @@
 
         <section class="graph-section">
 
-          <div class="graph-card large avoid-page-break">
+          <div class="graph-card large">
 
             <div class="card-header">
 
@@ -301,7 +300,7 @@
 
 
 
-          <div class="graph-card peak-card avoid-page-break">
+          <div class="graph-card peak-card">
 
             <div class="card-header">
 
@@ -337,27 +336,7 @@
 
         <section class="bottom-section">
 
-          <div class="graph-card map-card avoid-page-break">
-
-            <div class="card-header">
-
-              <div>
-
-                <h3>{{ t.heatMapTitle }}</h3>
-
-                <p>{{ t.heatMapSubtitle }}</p>
-
-              </div>
-
-            </div>
-
-            <div id="analytics-map" class="map"></div>
-
-          </div>
-
-
-
-          <div class="graph-card rank-card avoid-page-break">
+          <div class="graph-card rank-card">
 
             <div class="density">
 
@@ -397,7 +376,7 @@
 
 
 
-            <button class="audit-btn hide-on-print" @click="router.push('/dashboard')">
+            <button class="audit-btn" @click="router.push('/dashboard')">
 
               {{ t.viewDashboardBtn }}
 
@@ -429,14 +408,8 @@ import { useLanguage } from '../composables/useLanguage';
 
 import apexchart from 'vue3-apexcharts';
 
-import L from 'leaflet';
-
-import 'leaflet/dist/leaflet.css';
-
 import html2pdf from 'html2pdf.js';
 import html2canvas from 'html2canvas';
-
-
 
 const router = useRouter();
 
@@ -474,7 +447,7 @@ const translations = {
     languageName: 'English',
     logout: 'Log out',
     pageTitle: 'Historical Performance',
-    pageSubtitle: 'Analyze trends and spatial occupancy patterns from AI cameras',
+    pageSubtitle: 'Analyze passenger flow and wait-time trends from AI cameras',
     dateRangeLabel: 'DATE RANGE',
     stationFilterLabel: 'STATION FILTER',
     startDateAriaLabel: 'Start Date',
@@ -497,8 +470,6 @@ const translations = {
     waitAnalysisTitle: 'Wait Time Analysis',
     waitAnalysisSubtitle: 'Average wait time distribution (seconds)',
     recommendation: 'Shuttle frequency increase recommended during peak hours',
-    heatMapTitle: 'Congestion Heat Map',
-    heatMapSubtitle: 'Live spatial density',
     topCongestedTitle: 'Top Congested Stations',
     noData: 'No data available',
     full: 'Full',
@@ -519,7 +490,7 @@ const translations = {
     languageName: 'ไทย',
     logout: 'ออกจากระบบ',
     pageTitle: 'ประสิทธิภาพย้อนหลัง',
-    pageSubtitle: 'วิเคราะห์แนวโน้มและรูปแบบความหนาแน่นเชิงพื้นที่จากกล้อง AI',
+    pageSubtitle: 'วิเคราะห์แนวโน้มการไหลของผู้โดยสารและเวลารอจากกล้อง AI',
     dateRangeLabel: 'ช่วงวันที่',
     stationFilterLabel: 'ตัวกรองสถานี',
     startDateAriaLabel: 'วันที่เริ่มต้น',
@@ -542,8 +513,6 @@ const translations = {
     waitAnalysisTitle: 'การวิเคราะห์เวลารอ',
     waitAnalysisSubtitle: 'การกระจายตัวของเวลารอโดยเฉลี่ย (วินาที)',
     recommendation: 'แนะนำให้เพิ่มความถี่ของรถเวียนในช่วงเวลาเร่งด่วน',
-    heatMapTitle: 'แผนที่ความร้อนความแออัด',
-    heatMapSubtitle: 'ความหนาแน่นเชิงพื้นที่แบบสด',
     topCongestedTitle: 'สถานีที่แออัดที่สุด',
     noData: 'ไม่มีข้อมูล',
     full: 'เต็ม',
@@ -575,21 +544,6 @@ const selectedDateRange = ref('7days');
 const startDate = ref('');
 
 const endDate = ref('');
-
-
-
-// แผนที่
-
-let mapInstance = null;
-
-let markersGroup = null;
-
-
-
-const exportReport = () => {
-  // สั่งเปิดหน้าต่าง Print ของบราว์เซอร์ (สามารถเลือก Save as PDF ได้)
-  window.print();
-};
 
 
 
@@ -677,70 +631,6 @@ const peakChartOptions = ref({
   grid: { show: false }
 
 });
-
-
-
-// ── Leaflet Map Setup ──
-
-const renderMap = () => {
-
-  if (!mapInstance) {
-
-    mapInstance = L.map('analytics-map', { zoomControl: false }).setView([20.0449, 99.8942], 15);
-
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-
-      attribution: '&copy; OpenStreetMap'
-
-    }).addTo(mapInstance);
-
-    markersGroup = L.layerGroup().addTo(mapInstance);
-
-  }
-
-
-
-  markersGroup.clearLayers();
-
-
-
-  rankedStations.value.slice(0, 2).forEach((station, index) => {
-
-    const lat = station.location?.lat || 20.0449 + (index * 0.002);
-
-    const lng = station.location?.lng || 99.8942;
-
-    const glowClass = index === 0 ? 'glow-red' : 'glow-yellow';
-
-
-
-    const customIcon = L.divIcon({
-
-      className: 'custom-heat-icon',
-
-      html: `
-
-        <div class="heat-spot">
-
-          <div class="heat-glow ${glowClass}"></div>
-
-          <div class="heat-label">${station.name.toUpperCase()}</div>
-
-        </div>
-
-      `,
-
-      iconSize: [0, 0]
-
-    });
-
-
-
-    L.marker([lat, lng], { icon: customIcon }).addTo(markersGroup);
-
-  });
-
-};
 
 
 
@@ -902,8 +792,6 @@ const loadData = async () => {
 
 
 
-    renderMap();
-
   } catch (error) {
 
     console.error('Data Load Error:', error);
@@ -927,187 +815,150 @@ const toggleLanguage = () => {
   loadData(); // Reload data to update "All Stations" text if needed
 };
 
-
+const escapeHtml = (value) => String(value ?? '')
+  .replaceAll('&', '&amp;')
+  .replaceAll('<', '&lt;')
+  .replaceAll('>', '&gt;')
+  .replaceAll('"', '&quot;')
+  .replaceAll("'", '&#039;');
 
 const exportPdf = async () => {
+  let reportContainer;
+
   try {
-    const scale = 2;
-    const flowNode = document.querySelector('.graph-area');
-    const peakNode = document.querySelector('.peak-chart');
-    const mapNode = document.getElementById('analytics-map');
-
-    if (flowNode) {
-      flowNode.style.width = '100%';
-      flowNode.style.maxWidth = '100%';
-      flowNode.style.overflow = 'hidden';
-      flowNode.style.height = '240px';
-    }
-    if (peakNode) {
-      peakNode.style.width = '100%';
-      peakNode.style.maxWidth = '100%';
-      peakNode.style.overflow = 'hidden';
-      peakNode.style.height = '360px';
-    }
-    if (mapNode) {
-      mapNode.style.width = '100%';
-      mapNode.style.maxWidth = '100%';
-      mapNode.style.height = '240px';
-    }
-
-    await new Promise((resolve) => setTimeout(resolve, 400));
-    window.dispatchEvent(new Event('resize'));
-
-    const toDataUrl = async (node) => {
+    const captureChart = async (selector) => {
+      const node = document.querySelector(selector);
       if (!node) return null;
+
       const canvas = await html2canvas(node, {
-        scale,
+        scale: 2,
         useCORS: true,
         backgroundColor: '#ffffff',
         scrollX: 0,
         scrollY: 0,
         windowWidth: 1200
       });
+
       return canvas.toDataURL('image/png');
     };
 
-    const flowImg = await toDataUrl(flowNode);
-    const peakImg = await toDataUrl(peakNode);
-    const mapImg = await toDataUrl(mapNode);
+    const [flowImage, waitImage] = await Promise.all([
+      captureChart('.graph-area'),
+      captureChart('.peak-chart')
+    ]);
 
-    const container = document.createElement('div');
-    container.style.width = '100%';
-    container.style.maxWidth = '180mm';
-    container.style.background = '#fff';
-    container.style.padding = '15mm';
-    container.style.boxSizing = 'border-box';
-    container.style.margin = '0 auto';
-    container.style.fontFamily = 'Inter, Arial, sans-serif';
-    container.style.overflowX = 'hidden';
-    container.style.overflowY = 'visible';
-
-    const reportPeriod = selectedDateRange.value === 'custom' ? `${startDate.value || ''} to ${endDate.value || ''}` : selectedDateRange.value;
-    const stationName = (terminals.value.find(t => t.id === selectedTerminal.value) || {}).name || t.value.allStations;
-    const generatedDate = new Date().toLocaleString();
+    const reportPeriod = selectedDateRange.value === 'custom'
+      ? `${startDate.value || ''} to ${endDate.value || ''}`
+      : selectedDateRange.value;
+    const stationName = terminals.value.find(({ id }) => id === selectedTerminal.value)?.name || t.value.allStations;
     const totalPassengers = overview.value.totalEntries || 0;
-    const avgDaily = overview.value.avgPassengerFlow || 0;
+    const averageDaily = overview.value.avgPassengerFlow || 0;
     const peakOccupancy = overview.value.peakOccupancy || '0%';
-    const avgWaitTime = overview.value.avgWaitTime || '0m';
+    const averageWaitTime = overview.value.avgWaitTime || '0m';
+    const recommendations = [
+      'Increase shuttle frequency during peak hours.',
+      'Allocate additional buses during congestion.',
+      'Continue monitoring passenger flow trends.'
+    ];
 
-    const execParagraph = `This report summarizes passenger analytics collected from AI camera systems during the selected period. Total passengers recorded: ${totalPassengers}. Average daily passengers: ${avgDaily}. Peak occupancy: ${peakOccupancy}. Average waiting time: ${avgWaitTime}. Passenger congestion reached its highest level during peak operating hours. Additional shuttle frequency is recommended to reduce waiting time.`;
+    if (Number.parseInt(peakOccupancy, 10) >= 85) {
+      recommendations.unshift('Monitor stations exceeding 85% occupancy and allocate resources.');
+    }
 
-    const recs = [];
-    if (parseInt(String(peakOccupancy).replace('%', '')) >= 85) recs.push('Monitor stations exceeding 85% occupancy and allocate resources.');
-    recs.push('Increase shuttle frequency during peak hours.');
-    recs.push('Allocate additional buses during congestion.');
-    recs.push('Continue monitoring passenger flow trends.');
-
-    const tableRows = rankedStations.value.map((s, i) => {
-      const waiting = s.waitingPassengers || 0;
-      const capacity = s.capacity || 0;
+    const stationRows = rankedStations.value.map((station, index) => {
+      const waiting = station.waitingPassengers || 0;
+      const capacity = station.capacity || 0;
       const occupancy = capacity ? Math.round((waiting / capacity) * 100) : 0;
-      return `<tr><td style="padding:8px;border:1px solid #e6e6e6;text-align:center;white-space:nowrap">${i + 1}</td><td style="padding:8px;border:1px solid #e6e6e6;word-break:break-word;overflow-wrap:break-word">${s.name || ''}</td><td style="padding:8px;border:1px solid #e6e6e6;text-align:right">${waiting}</td><td style="padding:8px;border:1px solid #e6e6e6;text-align:right">${capacity}</td><td style="padding:8px;border:1px solid #e6e6e6;text-align:right">${occupancy}%</td></tr>`;
+
+      return `<tr><td>${index + 1}</td><td>${escapeHtml(station.name)}</td><td>${waiting}</td><td>${capacity}</td><td>${occupancy}%</td></tr>`;
     }).join('');
 
-    container.innerHTML = `
+    const chartFigure = (title, image, caption) => `
+      <section class="report-section">
+        <h4>${title}</h4>
+        ${image ? `<img class="chart-image" src="${image}" alt="" />` : '<div class="unavailable">Chart not available</div>'}
+        <p class="chart-caption">${caption}</p>
+      </section>`;
+
+    reportContainer = document.createElement('div');
+    reportContainer.className = 'analytics-pdf-report';
+    reportContainer.innerHTML = `
       <style>
         * { box-sizing: border-box; }
-        .report-root { width: 100%; max-width: 180mm; margin: 0 auto; overflow-x: hidden; }
-        .report-section { width: 100%; overflow: hidden; page-break-inside: avoid; break-inside: avoid; break-after: auto; }
-        .report-title { text-align: center; margin-bottom: 12px; }
-        .report-title h2 { color: #d72660; margin: 0; font-size: 22px; }
-        .report-title h1 { margin: 6px 0 0; font-size: 28px; }
-        .report-info p { margin: 4px 0 0; color: #666; font-size: 12px; }
-        .exec-text { color: #444; font-size: 13px; line-height: 1.6; word-break: break-word; overflow-wrap: break-word; }
-        .kpi-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; width: 100%; }
-        .kpi-card { border: 1px solid #eee; padding: 8px; text-align: center; min-width: 0; }
-        .kpi-card .label { font-size: 11px; color: #777; line-height: 1.4; word-break: break-word; overflow-wrap: break-word; }
-        .kpi-card .value { font-size: 18px; font-weight: 700; margin-top: 6px; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .chart-image, .map-image { width: 100%; max-width: 100%; height: auto; display: block; border: 1px solid #f0f0f0; }
-        .chart-caption { font-size: 11px; color: #666; margin-top: 6px; }
-        .table-wrap { width: 100%; overflow-x: hidden; }
-        table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 12px; }
-        th, td { padding: 8px; border: 1px solid #e6e6e6; word-break: break-word; overflow-wrap: break-word; }
-        th { text-align: left; background: #fafafa; }
-        .recommend-list { color: #444; font-size: 13px; line-height: 1.6; margin-left: 16px; }
-        @media (max-width: 680px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
+        .report-root { width: 180mm; padding: 12mm; background: #fff; color: #333; font-family: Inter, Arial, sans-serif; }
+        .report-header { text-align: center; border-bottom: 1px solid #e6e6e6; padding-bottom: 12px; }
+        .report-header h2 { margin: 0; color: #d72660; font-size: 22px; }
+        .report-header h1 { margin: 6px 0; font-size: 28px; }
+        .report-header p, .chart-caption { margin: 4px 0; color: #666; font-size: 11px; }
+        .report-section { margin-top: 14px; break-inside: avoid; page-break-inside: avoid; }
+        .stations-section { margin-top: 0; break-before: page; page-break-before: always; }
+        .report-section h3, .report-section h4 { margin: 0 0 7px; }
+        .summary { font-size: 13px; line-height: 1.6; }
+        .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+        .kpi { min-width: 0; border: 1px solid #eee; padding: 8px; text-align: center; }
+        .kpi span { display: block; color: #777; font-size: 10px; }
+        .kpi strong { display: block; margin-top: 5px; font-size: 17px; }
+        .chart-image { display: block; width: 100%; height: auto; border: 1px solid #f0f0f0; }
+        .unavailable { color: #999; }
+        table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 11px; }
+        th, td { border: 1px solid #e6e6e6; padding: 7px; overflow-wrap: break-word; }
+        th { background: #fafafa; text-align: left; }
+        ul { margin: 0 0 0 18px; padding: 0; font-size: 12px; line-height: 1.6; }
+        footer { margin-top: 18px; color: #777; font-size: 10px; }
       </style>
       <div class="report-root">
-        <section class="report-section report-title">
+        <header class="report-header">
           <h2>BusStop Passenger Intelligence System</h2>
           <h1>Passenger Analytics Report</h1>
-          <div class="report-info">
-            <p>Report Period: ${reportPeriod}</p>
-            <p>Station: ${stationName}</p>
-            <p>Generated Date: ${generatedDate}</p>
-          </div>
-        </section>
-        <hr style="border:none;height:1px;background:#e6e6e6;margin:12px 0" />
+          <p>Report Period: ${escapeHtml(reportPeriod)}</p>
+          <p>Station: ${escapeHtml(stationName)}</p>
+          <p>Generated Date: ${escapeHtml(new Date().toLocaleString())}</p>
+        </header>
         <section class="report-section">
-          <h3 style="margin:0 0 6px 0;color:#333;font-size:16px">Executive Summary</h3>
-          <div class="exec-text">${execParagraph}</div>
+          <h3>Executive Summary</h3>
+          <p class="summary">This report summarizes passenger analytics collected from AI camera systems during the selected period. Total passengers recorded: ${totalPassengers.toLocaleString()}. Average daily passengers: ${averageDaily.toLocaleString()}. Peak occupancy: ${escapeHtml(peakOccupancy)}. Average waiting time: ${escapeHtml(averageWaitTime)}.</p>
         </section>
-        <section class="report-section" style="margin-top:12px;margin-bottom:12px;">
-          <div class="kpi-grid">
-            <div class="kpi-card"><div class="label">Total Passengers</div><div class="value">${totalPassengers.toLocaleString()}</div></div>
-            <div class="kpi-card"><div class="label">Peak Density</div><div class="value">${peakOccupancy}</div></div>
-            <div class="kpi-card"><div class="label">Average Wait Time</div><div class="value">${avgWaitTime}</div></div>
-            <div class="kpi-card"><div class="label">Daily Average</div><div class="value">${avgDaily.toLocaleString()}</div></div>
-          </div>
+        <section class="report-section kpis">
+          <div class="kpi"><span>Total Passengers</span><strong>${totalPassengers.toLocaleString()}</strong></div>
+          <div class="kpi"><span>Peak Density</span><strong>${escapeHtml(peakOccupancy)}</strong></div>
+          <div class="kpi"><span>Average Wait Time</span><strong>${escapeHtml(averageWaitTime)}</strong></div>
+          <div class="kpi"><span>Daily Average</span><strong>${averageDaily.toLocaleString()}</strong></div>
         </section>
-        <section class="report-section" style="margin-top:12px;margin-bottom:12px;">
-          <h4 style="margin:0 0 6px 0;color:#333">Figure 1<br/>Passenger Flow Trend</h4>
-          ${flowImg ? `<img class="chart-image" src="${flowImg}" />` : '<div style="color:#999">Chart not available</div>'}
-          <div class="chart-caption">Daily passenger flow across the selected period.</div>
+        ${chartFigure('Figure 1: Passenger Flow Trend', flowImage, 'Daily passenger flow across the selected period.')}
+        ${chartFigure('Figure 2: Average Waiting Time', waitImage, 'Analysis of average waiting times per period.')}
+        <section class="report-section stations-section">
+          <h4>Top Congested Stations</h4>
+          <table><thead><tr><th>Rank</th><th>Station</th><th>Waiting</th><th>Capacity</th><th>Occupancy</th></tr></thead><tbody>${stationRows}</tbody></table>
         </section>
-        <section class="report-section" style="margin-top:12px;margin-bottom:12px;">
-          <h4 style="margin:0 0 6px 0;color:#333">Figure 2<br/>Average Waiting Time</h4>
-          ${peakImg ? `<img class="chart-image" src="${peakImg}" />` : '<div style="color:#999">Chart not available</div>'}
-          <div class="chart-caption">Analysis of average waiting times per period.</div>
+        <section class="report-section">
+          <h4>Recommendations</h4>
+          <ul>${recommendations.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>
         </section>
-        <section class="report-section" style="margin-top:12px;margin-bottom:12px;">
-          <h4 style="margin:0 0 6px 0;color:#333">Figure 3<br/>Congestion Heat Map</h4>
-          ${mapImg ? `<img class="map-image" src="${mapImg}" />` : '<div style="color:#999">Map not available</div>'}
-          <div class="chart-caption">Heat colors indicate relative congestion: green &lt; moderate &lt; red = high congestion.</div>
-        </section>
-        <section class="report-section" style="margin-top:12px;margin-bottom:12px;">
-          <h4 style="margin:0 0 6px 0;color:#333">Top Congested Stations</h4>
-          <div class="table-wrap"><table><thead><tr><th>Rank</th><th>Station</th><th>Waiting Passengers</th><th>Capacity</th><th>Occupancy %</th></tr></thead><tbody>${tableRows}</tbody></table></div>
-        </section>
-        <section class="report-section" style="margin-top:12px;margin-bottom:12px;">
-          <h4 style="margin:0 0 6px 0;color:#333">Recommendations</h4>
-          <ul class="recommend-list">${recs.map((r) => `<li>${r}</li>`).join('')}</ul>
-        </section>
-        <footer style="position:relative;margin-top:20px;font-size:12px;color:#777;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap"><div>BusStop Passenger Intelligence System — Passenger Analytics Report — Generated automatically</div><div>Generated: ${new Date().toLocaleDateString()}</div></footer>
+        <footer>BusStop Passenger Intelligence System — Passenger Analytics Report — Generated automatically</footer>
       </div>`;
 
-    document.body.appendChild(container);
+    document.body.appendChild(reportContainer);
 
-    const filename = `Passenger_Analytics_Report_${new Date().toISOString().slice(0,10)}.pdf`;
-
-    const opt = {
+    await html2pdf().set({
       margin: [15, 15, 15, 15],
-      filename,
+      filename: `Passenger_Analytics_Report_${new Date().toISOString().slice(0, 10)}.pdf`,
       image: { type: 'jpeg', quality: 1 },
-      html2canvas: {
-        scale,
-        useCORS: true,
-        scrollX: 0,
-        scrollY: 0,
-        windowWidth: 1200,
-        backgroundColor: '#ffffff'
-      },
+      html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-      pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
-    };
-
-    await html2pdf().set(opt).from(container).save();
-
-    setTimeout(() => { try { document.body.removeChild(container); } catch (e) {} }, 1000);
-  } catch (err) {
-    console.error('Export Error', err);
+      pagebreak: {
+        mode: ['avoid-all', 'css', 'legacy'],
+        before: '.stations-section'
+      }
+    }).from(reportContainer).save();
+  } catch (error) {
+    console.error('Export Error', error);
     alert('Failed to generate PDF report. See console for details.');
+  } finally {
+    reportContainer?.remove();
   }
-}
+};
+
+
 
 onMounted(() => {
 
@@ -1486,27 +1337,22 @@ const logout = () => {
 }
 
 .export-btn {
-
-  background: #d72660;
-  color: white;
-  border: none;
-  padding: 14px 18px;
-  border-radius: 12px;
-
-  font-weight: 600;
   display: flex;
   align-items: center;
   gap: 10px;
+  padding: 14px 18px;
+  border: none;
+  border-radius: 12px;
+  background: #d72660;
+  color: #fff;
+  font-weight: 600;
   cursor: pointer;
-  transition: 0.2s;
-
+  transition: background 0.2s;
 }
 
 .export-btn:hover {
   background: #be1c50;
 }
-
-
 
 /* FILTER */
 
@@ -1768,27 +1614,7 @@ const logout = () => {
 
 .bottom-section {
   margin-top: 20px;
-  display: grid;
-  grid-template-columns: 2fr 1fr;
-  gap: 18px;
   margin-bottom: 40px;
-}
-
-
-
-/* MAP */
-
-.map {
-
-  margin-top: 20px;
-  height: 320px;
-  border-radius: 18px;
-  position: relative;
-
-  overflow: hidden;
-  border: 1px solid #f0f0f0;
-  z-index: 1;
-
 }
 
 
@@ -1892,89 +1718,13 @@ const logout = () => {
 
 
 
-/* คลาสป้องกันการโดนตัดหน้ากระดาษ */
-
-.avoid-page-break {
-
-  page-break-inside: avoid;
-
-  break-inside: avoid;
-
-}
-
-
-
-/* =========================================
-   PRINT / EXPORT STYLES (ทำงานเฉพาะตอนกด Print/PDF)
-========================================= */
-@media print {
-
-  /* 1. ซ่อนเมนูด้านข้าง แถบบน และส่วนที่ไม่จำเป็นในรายงาน */
-  .sidebar,
-  .top-header,
-  .filters,
-  .export-btn {
-    display: none !important;
-  }
-
-  /* 2. ปรับพื้นหลังให้ขาวสะอาด เอา Scrollbar ออก */
-  .app-container,
-  .main-content {
-    background: white !important;
-    padding: 0 !important;
-    height: auto !important;
-    overflow: visible !important;
-  }
-
-  /* 3. ปรับระยะห่างหัวข้อให้พอดีกระดาษ */
-  .page-title {
-    margin-top: 0;
-    padding-top: 0;
-    border-bottom: 2px solid #d72660;
-    margin-bottom: 20px;
-  }
-
-  /* 4. ปรับการ์ดสถิติและกราฟให้ขอบชัด ไม่มีเงา และไม่โดนตัดครึ่งหน้า */
-  .stat-card,
-  .graph-card {
-    border: 1px solid #ddd !important;
-    box-shadow: none !important;
-    break-inside: avoid;
-    /* ป้องกันการ์ดโดนหั่นครึ่งระหว่างหน้ากระดาษ */
-    margin-bottom: 20px;
-  }
-
-  /* 5. บังคับให้หน้ากระดาษพิมพ์สีพื้นหลัง (กราฟและ Heatmap จะได้สีไม่หาย) */
-  * {
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
-  }
-
-  /* 6. ปรับ Layout ให้เรียงเป็น 1 คอลัมน์บนกระดาษแนวตั้ง เพื่อให้อ่านง่าย */
-  .graph-section,
-  .bottom-section {
-    display: block !important;
-  }
-
-  /* ขยายกราฟให้เต็มความกว้างหน้ากระดาษ */
-  .graph-card.large,
-  .graph-card.peak-card,
-  .graph-card.map-card,
-  .graph-card.rank-card {
-    width: 100% !important;
-  }
-}
-
-
-
 @media (max-width: 1200px) {
 
   .stats {
     grid-template-columns: repeat(2, 1fr);
   }
 
-  .graph-section,
-  .bottom-section {
+  .graph-section {
     grid-template-columns: 1fr;
   }
 
@@ -1995,88 +1745,6 @@ const logout = () => {
     align-items: flex-start;
     gap: 20px;
   }
-
-}
-</style>
-
-
-
-<style>
-.custom-heat-icon {
-
-  background: transparent;
-
-  border: none;
-
-}
-
-.heat-spot {
-
-  position: absolute;
-
-  transform: translate(-50%, -50%);
-
-  display: flex;
-
-  align-items: center;
-
-  justify-content: center;
-
-}
-
-/* แก้จากการใช้ filter: blur() เป็น radial-gradient เพื่อให้ PDF แคปรูปได้สมบูรณ์แบบ */
-
-.heat-glow {
-
-  position: absolute;
-
-  border-radius: 50%;
-
-  z-index: 1;
-
-}
-
-.glow-red {
-
-  width: 180px;
-
-  height: 180px;
-
-  background: radial-gradient(circle, rgba(215, 38, 96, 0.7) 0%, rgba(215, 38, 96, 0) 70%);
-
-}
-
-.glow-yellow {
-
-  width: 150px;
-
-  height: 150px;
-
-  background: radial-gradient(circle, rgba(255, 215, 0, 0.6) 0%, rgba(255, 215, 0, 0) 70%);
-
-}
-
-.heat-label {
-
-  position: relative;
-
-  z-index: 2;
-
-  background: #d72660;
-
-  color: white;
-
-  padding: 8px 14px;
-
-  border-radius: 8px;
-
-  font-size: 12px;
-
-  font-weight: 700;
-
-  white-space: nowrap;
-
-  box-shadow: 0 4px 10px rgba(215, 38, 96, 0.3);
 
 }
 </style>
