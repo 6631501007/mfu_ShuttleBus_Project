@@ -505,23 +505,29 @@ def run_live(
         is_rtsp = isinstance(src, str) and src.lower().startswith("rtsp://")
         backends = [cv2.CAP_FFMPEG, cv2.CAP_ANY] if is_rtsp else [cv2.CAP_V4L2, cv2.CAP_ANY]
         for backend in backends:
+            candidate = None
             try:
-                cap = cv2.VideoCapture(src, backend)
+                candidate = cv2.VideoCapture(src, backend)
             except Exception:
-                cap = cv2.VideoCapture(src)
-            if cap.isOpened():
-                cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+                try:
+                    candidate = cv2.VideoCapture(src)
+                except Exception:
+                    continue
+            if candidate is not None and candidate.isOpened():
+                candidate.set(cv2.CAP_PROP_BUFFERSIZE, 1)
                 print(f"[INFO] Opened camera source: {src} with backend {backend}")
-                return cap
-            cap.release()
+                return candidate
+            if candidate is not None:
+                candidate.release()
         return None
 
     cap = open_camera(source)
     if cap is None or not cap.isOpened():
-        print(f"[ERROR] Could not open camera source: {source}")
-        print("[HINT] Try running with a different source, e.g. --source /dev/video0 or --source 1")
-        print("[HINT] Make sure no other process is using the camera and that your user has permission to access /dev/video*")
-        sys.exit(1)
+        print(f"[WARNING] Could not open camera source: {source}; retrying.")
+
+        while cap is None or not cap.isOpened():
+            time.sleep(max(reconnect_delay, 0.1))
+            cap = open_camera(source)
 
     # ── Camera properties ─────────────────────────────────────────────────────
     width  = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
@@ -562,11 +568,25 @@ def run_live(
     # ── Frame loop ────────────────────────────────────────────────────────────
     try:
         while True:
-            # Keep latency down by discarding frames buffered by OpenCV/FFmpeg.
-            for _ in range(max(drop_frames, 0)):
-                cap.grab()
+            # A failed reconnect returns None. Keep retrying instead of falling
+            # through to grab()/read() and terminating the detector process.
+            if cap is None or not cap.isOpened():
+                time.sleep(max(reconnect_delay, 0.1))
+                cap = open_camera(source)
+                if cap is None or not cap.isOpened():
+                    print("[WARNING] Reconnect failed; trying again shortly.")
+                    continue
+                print("[INFO] Camera source reconnected.")
+                read_failures = 0
 
-            ret, frame = cap.read()
+            try:
+                # Keep latency down by discarding frames buffered by OpenCV/FFmpeg.
+                for _ in range(max(drop_frames, 0)):
+                    cap.grab()
+                ret, frame = cap.read()
+            except cv2.error as error:
+                print(f"[WARNING] Camera decode error: {error}")
+                ret, frame = False, None
             if not ret:
                 read_failures += 1
                 if read_failures < max_read_failures:
@@ -575,13 +595,7 @@ def run_live(
 
                 print("[WARNING] Camera read failures reached threshold; reconnecting.")
                 cap.release()
-                time.sleep(max(reconnect_delay, 0.1))
-                cap = open_camera(source)
-                if cap is None or not cap.isOpened():
-                    print("[WARNING] Reconnect failed; trying again shortly.")
-                    time.sleep(max(reconnect_delay, 0.1))
-                    continue
-                read_failures = 0
+                cap = None
                 continue
 
             read_failures = 0
@@ -635,7 +649,8 @@ def run_live(
         print("\n[INFO] Ctrl+C received — stopping detector.")
 
     # ── Cleanup ───────────────────────────────────────────────────────────────
-    cap.release()
+    if cap is not None:
+        cap.release()
     publisher.stop()
 
     total_time = time.time() - start_time

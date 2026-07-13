@@ -103,8 +103,13 @@ const DETECTOR_STREAM_FPS = Number(process.env.DETECTOR_STREAM_FPS) || 6;
 const DETECTOR_STREAM_WIDTH = Number(process.env.DETECTOR_STREAM_WIDTH) || 640;
 const DETECTOR_JPEG_QUALITY = Number(process.env.DETECTOR_JPEG_QUALITY) || 65;
 const DETECTOR_SOCKET_EMIT_INTERVAL = Number(process.env.DETECTOR_SOCKET_EMIT_INTERVAL) || 0.5;
+const DETECTOR_RESTART_BASE_MS = Number(process.env.DETECTOR_RESTART_BASE_MS) || 2000;
+const DETECTOR_RESTART_MAX_MS = Number(process.env.DETECTOR_RESTART_MAX_MS) || 30000;
+const DETECTOR_RESTART_RESET_MS = Number(process.env.DETECTOR_RESTART_RESET_MS) || 60000;
 const ANALYTICS_TIMEZONE = process.env.ANALYTICS_TIMEZONE || 'Asia/Bangkok';
 const detectorProcesses = new Map();
+const detectorRestartTimers = new Map();
+const detectorRestartAttempts = new Map();
 
 const livefeedDetection = {
   count: 0,
@@ -542,23 +547,56 @@ const updateHourlyAnalytics = async (payload = {}, detectionState = {}) => {
 };
 
 const stopDetector = (deviceId) => {
+  const restartTimer = detectorRestartTimers.get(deviceId);
+  if (restartTimer) clearTimeout(restartTimer);
+  detectorRestartTimers.delete(deviceId);
+  detectorRestartAttempts.delete(deviceId);
+
   const running = detectorProcesses.get(deviceId);
   if (!running) return;
 
   console.log(`[DETECTOR] Stopping ${deviceId}`);
+  running.stopping = true;
+  clearTimeout(running.restartResetTimer);
   running.process.kill('SIGTERM');
   setTimeout(() => {
-    if (!running.process.killed) running.process.kill('SIGKILL');
+    if (running.process.exitCode === null && running.process.signalCode === null) {
+      running.process.kill('SIGKILL');
+    }
   }, 3000);
   detectorProcesses.delete(deviceId);
 };
 
-const startDetector = (hardware, index = 0) => {
+const scheduleDetectorRestart = (hardware, index) => {
+  if (detectorRestartTimers.has(hardware.deviceId)) return;
+
+  const attempt = (detectorRestartAttempts.get(hardware.deviceId) || 0) + 1;
+  detectorRestartAttempts.set(hardware.deviceId, attempt);
+  const delay = Math.min(
+    DETECTOR_RESTART_BASE_MS * (2 ** Math.min(attempt - 1, 10)),
+    DETECTOR_RESTART_MAX_MS
+  );
+
+  console.warn(`[DETECTOR] Restarting ${hardware.deviceId} in ${delay}ms (attempt ${attempt})`);
+  const timer = setTimeout(() => {
+    detectorRestartTimers.delete(hardware.deviceId);
+    startDetector(hardware, index, true);
+  }, delay);
+  timer.unref?.();
+  detectorRestartTimers.set(hardware.deviceId, timer);
+};
+
+const startDetector = (hardware, index = 0, isRestart = false) => {
   if (hardware.type !== 'camera' || hardware.status !== 'online' || !hardware.rtspUrl) return;
 
   const running = detectorProcesses.get(hardware.deviceId);
   if (running && running.rtspUrl === hardware.rtspUrl) return;
   if (running) stopDetector(hardware.deviceId);
+
+  const restartTimer = detectorRestartTimers.get(hardware.deviceId);
+  if (restartTimer) clearTimeout(restartTimer);
+  detectorRestartTimers.delete(hardware.deviceId);
+  if (!isRestart) detectorRestartAttempts.delete(hardware.deviceId);
 
   const port = getDetectorPort(hardware, index);
   const args = [
@@ -585,11 +623,18 @@ const startDetector = (hardware, index = 0) => {
     env: { ...process.env },
   });
 
+  const restartResetTimer = setTimeout(() => {
+    detectorRestartAttempts.delete(hardware.deviceId);
+  }, DETECTOR_RESTART_RESET_MS);
+  restartResetTimer.unref?.();
+
   detectorProcesses.set(hardware.deviceId, {
     process: child,
     port,
     rtspUrl: hardware.rtspUrl,
     startedAt: Date.now(),
+    stopping: false,
+    restartResetTimer,
   });
 
   console.log(`[DETECTOR] Started ${hardware.deviceId} on MJPEG port ${port}`);
@@ -597,13 +642,15 @@ const startDetector = (hardware, index = 0) => {
   child.stdout.on('data', data => writeDetectorOutput(hardware.deviceId, data, process.stdout));
   child.stderr.on('data', data => writeDetectorOutput(hardware.deviceId, data, process.stderr, true));
   child.on('error', error => {
-    detectorProcesses.delete(hardware.deviceId);
     console.error(`[DETECTOR] Could not start ${hardware.deviceId}:`, error);
   });
-  child.on('exit', (code, signal) => {
+  child.on('close', (code, signal) => {
     const current = detectorProcesses.get(hardware.deviceId);
-    if (current?.process === child) detectorProcesses.delete(hardware.deviceId);
+    if (current?.process !== child) return;
+    clearTimeout(current.restartResetTimer);
+    detectorProcesses.delete(hardware.deviceId);
     console.log(`[DETECTOR] ${hardware.deviceId} exited code=${code} signal=${signal}`);
+    if (!current.stopping) scheduleDetectorRestart(hardware, index);
   });
 };
 
@@ -635,13 +682,21 @@ const syncHardwareDetectors = async (nextSettings) => {
     }
   });
 
-  for (const deviceId of detectorProcesses.keys()) {
+  const trackedDeviceIds = new Set([
+    ...detectorProcesses.keys(),
+    ...detectorRestartTimers.keys(),
+  ]);
+  for (const deviceId of trackedDeviceIds) {
     if (!desiredIds.has(deviceId)) stopDetector(deviceId);
   }
 };
 
 const stopAllDetectors = () => {
-  for (const deviceId of [...detectorProcesses.keys()]) {
+  const trackedDeviceIds = new Set([
+    ...detectorProcesses.keys(),
+    ...detectorRestartTimers.keys(),
+  ]);
+  for (const deviceId of trackedDeviceIds) {
     stopDetector(deviceId);
   }
 };
