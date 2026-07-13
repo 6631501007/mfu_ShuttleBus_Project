@@ -78,8 +78,8 @@ Camera / RTSP / Webcam
 - Python 3. The local environment used for inspection was Python `3.12.3`; exact minimum is not declared in the repo. **TODO:** Verify this information.
 - MongoDB, either local MongoDB or MongoDB Atlas.
 - FFmpeg is recommended for RTSP camera handling through OpenCV.
-- Docker Desktop / Docker Engine: not required by the current repository because no Docker files are present.
-- Docker Compose: not required by the current repository because no Compose files are present.
+- Docker Desktop / Docker Engine: required only when using the Docker setup described below.
+- Docker Compose v2 (`docker compose`): required only when using the Docker setup described below.
 - CUDA / NVIDIA Driver: optional only if running YOLO inference on CUDA. The default AI command uses CPU.
 
 # Quick Setup Guide
@@ -524,36 +524,383 @@ db.users.updateOne(
 
 # Running with Docker
 
-The default Compose stack runs the Vue production build, Express backend,
-backend-managed CPU detector runtime, and MongoDB. Only the frontend is
-published; Nginx proxies API and Socket.IO traffic to the private backend.
+The Docker setup is the recommended handoff path because the recipient does not
+need to install Node.js, Python, npm, or MongoDB directly. The default Compose
+stack runs the Vue production frontend, Express backend, backend-managed CPU
+detector runtime, and MongoDB. Only the frontend is published; Nginx proxies API
+and Socket.IO traffic to the private backend.
+
+## English: Step-by-step instructions for a new user
+
+### 1. Install the prerequisites
+
+Install the following software:
+
+- Git.
+- Docker Desktop on Windows or macOS, or Docker Engine with the Docker Compose
+  v2 plugin on Linux.
+- At least 8 GB of physical RAM. More memory is recommended when processing
+  multiple camera streams.
+- Enough free disk space for the application images, PyTorch packages, MongoDB
+  data, and YOLO model weights.
+- An internet connection for the initial image build and model download.
+
+Start Docker Desktop before running any Docker command. Verify the installation:
+
+```bash
+docker --version
+docker compose version
+```
+
+### 2. Get the complete project
+
+The Compose configuration builds images from the source tree, so the recipient
+needs the complete repository, not only `compose.yaml`.
+
+```bash
+git clone <repository-url>
+cd demo
+```
+
+If the project is delivered as an archive, extract it and open a terminal in the
+directory containing `compose.yaml`.
+
+### 3. Create a private environment file
+
+Do not share or commit another person's real `.env` file. Each installation must
+create its own file from the safe template.
+
+Windows PowerShell:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+Linux or macOS:
 
 ```bash
 cp .env.example .env
-# Replace JWT_SECRET in .env before starting.
+```
+
+Open `.env` and replace `JWT_SECRET` with a long, random, private value. The
+default local MongoDB connection can remain unchanged:
+
+```env
+JWT_SECRET=replace-this-with-a-long-random-secret
+FRONTEND_PORT=8080
+MONGO_URI=mongodb://mongo:27017/demo
+ANALYTICS_TIMEZONE=Asia/Bangkok
+DETECTOR_MODEL=yolov8s
+VITE_API_BASE_URL=
+```
+
+Keep `VITE_API_BASE_URL` empty for the normal Compose deployment so browser API
+requests use the included Nginx proxy. Change `FRONTEND_PORT` if port `8080` is
+already used on the host.
+
+### 4. Check the backend resource limits
+
+The committed `compose.yaml` is configured for a computer with approximately
+16 GB RAM:
+
+```yaml
+mem_limit: 6g
+cpus: 4
+```
+
+Before starting on a different computer, update only the `backend` service:
+
+| Host RAM | `mem_limit` | `cpus` |
+| ---: | ---: | ---: |
+| 8 GB | `3g` | `2` |
+| 16 GB | `6g` | `4` |
+| 32 GB | `10g` | `6` |
+
+For other RAM sizes, use about 35–40% of physical RAM and never more than 50%.
+Docker Desktop must also be assigned enough memory for the backend, MongoDB,
+frontend, and Docker itself.
+
+### 5. Validate the configuration
+
+Run this command from the directory containing `compose.yaml`:
+
+```bash
+docker compose config
+```
+
+Resolve any missing-variable or port configuration error before continuing.
+Warnings about optional Docker client settings do not invalidate the Compose
+file when the command exits successfully.
+
+### 6. Build and start the application
+
+```bash
 docker compose up --build -d
+```
+
+The first build can take several minutes because the backend image installs the
+CPU inference runtime and Python dependencies. Later builds reuse Docker's
+cache.
+
+### 7. Verify the containers
+
+```bash
 docker compose ps
 docker compose logs -f backend
 ```
 
-Open `http://localhost:8080`. Stop the stack without deleting MongoDB data or
-downloaded YOLO weights:
+Wait until `frontend`, `backend`, and `mongo` are running and healthy. Press
+`Ctrl+C` to stop following the logs; this does not stop the containers. If a
+container is not healthy, inspect all logs:
 
 ```bash
-docker compose down
+docker compose logs --tail=200
 ```
 
-The backend starts one detector subprocess for each online RTSP camera saved in
-hardware settings. For a separately managed detector instead, set `AI_SOURCE`
-to a container-reachable RTSP URL and enable the optional profile:
+### 8. Open and initialize the application
+
+Open the following address in a browser:
+
+```text
+http://localhost:8080
+```
+
+Use the port configured by `FRONTEND_PORT` if it was changed. Register the first
+user through the application. New registrations receive the `user` role; there
+is no default administrator account. If administrator access is required, an
+authorized operator can promote the registered account in MongoDB:
+
+```bash
+docker compose exec mongo mongosh demo --eval 'db.users.updateOne({username: "USERNAME"}, {$set: {role: "admin"}})'
+```
+
+Replace `USERNAME` with the registered username, then sign out and sign in
+again to receive a token containing the new role.
+
+### 9. Configure cameras when required
+
+The default backend image already contains the CPU detector runtime. Add a
+camera from the application's hardware settings, set it to `online`, and supply
+its RTSP URL. The camera address must be reachable from inside the Docker
+network. Do not use `localhost` for a camera or service running on the host;
+use the host's reachable IP address or `host.docker.internal` where supported.
+
+For a separately managed detector, set `AI_SOURCE` in `.env` to a
+container-reachable webcam/RTSP source and enable the optional profile:
 
 ```bash
 docker compose --profile standalone-ai up --build -d
 ```
 
-The detector defaults to CPU because the repository declares no CUDA version or
-GPU requirement. A CUDA deployment should use an NVIDIA-compatible PyTorch base,
-declare a matching host driver/runtime, and set the detector device explicitly.
+YOLO weights are downloaded when a model is first used and are retained in the
+`model-cache` Docker volume.
+
+### 10. Stop, restart, update, or remove the stack
+
+```bash
+# Stop and remove containers while preserving MongoDB data and model weights.
+docker compose down
+
+# Start the existing stack again.
+docker compose up -d
+
+# Rebuild after receiving source changes.
+git pull
+docker compose up --build -d
+```
+
+Do not run `docker compose down -v` unless all local MongoDB data and cached
+model weights may be permanently deleted. Docker volumes are stored on each
+user's computer; cloning the repository does not copy another installation's
+database.
+
+The detector defaults to CPU because the repository does not declare a CUDA or
+GPU requirement. A CUDA deployment requires a compatible NVIDIA driver/runtime,
+a CUDA-compatible PyTorch image, and an explicit detector device setting.
+
+## ภาษาไทย: ขั้นตอนสำหรับผู้ใช้งานเครื่องใหม่
+
+### 1. ติดตั้งโปรแกรมที่จำเป็น
+
+ติดตั้งโปรแกรมต่อไปนี้:
+
+- Git
+- Docker Desktop สำหรับ Windows หรือ macOS หรือ Docker Engine พร้อม Docker
+  Compose v2 plugin สำหรับ Linux
+- RAM อย่างน้อย 8 GB และควรมี RAM มากขึ้นหากประมวลผลกล้องหลายตัว
+- พื้นที่ว่างเพียงพอสำหรับ Docker images, PyTorch, ข้อมูล MongoDB และไฟล์โมเดล
+  YOLO
+- อินเทอร์เน็ตสำหรับ build image และดาวน์โหลดโมเดลในครั้งแรก
+
+เปิด Docker Desktop ก่อนใช้คำสั่ง Docker แล้วตรวจสอบการติดตั้ง:
+
+```bash
+docker --version
+docker compose version
+```
+
+### 2. รับไฟล์โปรเจกต์ให้ครบ
+
+Compose จะ build image จาก source code ดังนั้นผู้ใช้งานต้องมี repository ทั้งหมด
+ไม่ใช่เฉพาะไฟล์ `compose.yaml`
+
+```bash
+git clone <repository-url>
+cd demo
+```
+
+หากได้รับโปรเจกต์เป็นไฟล์ archive ให้แตกไฟล์และเปิด terminal ในโฟลเดอร์ที่มี
+`compose.yaml`
+
+### 3. สร้างไฟล์ environment ส่วนตัว
+
+ห้ามส่งต่อหรือ commit ไฟล์ `.env` จริงของบุคคลอื่น เพราะอาจมีข้อมูลลับ
+ผู้ใช้งานแต่ละคนต้องสร้างไฟล์ของตนเองจาก template
+
+Windows PowerShell:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+Linux หรือ macOS:
+
+```bash
+cp .env.example .env
+```
+
+เปิด `.env` และเปลี่ยน `JWT_SECRET` เป็นค่าสุ่มที่ยาวและเก็บเป็นความลับ
+ส่วนค่า MongoDB สำหรับการใช้งานภายในเครื่องสามารถใช้ค่าเดิมได้:
+
+```env
+JWT_SECRET=replace-this-with-a-long-random-secret
+FRONTEND_PORT=8080
+MONGO_URI=mongodb://mongo:27017/demo
+ANALYTICS_TIMEZONE=Asia/Bangkok
+DETECTOR_MODEL=yolov8s
+VITE_API_BASE_URL=
+```
+
+ให้เว้น `VITE_API_BASE_URL` ว่างสำหรับ Compose แบบปกติ เพื่อให้ frontend เรียก
+API ผ่าน Nginx proxy ที่มีให้แล้ว หาก port `8080` ถูกใช้งานอยู่ ให้เปลี่ยน
+`FRONTEND_PORT`
+
+### 4. ตรวจสอบข้อจำกัดทรัพยากรของ backend
+
+ไฟล์ `compose.yaml` ปัจจุบันตั้งค่าไว้สำหรับเครื่องที่มี RAM ประมาณ 16 GB:
+
+```yaml
+mem_limit: 6g
+cpus: 4
+```
+
+หากใช้เครื่องที่มี RAM ต่างกัน ให้แก้เฉพาะ service `backend` ตามตารางนี้:
+
+| RAM ของเครื่อง | `mem_limit` | `cpus` |
+| ---: | ---: | ---: |
+| 8 GB | `3g` | `2` |
+| 16 GB | `6g` | `4` |
+| 32 GB | `10g` | `6` |
+
+สำหรับขนาด RAM อื่น ให้กำหนดประมาณ 35–40% ของ RAM ทั้งหมด และห้ามเกิน 50%
+รวมทั้งต้องกำหนดหน่วยความจำให้ Docker Desktop เพียงพอสำหรับ backend, MongoDB,
+frontend และ Docker เอง
+
+### 5. ตรวจสอบ Compose configuration
+
+รันคำสั่งนี้จากโฟลเดอร์ที่มี `compose.yaml`:
+
+```bash
+docker compose config
+```
+
+หากพบข้อผิดพลาดเกี่ยวกับตัวแปรที่ขาดหายหรือ port ให้แก้ไขก่อนดำเนินการต่อ
+ถ้าคำสั่งจบสำเร็จ warning เกี่ยวกับค่าตั้งเสริมของ Docker client
+จะไม่ทำให้ Compose file ใช้งานไม่ได้
+
+### 6. Build และเริ่มระบบ
+
+```bash
+docker compose up --build -d
+```
+
+การ build ครั้งแรกอาจใช้เวลาหลายนาที เพราะ backend ต้องติดตั้ง CPU inference
+runtime และ Python dependencies หลังจากนั้น Docker จะนำ cache มาใช้เพื่อลดเวลา
+
+### 7. ตรวจสอบสถานะ container
+
+```bash
+docker compose ps
+docker compose logs -f backend
+```
+
+รอจน `frontend`, `backend` และ `mongo` ทำงานและมีสถานะ healthy กด `Ctrl+C`
+เพื่อหยุดดู log โดย container จะยังทำงานต่อ หาก container ไม่ healthy ให้ตรวจสอบ
+log ทั้งหมด:
+
+```bash
+docker compose logs --tail=200
+```
+
+### 8. เปิดและเริ่มใช้งานระบบ
+
+เปิด URL ต่อไปนี้ใน browser:
+
+```text
+http://localhost:8080
+```
+
+หากเปลี่ยน `FRONTEND_PORT` ให้ใช้ port ที่ตั้งค่าไว้ สมัครผู้ใช้งานคนแรกผ่านหน้า
+application ผู้ใช้ใหม่จะมี role เป็น `user` และระบบไม่มีบัญชี administrator
+เริ่มต้น หากต้องการสิทธิ์ administrator ผู้ดูแลที่ได้รับอนุญาตสามารถเปลี่ยน role
+ใน MongoDB ได้ด้วยคำสั่ง:
+
+```bash
+docker compose exec mongo mongosh demo --eval 'db.users.updateOne({username: "USERNAME"}, {$set: {role: "admin"}})'
+```
+
+เปลี่ยน `USERNAME` เป็น username ที่สมัครไว้ จากนั้น sign out และ sign in ใหม่
+เพื่อรับ token ที่มี role ใหม่
+
+### 9. ตั้งค่ากล้องเมื่อจำเป็น
+
+backend image เริ่มต้นมี CPU detector runtime อยู่แล้ว เพิ่มกล้องจากหน้า hardware
+settings ตั้งสถานะเป็น `online` และใส่ RTSP URL ที่ container เข้าถึงได้
+ห้ามใช้ `localhost` เพื่ออ้างถึงกล้องหรือ service ที่ทำงานบน host เพราะ
+`localhost` ภายใน container หมายถึงตัว container เอง ให้ใช้ IP ของ host ที่เข้าถึงได้
+หรือ `host.docker.internal` ในระบบที่รองรับ
+
+หากต้องการใช้ detector container แยกต่างหาก ให้ตั้ง `AI_SOURCE` ใน `.env`
+เป็น webcam/RTSP source ที่ container เข้าถึงได้ แล้วเปิด optional profile:
+
+```bash
+docker compose --profile standalone-ai up --build -d
+```
+
+ระบบจะดาวน์โหลด YOLO weights เมื่อใช้โมเดลครั้งแรก และเก็บไฟล์ไว้ใน Docker volume
+ชื่อ `model-cache`
+
+### 10. หยุด เริ่มใหม่ อัปเดต หรือลบ stack
+
+```bash
+# หยุดและลบ container แต่เก็บข้อมูล MongoDB และไฟล์โมเดลไว้
+docker compose down
+
+# เริ่ม stack เดิมอีกครั้ง
+docker compose up -d
+
+# อัปเดต source code และ build ใหม่
+git pull
+docker compose up --build -d
+```
+
+ห้ามใช้ `docker compose down -v` หากยังต้องการข้อมูล MongoDB หรือไฟล์โมเดล
+เพราะคำสั่งนี้จะลบ Docker volumes อย่างถาวร ข้อมูลใน volume อยู่ในเครื่องของ
+ผู้ใช้งานแต่ละคน และจะไม่ถูกคัดลอกมาพร้อมกับ repository
+
+detector จะใช้ CPU เป็นค่าเริ่มต้น เพราะโปรเจกต์ไม่ได้กำหนด CUDA หรือ GPU ไว้
+หากต้องการใช้ CUDA ต้องมี NVIDIA driver/runtime ที่เข้ากันได้ ใช้ PyTorch image
+ที่รองรับ CUDA และกำหนดอุปกรณ์ให้ detector อย่างชัดเจน
 
 # API Overview
 
@@ -890,9 +1237,12 @@ cp backend-node/.env.example backend-node/.env
 
 ## Docker Container Won't Start
 
-No Docker configuration exists in the current repository.
-
-> **TODO:** Verify this information.
+- Run `docker compose config` and resolve any reported missing environment value.
+- Confirm Docker Desktop or Docker Engine is running.
+- Use `docker compose ps` and `docker compose logs --tail=200` to identify the
+  failing service.
+- Confirm the host has enough memory for the limits declared in `compose.yaml`.
+- If the frontend port is already occupied, change `FRONTEND_PORT` in `.env`.
 
 ## npm Install Errors
 
