@@ -6,6 +6,32 @@ The repository contains a Vue frontend, a Node.js/Express API, MongoDB/Mongoose 
 
 > **Note:** Some files under `docs/` describe a historical or separate "NewSystem" workflow. This README is based on the source code that exists in this repository.
 
+## Table of Contents
+
+- [Main Features](#main-features)
+- [Technologies Used](#technologies-used)
+- [Project Architecture Overview](#project-architecture-overview)
+- [Repository Structure](#repository-structure)
+- [Prerequisites](#prerequisites)
+- [Quick Setup Guide](#quick-setup-guide)
+- [Environment Variables](#environment-variables)
+- [Running with Docker](#running-with-docker)
+  - [English Docker instructions](#english-step-by-step-instructions-for-a-new-user)
+  - [คำแนะนำ Docker ภาษาไทย](#ภาษาไทย-ขั้นตอนสำหรับผู้ใช้งานเครื่องใหม่)
+- [API Overview](#api-overview)
+  - [Socket.IO Events](#socketio-events)
+- [Database](#database)
+- [AI Service](#ai-service)
+  - [Camera and RTSP Configuration](#camera--rtsp-configuration)
+  - [Performance Considerations](#performance-considerations)
+- [Authentication and Authorization](#authentication--authorization)
+- [Development Workflow](#development-workflow)
+- [Testing](#testing)
+- [Troubleshooting](#troubleshooting)
+- [Contributing](#contributing)
+- [License](#license)
+- [Acknowledgements](#acknowledgements)
+
 ## Main Features
 
 - User registration and login with JWT authentication.
