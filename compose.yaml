@@ -25,6 +25,8 @@ services:
         max-file: "3"
 
   backend:
+    mem_limit: 6g
+    cpus: 4
     build:
       # The root context is required because backend-managed detectors use AI/.
       context: .
