@@ -713,6 +713,14 @@ const getStationKey = (station) => {
   return station._id || station.id || station.name || `${station.location?.lat ?? ''}-${station.location?.lng ?? ''}`
 }
 
+const getStationLatLng = (station) => {
+  const lat = Number.parseFloat(station?.location?.lat)
+  const lng = Number.parseFloat(station?.location?.lng)
+
+  if (Number.isNaN(lat) || Number.isNaN(lng)) return null
+  return { lat, lng }
+}
+
 const createStationIcon = (markerColor, isSelected = false) => {
   const pinWidth = isSelected ? 34 : 28
   const pinHeight = isSelected ? 49 : 41
@@ -752,10 +760,9 @@ const selectDestination = (station, marker = null) => {
     selectedDestination.value = getStationDisplayName(station)
     updateStationMarkerVisibility(stationKey)
 
-    const lat = parseFloat(station.location?.lat)
-    const lng = parseFloat(station.location?.lng)
-    if (!Number.isNaN(lat) && !Number.isNaN(lng)) {
-      map.flyTo([lat, lng], 17, { duration: 1.2 })
+    const location = getStationLatLng(station)
+    if (location) {
+      map.flyTo([location.lat, location.lng], 17, { duration: 1.2 })
       matchedMarker.openPopup()
     }
   }
@@ -977,31 +984,18 @@ const createMap = () => {
   lineLayer1 = L.polyline(line1Coords, { color: '#8b0000', weight: 3, opacity: 0.9 })
   lineLayer2 = L.polyline(line2Coords, { color: '#f1c40f', weight: 3, opacity: 0.9, dashArray: '8, 4' })
 
-  // ==========================================
-  // 🚨 จุดที่ต้องแก้: กรองข้อมูลให้ยืดหยุ่นขึ้น
-  // ==========================================
-  console.log('📌 ข้อมูลสถานีที่ได้จาก API:', stations.value) // เช็กใน Console (F12) ว่ามีข้อมูลมาไหม
-
   stationMarkers = []
   selectedStationMarker = null
   selectedDestination.value = ''
 
-  const validStations = stations.value.filter((s) => {
-    if (!s.location || s.location.lat == null || s.location.lng == null) return false
-    
-    // แปลงให้เป็นตัวเลขเสมอ (แก้ปัญหา DB ส่งมาเป็น String)
-    const lat = parseFloat(s.location.lat)
-    const lng = parseFloat(s.location.lng)
-    
-    return !isNaN(lat) && !isNaN(lng) // ผ่านถ้าเป็นตัวเลขที่ถูกต้อง
-  })
-
-  console.log('📌 สถานีที่พิกัดถูกต้อง พร้อมปักหมุด:', validStations)
+  const validStations = stations.value
+    .map((station) => ({ ...station, location: getStationLatLng(station) }))
+    .filter((station) => station.location)
 
   // สร้างหมุดป้ายรถเมล์
   validStations.forEach((station) => {
     const markerColor = getStationMarkerColor(station.waitingPassengers || 0)
-    const marker = L.marker([parseFloat(station.location.lat), parseFloat(station.location.lng)], {
+    const marker = L.marker([station.location.lat, station.location.lng], {
       icon: createStationIcon(markerColor)
     })
 
@@ -1017,7 +1011,6 @@ const createMap = () => {
     })
   })
   updateStationMarkerVisibility(null)
-  // ==========================================
 
   busMarker1 = L.marker(line1Coords[0], { icon: createBusIcon(), zIndexOffset: 1000 })
   busMarker1.bindTooltip(`${t.value.line} 1`, { permanent: false, direction: 'top' })

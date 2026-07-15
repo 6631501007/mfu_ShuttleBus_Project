@@ -38,6 +38,7 @@ RUN npm ci --omit=dev \
 # Only runtime source is included; docs, frontend files, and dev scripts stay out.
 COPY --chown=node:node backend-node/app.js ./app.js
 COPY --chown=node:node backend-node/models ./models
+COPY --chown=node:node backend-node/utils ./utils
 COPY --chown=node:node AI/detect_humans_live-api.py /app/AI/detect_humans_live-api.py
 
 # Ultralytics downloads weights on first use. Compose mounts /models as a named

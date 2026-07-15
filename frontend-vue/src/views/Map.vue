@@ -210,6 +210,14 @@ const refreshMapText = () => {
   });
 };
 
+const getStationLatLng = (station) => {
+  const lat = Number.parseFloat(station?.location?.lat)
+  const lng = Number.parseFloat(station?.location?.lng)
+
+  if (Number.isNaN(lat) || Number.isNaN(lng)) return null
+  return { lat, lng }
+}
+
 const setLayerVisibility = (layer, shouldShow) => {
   if (!map || !layer) return
 
@@ -405,9 +413,9 @@ const createMap = () => {
     map = null
   }
 
-  const validStations = stations.value.filter(
-    (s) => s.location && typeof s.location.lat === 'number' && typeof s.location.lng === 'number'
-  )
+  const validStations = stations.value
+    .map((station) => ({ ...station, location: getStationLatLng(station) }))
+    .filter((station) => station.location)
 
   const center = validStations.length
     ? validStations[0].location

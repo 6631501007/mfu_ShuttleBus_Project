@@ -386,12 +386,25 @@ import { apiFetch } from '../service/api'
 import { useLanguage } from '../composables/useLanguage'
 
 const router = useRouter();
+const stationModalIcon = L.divIcon({
+  html: `
+    <svg xmlns="http://www.w3.org/2000/svg" width="30" height="45" viewBox="0 0 30 45" aria-hidden="true">
+      <path fill="#2563eb" stroke="#ffffff" stroke-width="2" d="M15 1C7.3 1 1 7.3 1 15c0 10.6 14 28.5 14 28.5S29 25.6 29 15C29 7.3 22.7 1 15 1z"/>
+      <circle cx="15" cy="15" r="5.4" fill="#ffffff"/>
+    </svg>
+  `,
+  className: 'station-modal-pin-icon',
+  iconSize: [30, 45],
+  iconAnchor: [15, 43],
+  popupAnchor: [0, -38]
+});
 
 // ── UI state ──────────────────────────────────────────────
 const isDropdownOpen = ref(false);
 const { language, toggleLanguage } = useLanguage();
 const hasUnsavedChanges = ref(false); 
 let isFetching = false; 
+let isApplyingStationCrud = false;
 const dirtyGeneralSettings = ref(false);
 const dirtyHardwareSettings = ref(false);
 const dirtyStationSettings = ref(false);
@@ -596,6 +609,21 @@ const getProgressColor = (current) => {
   if (passengers >= 5) return 'yellow';
   return 'green'; 
 };
+
+const normalizeStationLocation = (location, fallback = defaultStationLocation) => {
+  const lat = Number.parseFloat(location?.lat);
+  const lng = Number.parseFloat(location?.lng);
+
+  if (Number.isNaN(lat) || Number.isNaN(lng)) return { ...fallback };
+  return { lat, lng };
+};
+
+const normalizeStationForUi = (station = {}) => ({
+  ...station,
+  location: normalizeStationLocation(station.location),
+  capacity: Math.max(1, Number(station.capacity) || 100),
+  waitingPassengers: Math.max(0, Number(station.waitingPassengers) || 0)
+});
 
 const normalizeZone = (zone, index = 0, zoneName = '') => {
   const width = Math.min(100, Math.max(1, Number(zone?.width) || 1));
@@ -838,7 +866,8 @@ const loadStations = async () => {
   try {
     const res = await apiFetch('/api/stations');
     if (!res.ok) throw new Error('Cannot load stations');
-    stations.value = await res.json();
+    const data = await res.json();
+    stations.value = Array.isArray(data) ? data.map(normalizeStationForUi) : [];
   } catch (error) {
     console.error(error);
   }
@@ -1015,13 +1044,8 @@ const saveSettings = async () => {
     }
 
     if (dirtyStationSettings.value) {
-      const stationsRes = await apiFetch('/api/stations-bulk', {
-        method: 'PUT',
-        body: JSON.stringify({ stations: stations.value })
-      });
-      const stationsData = await readApiJson(stationsRes, 'Saving station settings');
-      if (!stationsRes.ok) throw new Error(stationsData.message || 'Cannot save stations');
       await verifySavedStations();
+      dirtyStationSettings.value = false;
     }
 
     alert('Settings saved and verified successfully');
@@ -1038,7 +1062,7 @@ const discardChanges = async () => {
 
 // State Change Tracking
 const markAsUnsaved = (type) => {
-  if (isFetching) return;
+  if (isFetching || (type === 'stations' && isApplyingStationCrud)) return;
 
   if (type === 'stations') dirtyStationSettings.value = true;
   if (type === 'general') dirtyGeneralSettings.value = true;
@@ -1068,14 +1092,13 @@ const openAddModal = () => {
 const openEditModal = (station) => {
   modalMode.value = 'edit';
   editStationId.value = station._id;
+  const location = normalizeStationLocation(station.location);
   formData.value = {
     name: station.name,
     desc: station.desc || station.description || '',
     capacity: station.capacity ?? 100,
     waitingPassengers: station.waitingPassengers ?? 0,
-    location: station.location && station.location.lat != null && station.location.lng != null
-      ? { ...station.location }
-      : { ...defaultStationLocation }
+    location
   };
   selectedLocation.value = { ...formData.value.location };
   isModalOpen.value = true;
@@ -1087,40 +1110,90 @@ const closeModal = () => {
   destroyModalMap();
 };
 
-const confirmModal = () => {
+const applyStationCrudResult = async (nextStations) => {
+  isApplyingStationCrud = true;
+  stations.value = nextStations.map(normalizeStationForUi);
+  await nextTick();
+  dirtyStationSettings.value = false;
+  hasUnsavedChanges.value = dirtyGeneralSettings.value || dirtyHardwareSettings.value;
+  isApplyingStationCrud = false;
+};
+
+const confirmModal = async () => {
   if (!formData.value.name) return;
 
-  if (modalMode.value === 'add') {
-    stations.value.push({
-      _id: `pending-${Date.now()}`,
-      stationId: 'ST-' + Date.now(),
-      name: formData.value.name,
-      desc: formData.value.desc,
-      capacity: formData.value.capacity,
-      waitingPassengers: formData.value.waitingPassengers ?? 0,
-      status: 'normal',
-      zone: formData.value.zone || 'Unknown',
-      location: formData.value.location || { lat: 0, lng: 0 },
-      incomingBuses: 'N/A'
-    });
-  } else {
-    const index = stations.value.findIndex((station) => station._id === editStationId.value);
-    if (index !== -1) {
-      stations.value[index] = {
-        ...stations.value[index],
+  try {
+    if (modalMode.value === 'add') {
+      const payload = {
+        stationId: `ST-${Date.now()}`,
         name: formData.value.name,
         desc: formData.value.desc,
         capacity: formData.value.capacity,
-        location: formData.value.location || stations.value[index].location
+        waitingPassengers: formData.value.waitingPassengers ?? 0,
+        status: 'normal',
+        zone: formData.value.zone || 'Unknown',
+        location: normalizeStationLocation(formData.value.location),
+        incomingBuses: 'N/A'
       };
+
+      const res = await apiFetch('/api/stations', {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      });
+      const data = await readApiJson(res, 'Creating station');
+      if (!res.ok) throw new Error(data.message || 'Cannot create station');
+
+      const savedStation = data.station || data;
+      await applyStationCrudResult([...stations.value, savedStation]);
+    } else {
+      const index = stations.value.findIndex((station) => station._id === editStationId.value);
+      if (index !== -1) {
+        const payload = {
+          name: formData.value.name,
+          desc: formData.value.desc,
+          capacity: formData.value.capacity,
+          location: normalizeStationLocation(formData.value.location, stations.value[index].location)
+        };
+
+        const res = await apiFetch(`/api/stations/${editStationId.value}`, {
+          method: 'PUT',
+          body: JSON.stringify(payload)
+        });
+        const data = await readApiJson(res, 'Updating station');
+        if (!res.ok) throw new Error(data.message || 'Cannot update station');
+
+        const updatedStations = [...stations.value];
+        updatedStations[index] = {
+          ...stations.value[index],
+          ...data.station,
+          name: formData.value.name,
+          desc: formData.value.desc,
+          capacity: formData.value.capacity,
+          location: normalizeStationLocation(formData.value.location, stations.value[index].location)
+        };
+        await applyStationCrudResult(updatedStations);
+      }
     }
+
+    closeModal();
+  } catch (error) {
+    console.error(error);
+    alert(error.message || 'Unable to save station');
   }
-  closeModal();
 };
 
-const deleteStation = (id) => {
+const deleteStation = async (id) => {
   if (!confirm('Delete this station?')) return;
-  stations.value = stations.value.filter((station) => station._id !== id);
+
+  try {
+    const res = await apiFetch(`/api/stations/${id}`, { method: 'DELETE' });
+    const data = await readApiJson(res, 'Deleting station');
+    if (!res.ok) throw new Error(data.message || 'Cannot delete station');
+    await applyStationCrudResult(stations.value.filter((station) => station._id !== id));
+  } catch (error) {
+    console.error(error);
+    alert(error.message || 'Unable to delete station');
+  }
 };
 
 
@@ -1289,15 +1362,17 @@ const initModalMap = () => {
     destroyModalMap();
   }
 
-  const initialLocation = formData.value.location || defaultStationLocation;
+  const initialLocation = normalizeStationLocation(formData.value.location);
+  formData.value.location = { ...initialLocation };
   modalMap.value = L.map(mapElement).setView([initialLocation.lat, initialLocation.lng], 13);
 
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; OpenStreetMap'
   }).addTo(modalMap.value);
 
-  modalMarker = L.marker([initialLocation.lat, initialLocation.lng]).addTo(modalMap.value);
+  modalMarker = L.marker([initialLocation.lat, initialLocation.lng], { icon: stationModalIcon }).addTo(modalMap.value);
   modalMarker.bindPopup('Selected station location').openPopup();
+  setTimeout(() => modalMap.value?.invalidateSize(), 0);
 
   modalMap.value.on('click', (e) => {
     selectedLocation.value = { lat: e.latlng.lat, lng: e.latlng.lng };
@@ -1306,7 +1381,7 @@ const initModalMap = () => {
     if (modalMarker) {
       modalMarker.setLatLng(e.latlng).openPopup();
     } else {
-      modalMarker = L.marker(e.latlng).addTo(modalMap.value);
+      modalMarker = L.marker(e.latlng, { icon: stationModalIcon }).addTo(modalMap.value);
       modalMarker.bindPopup('Selected station location').openPopup();
     }
   });
@@ -2387,6 +2462,15 @@ input:checked+.slider:before {
   overflow: hidden;
   margin-top: 10px;
   border: 1px solid #e5e7eb;
+}
+
+:deep(.station-modal-pin-icon) {
+  background: transparent;
+  border: 0;
+}
+
+:deep(.station-modal-pin-icon svg) {
+  display: block;
 }
 
 .map-help {

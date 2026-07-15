@@ -985,7 +985,7 @@ app.use('/api', dbMiddleware);
 /////////////////// Dashboard ///////////////////
 app.get('/api/dashboard', adminMiddleware, async (req, res) => {
   try {
-    const stations = await Station.find().lean();
+    const stations = (await Station.find({}, STATION_LIST_PROJECTION).lean()).map(normalizeStationForResponse);
     const buses = await Bus.find().lean();
     const analytics = await Analytics.findOne().sort({ createdAt: -1 }).lean();
     const hourlyAnalytics = await HourlyAnalytics
@@ -1074,7 +1074,7 @@ app.post('/api/analytics', adminMiddleware, async (req, res) => {
 app.get('/api/home', async (req, res) => {
   try {
     const analytics = await Analytics.findOne().sort({ createdAt: -1 }).lean();
-    const stations = await Station.find().lean();
+    const stations = (await Station.find({}, STATION_LIST_PROJECTION).lean()).map(normalizeStationForResponse);
 
     const rankings = stations
       .slice()
@@ -1100,7 +1100,7 @@ app.get('/api/home', async (req, res) => {
 /////////////////// Map ///////////////////
 app.get('/api/map', adminMiddleware, async (req, res) => {
   try {
-    const stations = await Station.find({}, { stationId: 1, name: 1, location: 1, waitingPassengers: 1, incomingBuses: 1, status: 1 }).lean();
+    const stations = (await Station.find({}, STATION_LIST_PROJECTION).lean()).map(normalizeStationForResponse);
     res.json({ stations });
   } catch (error) {
     res.status(500).json(error);
@@ -1488,12 +1488,66 @@ app.delete('/api/settings/hardware/:hardwareId', adminMiddleware, async (req, re
   }
 });
 
+const STATION_LIST_PROJECTION = {
+  stationId: 1,
+  name: 1,
+  desc: 1,
+  description: 1,
+  zone: 1,
+  location: 1,
+  capacity: 1,
+  waitingPassengers: 1,
+  incomingBuses: 1,
+  status: 1
+};
+
+const normalizeStationForResponse = (station = {}) => {
+  const lat = Number.parseFloat(station.location?.lat);
+  const lng = Number.parseFloat(station.location?.lng);
+
+  return {
+    ...station,
+    location: Number.isNaN(lat) || Number.isNaN(lng) ? station.location : { lat, lng }
+  };
+};
+
+const sanitizeStationPayload = (body = {}, existingStation = null) => {
+  const name = typeof body.name === 'string' ? body.name.trim() : '';
+  if (!name) return { error: 'Station name is required' };
+
+  const stationId = String(body.stationId || existingStation?.stationId || `ST-${Date.now()}`).trim();
+  const capacity = Math.max(1, Number(body.capacity ?? existingStation?.capacity ?? 100) || 100);
+  const waitingPassengers = Math.max(0, Number(body.waitingPassengers ?? existingStation?.waitingPassengers ?? 0) || 0);
+  const lat = Number.parseFloat(body.location?.lat ?? existingStation?.location?.lat);
+  const lng = Number.parseFloat(body.location?.lng ?? existingStation?.location?.lng);
+
+  if (Number.isNaN(lat) || Number.isNaN(lng)) {
+    return { error: 'Station location must include valid latitude and longitude' };
+  }
+
+  return {
+    stationId,
+    name,
+    desc: body.desc ?? body.description ?? existingStation?.desc ?? '',
+    zone: body.zone ?? existingStation?.zone ?? 'Unknown',
+    location: { lat, lng },
+    capacity,
+    waitingPassengers,
+    incomingBuses: body.incomingBuses ?? existingStation?.incomingBuses ?? 'N/A',
+    status: body.status ?? existingStation?.status ?? 'normal'
+  };
+};
+
 /////////////////// Stations ///////////////////
 app.post('/api/stations', adminMiddleware, async (req, res) => {
   try {
-    const station = await Station.create(req.body);
-    res.status(201).json({ message: 'Station created', station });
+    const payload = sanitizeStationPayload(req.body);
+    if (payload.error) return res.status(400).json({ message: payload.error });
+
+    const station = await Station.create(payload);
+    res.status(201).json({ message: 'Station created', station: normalizeStationForResponse(station.toObject()) });
   } catch (error) {
+    if (error.code === 11000) return res.status(409).json({ message: 'Station ID already exists' });
     res.status(500).json(error);
   }
 });
@@ -1501,8 +1555,8 @@ app.post('/api/stations', adminMiddleware, async (req, res) => {
 // GET all stations
 app.get('/api/stations', adminMiddleware, async (req, res) => {
   try {
-    const stations = await Station.find().lean();
-    res.json(stations);
+    const stations = await Station.find({}, STATION_LIST_PROJECTION).lean();
+    res.json(stations.map(normalizeStationForResponse));
   } catch (error) {
     res.status(500).json(error);
   }
@@ -1514,13 +1568,21 @@ const saveStationsBulk = async (req, res) => {
     const { stations } = req.body;
     if (!Array.isArray(stations)) return res.status(400).json({ message: 'Stations must be an array' });
 
+    const sanitizedStations = [];
+    for (const station of stations) {
+      const { _id, ...rest } = station;
+      const payload = sanitizeStationPayload(rest);
+      if (payload.error) return res.status(400).json({ message: payload.error });
+      sanitizedStations.push(payload);
+    }
+
     await Station.deleteMany({});
-    const sanitizedStations = stations.map(({ _id, ...rest }) => rest);
     await Station.insertMany(sanitizedStations);
 
-    const savedStations = await Station.find().lean();
-    res.json({ message: 'Stations saved', stations: savedStations });
+    const savedStations = await Station.find({}, STATION_LIST_PROJECTION).lean();
+    res.json({ message: 'Stations saved', stations: savedStations.map(normalizeStationForResponse) });
   } catch (error) {
+    if (error.code === 11000) return res.status(409).json({ message: 'Station ID already exists' });
     res.status(500).json(error);
   }
 };
@@ -1531,10 +1593,19 @@ app.put('/api/stations/bulk', adminMiddleware, saveStationsBulk);
 // PUT update station
 app.put('/api/stations/:id', adminMiddleware, async (req, res) => {
   try {
-    const station = await Station.findByIdAndUpdate(req.params.id, req.body, { new: true });
-    if (!station) return res.status(404).json({ message: 'Station not found' });
-    res.json({ message: 'Station updated', station });
+    const existingStation = await Station.findById(req.params.id).lean();
+    if (!existingStation) return res.status(404).json({ message: 'Station not found' });
+
+    const payload = sanitizeStationPayload(req.body, existingStation);
+    if (payload.error) return res.status(400).json({ message: payload.error });
+
+    const station = await Station.findByIdAndUpdate(req.params.id, payload, {
+      new: true,
+      runValidators: true
+    }).lean();
+    res.json({ message: 'Station updated', station: normalizeStationForResponse(station) });
   } catch (error) {
+    if (error.code === 11000) return res.status(409).json({ message: 'Station ID already exists' });
     res.status(500).json(error);
   }
 });
@@ -1564,7 +1635,7 @@ app.post('/api/buses', adminMiddleware, async (req, res) => {
 // 1. เพิ่ม API ดึงแผนที่สำหรับ User ธรรมดา (ไม่มี adminMiddleware)
 app.get('/api/user-map', async (req, res) => {
   try {
-    const stations = await Station.find({}, { stationId: 1, name: 1, location: 1, waitingPassengers: 1, incomingBuses: 1, status: 1 }).lean();
+    const stations = (await Station.find({}, STATION_LIST_PROJECTION).lean()).map(normalizeStationForResponse);
     res.json({ stations });
   } catch (error) {
     res.status(500).json(error);

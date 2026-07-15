@@ -8,6 +8,8 @@ backend-node/**
 !backend-node/app.js
 !backend-node/models/
 !backend-node/models/**
+!backend-node/utils/
+!backend-node/utils/**
 !AI/
 AI/**
 !AI/requirements.txt
